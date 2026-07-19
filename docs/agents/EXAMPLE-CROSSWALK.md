@@ -4,6 +4,8 @@
 
 Catalog (§15) and Checkout (§16) are advanced fixtures. Use only the property whose trigger matches the project. Do not copy their profiles, identities, limits, routes, participants, grants, status authority, or artifact count.
 
+These examples are projections, not independent authority. When an example and a marked Core source clause differ, Core controls and the crosswalk must be repaired.
+
 ## Catalog Feature Ball
 
 | Trigger demonstrated | Core anchor | Agent route |
@@ -56,6 +58,8 @@ Catalog owns `CatalogSignal.ProductSelectionConfirmed`; Assembly only binds its 
 
 Persisted schema-v1 state enters v2 `decide` only after authoritative upcast. A v1 cancellation-rejection record is upcast only when bounded accepted evidence supplies the exact newly required reason; otherwise it is quarantined or sent to declared manual remediation. No null, empty, generic, log-derived, or inferred reason is accepted, and retained v1 outputs keep v1 meaning.
 
+The Catalog regression suite preserves all six state-to-view mappings and six `ProductSelected` transitions, every compatible lifecycle × cancellation × rejection-reason combination, both terminal conflict orders, late result/unknown refinement, and actor-independent sparsity. A present status trigger cannot be discharged by omitting its Query or one reachable facet.
+
 A Ball with no external operation, detached result, or cancellation path inherits none of this machinery.
 
 ## Checkout Flow Ball
@@ -82,7 +86,66 @@ Order rejection -> Refund(P) + Release(I) + Unlock(original cart/lock)
 
 Each retained value carries the authority/observation correlation, versions, provenance, and last-consumer retention required by the durable path. Direct and reconciled proof of the same P corroborate; conflicting proof fails closed. Recovery uses committed values, never a participant/runtime ledger or rerun of current transition code.
 
-The delivery/status fixture includes the initial Reply plus all command handles, bounded pending/retention, duplicate/conflict, and capacity-edge tests. Those are Checkout's reachable paths, not universal Ball requirements.
+Every Checkout command follows the same accepted target bridge:
+
+```text
+accepted Checkout ModuleCommandRequest
+-> verified target ModuleCommandPulse(commandSource, effectiveProtocolIdentity,
+                                       command: ModuleCommand, issuerProvenance)
+-> target decide
+-> accepted target ModuleResultOutput(sourceOrdinal, commandSource,
+                                      payload: ModuleResult)
+-> verified Checkout ModuleResultPulse(commandSource, resultSource,
+                                       effectiveProtocolIdentity,
+                                       result: ModuleResult, issuerProvenance)
+```
+
+Assembly binds and transports the route; it cannot synthesize either causal token, payload, or refusal meaning. Same-stack erasure proves the same tuples. The result-delivery key is the unnamed tuple `(effectiveProtocolIdentity, commandSource, resultSource)`.
+
+Normal business outcomes for all nine Checkout routes use accepted target results:
+
+| Command | Accepted result path |
+|---|---|
+| `Cart.LockForCheckout` | success or domain lock refusal/conflict |
+| `Cart.Unlock` | success/rejection/failure/unknown |
+| `Inventory.Reserve` | `InventoryReserved` or `InventoryReservationRejected` |
+| `Inventory.Release` | success/rejection/failure/unknown |
+| `Payment.Capture` | captured/rejected/failed/outcome-unknown |
+| `Payment.CancelCapture` | accepted-before-start/in-progress, too-late, rejected, or unknown |
+| `Payment.Refund` | success/rejection/failure/unknown |
+| `Payment.GetOperationStatus` | `Captured`, `DefinitelyNotCaptured`, or `StillUnknown` |
+| `Order.Confirm` | confirmed or definitive rejected/failed/unknown |
+
+`InventoryReservationRejected` is never the pre-acceptance carrier. `DefinitelyNotCaptured(RejectedBeforeAcceptance, ...)` describes refusal of the original `Payment.Capture`, not refusal of `Payment.GetOperationStatus`. A definitive `Order.Confirm` refusal after capture is an accepted result. Checkout may accept its own `RejectedBeforeExternalCommitment`, but that Flow outcome does not copy a carrier reason.
+
+The canonical carrier projection is exact: enclosing Checkout `source` projects `commandSource`; the resolved dependency projects `effectiveProtocolIdentity`; `reason` projects the one closed `boundaryResponse`; and `acceptanceEvidence` projects `targetBoundaryProvenance`. A verified carrier yields `acceptance = RejectedBeforeAcceptance` and `outcome = NotExpected`; carried `BusinessRejection` is informational. A verified accepted `ModuleResultOutput(Rejected(...))` yields `acceptance = Accepted` and `outcome = Rejected`. Carrier/result conflict fails closed.
+
+Payment demonstrates the Dual Gate and command-vs-read boundary. The trusted target boundary verifies the accepted command source, effective protocol identity, action-scoped actor/grant context, bounds, and provenance before constructing `ModuleCommandPulse`. The Payment Nucleus owns the business schema and Policy Gate and alone accepts a business Decision/result. Immediately before provider execution, the Execution Gate verifies the current proof, capability, constraints, version, freshness/revocation, endpoint, quota, and sink without inventing a business decision. Pre-`decide` validation/admission/provenance refusal uses the carrier; an accepted Nucleus refusal uses accepted `ModuleResultOutput(Rejected(...))`; post-acceptance provider/Execution-Gate failure remains Resource/result/status evidence and cannot become the carrier.
+
+`Payment.GetOperationStatus` remains a command because Checkout requires accepted provenance, stable step identity, idempotent replay, status, and reconciliation. Its same-state snapshot acceptance advances Payment revision and emits an accepted result; EventJournal uses `Accepted(NoDomainChange { outputs = [...] })`. Duplicate delivery within the horizon returns the prior result and target proof without another Decision/revision. An ordinary non-recording lookup uses `ReadDependency`/`Query` instead.
+
+Checkout declares `maxRetainedDispatchStops: 10` and has exactly ten canonical source-delivery stop slots:
+
+```text
+0 Cart.LockForCheckout
+1 initial RequestAccepted ReplyOutput
+2 Inventory.Reserve
+3 Payment.Capture
+4 Payment.CancelCapture
+5 Payment.GetOperationStatus
+6 Order.Confirm
+7 Inventory.Release
+8 Payment.Refund
+9 Cart.Unlock
+```
+
+`initialAcceptanceReply` is the exact handle `SemanticHandle(operationId, Checkout.RequestAccepted, "initial-acceptance")`. Its trusted status-only delivery `ControlPulse` binds to the accepted Reply source tuple; it is not a command Pulse or business result and does not write `CheckoutState` directly. The initial Decision reserves both `cartLock` and `initialAcceptanceReply` slots before acceptance.
+
+The status materializer reserves all reachable operation/pending/facet/marker/stop capacity before source acceptance, never evicts accepted facts, applies causal sources or bounded pending, merges identical duplicates idempotently, fails closed on conflicting same-key evidence, and creates a retention marker only after covered source positions and empty pending. Tests cover reply-only, reply plus all nine commands, both orders of two stops, duplicate/conflict, lifecycle/cancellation preservation, marker/pending races, no resurrection, and `10/11` capacity.
+
+A participant's accepted `ModuleResultOutput` uses a separate participant-owned target stop slot keyed by the result-delivery tuple. Crash before result dispatch does not erase that accepted result under the selected target profile. Target route exhaustion records target `DispatchStopped` but does not add an eleventh Checkout source slot or set a Checkout facet; Checkout remains `Pending`/unknown until verified result or reconciliation, and a late result may refine it without erasing the target stop fact.
+
+Those are Checkout's reachable paths, not universal Ball requirements.
 
 ## Review use
 

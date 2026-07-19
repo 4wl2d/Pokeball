@@ -37,7 +37,7 @@
 </table>
 
 > [!IMPORTANT]
-> The [Core specification](spec/pokeball-architecture-core.md) is the sole normative source for Pokeball. This README is an introduction, and the [Agent Pack](docs/agents/README.md) provides practical guidance derived from the Core. If they differ, the Core takes precedence.
+> For each law, the marked `Source clause for PBA-xx` in the numbered body of the [Core specification](spec/pokeball-architecture-core.md) is the sole normative authority. The law list, applicability matrix, tests, checklist, examples, glossary, this README, and the [Agent Pack](docs/agents/README.md) are projections. If a projection differs from its source clause, the source clause controls.
 
 This repository contains the Core specification and practical adoption guidance. It does not contain a Pokeball runtime, framework, library, or reference implementation.
 
@@ -70,7 +70,16 @@ Each Ball:
 
 Pokeball has one sparse Core, not separate “Lite” and “full” architectures. Its always-applicable invariants remain universal. A reachable path or named risk activates only its guardrail; a concrete claim activates its evidence. Each activated guardrail resolves once through construction, a local declaration, or an exact immutable project-, profile-, Assembly-, or binding-scoped policy, with only permitted Ball-specific deltas. A proven-absent trigger needs no empty table, zero, `N/A`, or evidence placeholder.
 
-A Ball is not automatically a screen, endpoint, table, repository, service, aggregate, or use case. Stateless helpers remain utilities; a one-hop call does not automatically become a workflow.
+`TriggerAbsenceProof` is materialized only when a Pokeball conformance or release claim, or an accepted ambiguity-resolution decision, relies on trigger absence. Routine design, implementation, adoption, or piloting creates no proof merely because a category is absent. An `always` obligation or present trigger cannot use such a proof; contrary present evidence invalidates it and requires the guardrail to resolve.
+
+Core constrains valid authority and dependency graphs; it does not promise one unique decomposition graph. Boundary choices are falsifiable:
+
+- combine parts when one strict invariant requires one state key, writer, lifecycle, and recovery unit, unless a stronger trust, ownership, partition, durability, or containment boundary forbids it;
+- separate parts when they need independent owners, state keys, lifecycles, terminal outcomes, trust/durability boundaries, or material load/containment;
+- keep a candidate as a utility or adapter when it owns no mutable semantic fact, business decision, protocol/lifecycle, or resource consequence;
+- use a `Feature Ball` for one local capability's state and decisions, a `Flow Ball` for material cross-authority coordination, and a `Read Model Ball` only for derived query state, source positions, freshness, and rebuild policy without command authority.
+
+A Ball is not automatically a screen, endpoint, table, repository, service, aggregate, or use case. `EphemeralState` is limited to focus, scroll, animation, layout, transport, and equivalent mechanics that cannot change a business `Decision`; a decision-relevant UI or transport value is committed State or an explicit trusted current `Pulse`/`DecisionContext` input.
 
 ## One Ball at a glance
 
@@ -85,6 +94,8 @@ flowchart LR
     R -->|"validated Fact when a result path exists"| N
     I -->|"encoded view / response"| X
 ```
+
+**Arrow legend.** Solid arrows show semantic input/output direction between logical roles; no arrow transfers state, policy, resource, or business authority.
 
 These are logical roles, not necessarily separate processes, classes, or heap objects.
 
@@ -107,12 +118,32 @@ decide(
    | Rejected(BusinessRejection)
 ```
 
-`Pulse` is a closed union of `Intent`, `Fact`, `ModuleResult`, `ObservedSignal`, and declared trusted `ControlPulse` variants. In snapshot form, a successful `Decision` contains the complete next state and an ordered, bounded batch of canonical `SemanticOutput` envelopes:
+`Pulse` is the following exact ordered closed union:
 
 ```text
-ProjectionOutput | ReplyOutput | EffectRequest
-ModuleCommandRequest | SignalPublication | TimerRequest
+Pulse =
+    Intent
+  | Fact
+  | ModuleCommandPulse
+  | ModuleResultPulse
+  | ObservedSignal
+  | ControlPulse
 ```
+
+In snapshot form, a successful `Decision` contains the complete next state and this exact ordered, bounded union of canonical `SemanticOutput` envelopes:
+
+```text
+SemanticOutput =
+    ProjectionOutput
+  | ReplyOutput
+  | EffectRequest
+  | ModuleCommandRequest
+  | ModuleResultOutput
+  | SignalPublication
+  | TimerRequest
+```
+
+Bare `ModuleResult` is not a `Pulse`; `SignalOutput` does not exist; and `TimerFired` is not a top-level `Pulse` but may remain a declared timer `ControlPulse`. `ObservedSignal`, `ProjectionOutput`, and `SignalPublication` remain first-class protocol variants.
 
 In `EventJournal` form, `Accepted(EventDecision)` contains either `EventMutation { events, outputs }` or `NoDomainChange { outputs }`; it does not return an independent `nextState`. The shared invariant is atomic acceptance of the snapshot state mutation or event decision together with the complete source-output batch.
 
@@ -133,9 +164,28 @@ flowchart LR
     V -. "matching Pulse at its owning Ball" .-> P
 ```
 
+**Arrow legend.** Solid arrows show the current transition, acceptance, and post-acceptance dispatch; the dotted arrow is a later verified matching `Pulse`, never rollback or a reentrant nested transition.
+
 The ordering is deliberate when outputs exist: **accept or commit first, dispatch second**. A crash or fault before acceptance cannot expose partial state or a partial accepted-output batch. For a present fallible delivery path, a fault after acceptance does not roll the Decision back and activates only its applicable retention, retry, status, or unknown-outcome contract.
 
 Only outputs with a declared completion or observation path can later create a matching `Pulse` at the source or declared consumer. `ProjectionOutput` and `ReplyOutput` are delivery paths, not implicit result Pulses.
+
+### Inter-Ball command/result bridge
+
+`ModuleCommand` and `ModuleResult` are payload types owned by the target contract. Their canonical bridge is:
+
+1. the source accepts `ModuleCommandRequest` in its Decision;
+2. the trusted target boundary verifies the accepted source frame, protocol identity, ownership, bounds, and provenance before constructing `ModuleCommandPulse`;
+3. target `decide` is the sole target acceptance point and can create `ModuleResultOutput` only inside an accepted target Decision;
+4. the verified result route derives `resultSource` from that accepted target frame and constructs `ModuleResultPulse` for the source while preserving the accepted `commandSource`.
+
+Assembly selects the route, effective protocol/version pair, and ingress/return bindings and transports only verified values. It cannot synthesize or modify `commandSource`, `resultSource`, a command/result payload, refusal classification or reason, or any other business meaning; generated same-stack wiring must prove the same accepted source and target tuples.
+
+Before target acceptance, `CommandRejectedBeforeAcceptance` may carry only a verified `ValidationFailure`, `AdmissionFailure`, or `DecisionRejected(BusinessRejection)`. It is neither `ReplyOutput` nor `ModuleResult`, creates no accepted target Decision/revision/output, and reaches source state only through a typed mechanical `ControlPulse`; at the source it means `RejectedBeforeAcceptance + NotExpected`, not an accepted rejected outcome. A refusal that creates a target-owned record, replay result, status/reconciliation fact, Resource action, output, or other accepted-operation evidence is instead an accepted `ModuleResultOutput`; at the source its verified result can mean `Accepted + Rejected`. This classification is versioned target-contract meaning, and a later failure never downgrades an accepted result to the carrier.
+
+A read-like command deliberately pays target acceptance and revision cost when its caller needs a provenance-bound accepted result, stable command/step identity, idempotent replay, status, or reconciliation. Otherwise it is a `ReadDependency`/`Query`, which creates no target Decision, revision, semantic output, or accepted operation record.
+
+If a target crashes after accepting `ModuleResultOutput` but before dispatch, the result remains an accepted target fact under the selected profile. Result-route exhaustion creates target `DispatchStopped` keyed by `(effectiveProtocolIdentity, commandSource, resultSource)`; it does not fabricate source receipt or change a source business/status facet. The source remains at its already proven `Pending`, `AcceptanceUnknown`, or `OutcomeUnknown` state until a verified result Pulse, separate ACK, or declared reconciliation evidence arrives.
 
 ## How an application is composed
 
@@ -151,19 +201,19 @@ Pokeball distinguishes four application component roles:
 ```mermaid
 flowchart TB
     UI["External channels"] --> F1["Feature Ball<br/>local capability + state authority"]
-    F1 -->|"ModuleCommandRequest"| F2["Feature Ball<br/>target-owned operation"]
-    F2 -->|"ModuleResult"| F1
-    F2 -->|"SignalPublication / ObservedSignal"| RM["Read Model Ball<br/>derived query state"]
+    F1 -->|"accepted ModuleCommandRequest<br/>→ verified ModuleCommandPulse"| F2["Feature Ball<br/>target-owned operation"]
+    F2 -->|"accepted ModuleResultOutput<br/>→ verified ModuleResultPulse"| F1
+    F2 -->|"accepted SignalPublication<br/>→ verified ObservedSignal"| RM["Read Model Ball<br/>derived query state"]
 
     FL["Flow Ball<br/>coordination state + terminal outcome"]
-    FL -->|"ModuleCommandRequest"| F1
-    F1 -->|"ModuleResult"| FL
-    FL -->|"ModuleCommandRequest"| F2
-    F2 -->|"ModuleResult"| FL
-    FL -->|"ModuleCommandRequest"| F3["Feature Ball<br/>participant-owned invariants"]
-    F3 -->|"ModuleResult"| FL
+    FL -->|"accepted ModuleCommandRequest<br/>→ verified ModuleCommandPulse"| F1
+    F1 -->|"accepted ModuleResultOutput<br/>→ verified ModuleResultPulse"| FL
+    FL -->|"accepted ModuleCommandRequest<br/>→ verified ModuleCommandPulse"| F2
+    F2 -->|"accepted ModuleResultOutput<br/>→ verified ModuleResultPulse"| FL
+    FL -->|"accepted ModuleCommandRequest<br/>→ verified ModuleCommandPulse"| F3["Feature Ball<br/>participant-owned invariants"]
+    F3 -->|"accepted ModuleResultOutput<br/>→ verified ModuleResultPulse"| FL
 
-    AS["Assembly<br/>routes + protocol versions + delivery binding"]
+    AS["Assembly<br/>routes + effective versions + bindings"]
     AS -.-> F1
     AS -.-> F2
     AS -.-> F3
@@ -171,11 +221,31 @@ flowchart TB
     AS -.-> FL
 ```
 
-All inter-Ball dependencies are explicit and bounded. Each has an exact effective protocol identity; explicit versions appear when the endpoints can version or deploy independently. `Assembly` declares the wiring and delivery binding; it is not a runtime mediator and does not make business decisions. A `Flow Ball` is introduced when coordination has significant properties such as its own state or lifecycle, sequencing, compensation, reconciliation, deadlines, cancellation, manual intervention, or an independent terminal outcome.
+**Arrow legend.** Solid arrows show protocol direction: an accepted source output becomes a verified later target/source Pulse. Dashed arrows show static Assembly route, effective-version, and binding selection—not execution, business authority, or a `Direct Control Dependency` edge by themselves.
+
+All inter-Ball dependencies are explicit and bounded. Each has an exact effective protocol identity; explicit versions appear when the endpoints can version or deploy independently. `Assembly` declares route/version/binding only; it is not a runtime mediator, payload constructor, refusal classifier, or business authority.
+
+**Material coordination** exists when one authority must own any independent workflow lifecycle, semantic ordering or branch/join, compensation or recovery, cancellation, reconciliation, or terminal outcome across participant authorities. One such property is sufficient when it makes the simple one-hop conditions false. Call count, sequential syntax, or one command round trip alone is not material coordination and does not require a `Flow Ball`.
+
+### Reads, Draining, and status authority
+
+A cross-authority `ReadDependency` resolves exactly one target authority, target-owned `Query -> ResultPayload` mapping and effective protocol identity, target read/status authority, caller freshness/consistency requirement, and Assembly route/binding. Caller and Assembly do not redefine the target result, stamp, status fact, or read meaning. Multiple reads remain independent and do not promise one atomic multi-source snapshot without a separate declared mechanism.
+
+`Draining` rejects new logical mutations but serves every available declared `Query` and status Query from its committed authority. If the read authority is unavailable, the trusted boundary can return an existing validation/admission response before `read`; once admitted, `read(...) -> ReadResult` remains successful and creates no Decision.
+
+Each status namespace has exactly one committed, revisioned, single-writer query authority without taking command authority over the underlying business facts. Co-location can reduce lag and transaction boundaries; a separate status/Read Model authority can isolate query load and combine declared sources but pays materialization lag and source-position evidence. Neither choice permits two independently writable status answers.
+
+### Security, context, and foundation
+
+When actor, tenant, issuer, realm, assurance, or delegation can change a `Decision` or `Query`/status-read authorization or result selection, the trusted binding boundary constructs verified, bounded, field-minimized context against an approved issuer or equivalent fixed trusted same-stack proof. Forged, tampered, wrong-issuer/realm, missing, stale, or otherwise unverifiable required evidence fails closed. Actor-independent Decisions and reads create no actor-context, issuer, authentication, or actor-evidence artifacts.
+
+The Nucleus Policy Gate alone decides business permission from committed State, the current cause or Query, and trusted context. Immediately before authoritative execution, the Resource/target Execution Gate verifies every triggered proof, capability, constraint, version, freshness/revocation, endpoint, quota, and safe-sink binding without making a new business decision. A post-acceptance gate failure remains a declared Resource/result/status path; it cannot roll back or downgrade accepted work or become a pre-acceptance carrier.
+
+Shared foundation code contains mechanical primitives only. It owns no mutable business meaning, business-policy decision, domain or status authority, route selection, service locator, or hidden communication state.
 
 ## Core rules developers must preserve
 
-The Core specification defines 44 canonical laws. The groups below are an orientation map, not a substitute for their exact wording. They do not require 44 local artifacts: Core §20.1 assigns each law an applicability class, exact trigger, declaration owner, enforcement or evidence owner, and reuse rule.
+The Core specification has 44 stable law identifiers. Their §20 statements and §20.1 matrix are projection indexes back to the marked body source clauses, not independent authority. The groups below are also an orientation map and do not require 44 local artifacts.
 
 | Area | Developer-facing rule | Laws |
 |---|---|---|
@@ -266,7 +336,11 @@ The important part is the direction of authority and dependencies: Interaction a
 
 ## Adopt Pokeball
 
-Start with one vertical slice rather than redesigning the whole application:
+Pokeball is not automatically the right choice. Use an ordinary utility, module, or adapter—or stop the pilot—when the candidate is a stateless library/algorithm, presentation-only focus/scroll/animation state, a passive adapter with no owned semantic Decision, a project unwilling to establish one writer/authority/closed bounded paths, or a slice whose measured design/runtime cost exceeds its authority, invariant, recovery, or change-radius benefit.
+
+During active adoption or pilot work, the project architecture owner `SHOULD` record or otherwise prove the boundary's semantic facts, state key, strict invariants, dependencies, trust/lifecycle/recovery owners, expected size/load, and public protocol surface. This is project-owned guidance only—not a universal Core artifact, runtime record, or conformance placeholder. Outside adoption/pilot work, no worksheet or empty fields are required.
+
+For a suitable candidate, start with one vertical slice rather than redesigning the whole application:
 
 1. Assign one authority to each mutable semantic fact.
 2. Choose the Ball boundary; materialize `StateKey` only when there can be multiple instances or identity crosses call scope.
@@ -289,14 +363,13 @@ For agent-assisted adoption in another repository, start with the [Agent Pack](d
 - **See complete flows:** study the Catalog and Checkout walkthroughs in Core §§15–16.
 - **Apply Pokeball:** use the [Agent Pack](docs/agents/README.md) for design and review guidance, and follow its [installation guide](docs/agents/INSTALL.md) when bringing it into another repository.
 
-### Suggested Core reading order
+### Minimal Core reading path
 
-1. §§0–3 — scope, goals, identities, and the decision model.
-2. §§4–10 — Ball boundaries, protocols, state, acceptance, async semantics, and composition.
-3. §12 — profile selection.
-4. §§15–16 — Catalog and Checkout examples.
-5. §§18–20 — checklist, anti-patterns, and canonical laws.
-6. §§11, 13, 14, 17, 21, and 22 — security, limits, manifests, testing, adoption, and glossary reference.
+1. §§0.1–0.2 — source-clause authority, applicability, absence, and exact reuse.
+2. §§3–5 — canonical model, falsifiable Ball boundaries, and logical roles.
+3. §§6–8 — closed protocols, state authority, pure decisions, reads, and acceptance.
+4. Read only the triggered parts of §§9–13 for async delivery, composition, security, profiles, and bounds.
+5. Use §14 only when materializing a manifest or Assembly view; use §§15–16 as worked examples, §§17–18 for evidence/checks, and §20 only as a projection index back to source clauses.
 
 ### Main documents
 

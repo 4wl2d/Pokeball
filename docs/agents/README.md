@@ -4,6 +4,8 @@
 
 This package turns Core into a sparse workflow for project agents. It preserves every applicable guardrail while avoiding duplicate policy, empty sections, and claim evidence for properties the project does not claim.
 
+Every contract row, runbook, gate, example, index, and summary here is a projection of one or more marked Core source clauses. It has no independent normative authority and cannot strengthen or weaken Core.
+
 ## Start
 
 1. Verify the package files and published immutable Core snapshot against [BASELINE.md](BASELINE.md); this is an integrity check, not an architectural-quality verdict.
@@ -13,19 +15,22 @@ This package turns Core into a sparse workflow for project agents. It preserves 
 5. Read only the runbooks selected by the triggers below.
 6. For routine work, test the affected semantics and deltas. For a conformance or other guarantee claim, run the full gates in [TEST-AND-REVIEW-GATES.md](TEST-AND-REVIEW-GATES.md).
 
-A missing optional path produces no placeholder artifact. An inferred trigger cannot be disabled by omitting metadata. If absence is ambiguous, treat the trigger as present or obtain an accepted decision.
+A missing optional path produces no placeholder artifact. An inferred trigger cannot be disabled by omitting metadata. If absence is ambiguous, treat the trigger as present or obtain an accepted decision. Routine work creates no `TriggerAbsenceProof`; one is materialized only when a conformance/release verdict or accepted ambiguity-resolution decision relies on absence.
 
 ## Task routing
 
 | Trigger or task | Primary document | Additional source |
 |---|---|---|
 | Ball boundary, state, protocol, Decision | [DESIGN-RUNBOOK.md](DESIGN-RUNBOOK.md) | authoritative Ball source |
+| Inter-Ball command ingress/result return or refusal classification | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) | target contract and Assembly route |
+| Cross-authority Query/read or command-vs-read choice | [COMPOSITION-PROFILES.md](COMPOSITION-PROFILES.md) | target read contract and Assembly binding |
 | Detached work, result, retry, cancellation, unknown, status | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) | Core §§3, 9 |
 | Inter-Ball edge, Flow, profile, foundation | [COMPOSITION-PROFILES.md](COMPOSITION-PROFILES.md) | Assembly; project policy if referenced |
 | Trust edge, capability, unsafe path, secret, effective bound | [SECURITY-LIMITS-RUNBOOK.md](SECURITY-LIMITS-RUNBOOK.md) | static/local declaration or exact reusable policy |
 | Manifest view, policy resolution, Assembly | [MANIFEST-AND-ASSEMBLY.md](MANIFEST-AND-ASSEMBLY.md) | [REFERENCE-INDEX.md](REFERENCE-INDEX.md) |
 | Runtime concern placement or ownership | [REFERENCE-INDEX.md](REFERENCE-INDEX.md) §8.12 runtime concern index | the exact Core anchors named there |
 | Routine validation or conformance/release claim | [TEST-AND-REVIEW-GATES.md](TEST-AND-REVIEW-GATES.md) | [TRACEABILITY.md](TRACEABILITY.md) |
+| Verdict or accepted ambiguity decision relying on trigger absence | [MANIFEST-AND-ASSEMBLY.md](MANIFEST-AND-ASSEMBLY.md) proof contract | [TEST-AND-REVIEW-GATES.md](TEST-AND-REVIEW-GATES.md) |
 | Catalog/Checkout analogy | [EXAMPLE-CROSSWALK.md](EXAMPLE-CROSSWALK.md) | canonical Core §§15–16 |
 | Install or update the package | [INSTALL.md](INSTALL.md) | [PROJECT-OVERLAY.template.md](PROJECT-OVERLAY.template.md) |
 
@@ -45,11 +50,11 @@ A policy cannot suppress an applicability trigger, weaken a law, or authorize a 
 
 ### Routine application
 
-Resolve the affected Ball and any policy it references, infer triggers from the closed source/profile/route/risk inventory, change only the semantic delta, and run base plus triggered tests. Reuse shared mechanism and evidence at its exact scope. No review dossier is required.
+Resolve the affected Ball and any policy it references, infer triggers from the closed source/profile/route/risk inventory, change only the semantic delta, and run base plus triggered tests. Reuse shared mechanism and evidence at its exact scope. No review dossier or absence-proof placeholder is required.
 
 ### Claim or release
 
-Freeze exact baselines, resolve the whole claimed scope, prove absent triggers once, run all applicable profile and `RG-*` gates, evaluate every applicable waiver's conformance effect, and attach evidence to the claim record. Without that record, omit the claim.
+Freeze exact baselines, resolve the whole claimed scope, and run all applicable profile and `RG-*` gates. When the verdict actually relies on a non-`always` trigger being absent, record one exact scope/profile/inventory/digest-bound `TriggerAbsenceProof`, reject contradiction or invalidation, and assign evidence ownership; otherwise create no proof. Evaluate every applicable waiver's conformance effect and attach evidence to the claim record. Without that record, omit the claim.
 
 ## Package contents
 
