@@ -16,13 +16,15 @@ Ball contracts remain in their normal typed source or local manifests. Assembly 
 
 ## Initial installation
 
-1. Copy Core and every `docs/agents/` file from one validated package, preserving exact bytes and filenames. Retain `LICENSING.md` without replacing the target software `LICENSE`.
-2. Pass Core/package integrity in [BASELINE.md](BASELINE.md).
+1. Copy Core and every `docs/agents/` file from one published immutable snapshot, preserving exact bytes and filenames. Retain `LICENSING.md` without replacing the target software `LICENSE`.
+2. Verify the Core/package integrity manifest in [BASELINE.md](BASELINE.md). Readiness requires both immutable publication provenance and exact matching metadata; the manifest contains no embedded validation verdict.
 3. Inspect one real Ball and resolve its present guardrails by construction, local declaration, or reusable policy; do not create an overlay merely to complete installation.
 4. Only when shared policies, bindings, ceilings, deviations, or claims are useful, copy [PROJECT-OVERLAY.template.md](PROJECT-OVERLAY.template.md) to `docs/pokeball-project-overlay.md`, remove unused sections, resolve its source paths, and obtain owner acceptance plus an immutable revision/digest.
 5. Pin the exact policy once in its authoritative project/binding scope; a Ball records a reference only when not already covered, plus any allowlisted local delta. A fully local/static Ball has no policy row.
 6. Add the routing block below to root `AGENTS.md`; keep existing repository/build/test instructions.
 7. Run package portability plus a routine dry run. Run full `RG-*` gates only before a conformance or release claim.
+
+An exact policy selects only mechanisms or values that Core leaves open; it cannot suppress a trigger, weaken a law, or authorize a direct-control cycle. A `WaiverRecord` records a deliberate deviation and its conformance effect, but never satisfies the guardrail. A violated `MUST`/`MUST NOT` keeps its exact scope non-conforming.
 
 Recommended routing block:
 
@@ -61,18 +63,20 @@ Portability validation additionally resolves:
 - two Balls covered by one exact shared policy without copied rows, plus one allowlisted local delta;
 - policy revision/digest, scope, override allowlist, cycle/conflict/mismatch failures;
 - relocated links/routing in a standalone target; and
-- exact `LICENSING.md` while preserving the target software license.
+- exact `LICENSING.md` while preserving the target software license;
+- operation without any source-repository governance, review ledger, decision history, or release-evidence path; and
+- one complete `WaiverRecord` fixture whose `MUST`/`MUST NOT` violation remains non-conforming rather than becoming policy precedence.
 
 ## Updating
 
 1. Freeze old Core, package, Ball-source, and claim baselines plus any project policy affected by the update.
-2. Apply the new Core and rebuild contract, runbooks, reference index, traceability, and package gates together.
+2. Replace Core and the whole Agent Pack from one new published immutable snapshot; never edit an installed snapshot into another revision in place.
 3. If a shared policy changes, publish it as a new immutable revision/digest and enumerate referencing Balls and invalidated evidence.
 4. Update only affected Ball references/deltas and triggered tests. Do not copy unchanged policy.
-5. Update `BASELINE.md` hash/bytes/version/package digest only after semantic and portability validation.
+5. Verify the new `BASELINE.md` hash/bytes/version/package digest after semantic and portability checks; consumers do not update that manifest themselves.
 6. Re-run full project gates only for an existing or proposed claim whose scope changed.
 
-Prohibited partial updates include changing only a hash, retaining a mutable “latest” policy reference, copying one runbook without its baseline/contract, replacing `LICENSING.md`, treating the template as accepted policy, or retaining a claim after its profile/policy/route/evidence digest changes.
+Prohibited partial updates include changing only a hash, retaining a mutable “latest” policy reference, copying one runbook without its baseline/contract, replacing `LICENSING.md`, treating the template as accepted policy, treating a waiver as precedence, or retaining a claim after its profile/policy/route/evidence digest changes.
 
 ## Discontinuing Pokeball
 

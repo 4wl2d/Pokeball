@@ -12,7 +12,10 @@ Catalog (§15) and Checkout (§16) are advanced fixtures. Use only the property 
 | external resource and safe sink | §§15.3, 15.5 | [SECURITY-LIMITS-RUNBOOK.md](SECURITY-LIMITS-RUNBOOK.md) |
 | detached result identity/stale policy | §§15.2, 15.4, 15.6–15.7 | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) |
 | cancellation/result races | §§15.1–15.2, 15.8 | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) |
-| possible-send unknown | §15.9 | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) |
+| possible-send unknown without result regression | §§15.2, 15.6, 15.9 | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) |
+| one lossless Query/Projection view | §§15.1–15.2, 17.1–17.2 | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) |
+| producer-owned Signal and Assembly route | §§14.4, 15.1/15.4, 17.5 | [COMPOSITION-PROFILES.md](COMPOSITION-PROFILES.md) |
+| protocol/state/transition migration boundary | §§10.11, 15.1–15.2, 17.7 | [DESIGN-RUNBOOK.md](DESIGN-RUNBOOK.md) |
 
 Canonical causal trace:
 
@@ -20,11 +23,38 @@ Canonical causal trace:
 SearchRequested generation N
 -> accepted state + detached FindProducts handle N
 -> provenance-bound result
--> apply current / ignore stale / typed failure or unknown
+-> apply current / ignore stale / retain typed failure or OutcomeUnknown
+-> map committed state through one total CatalogView function
 -> publish output only after acceptance
 ```
 
-For its cancellation trigger, compatible accepted-in-progress/result orderings converge; terminal cancellation itself proves acceptance; a later weaker observation is a no-op. Mutually exclusive terminal result/cancellation proof preserves the first accepted terminal frame and rejects the contradictory second proof before acceptance, symmetrically in both orders.
+Catalog v2 pins `protocolVersion = 2.0.0`, `stateSchemaVersion = 2`, and `transitionArtifactVersion = 2.0.0`. Its query is exactly `GetCatalogView -> CatalogView`. Committed `CatalogState` maps through six explicit, non-overlapping cases with no fallback:
+
+```text
+Idle           -> CatalogIdle
+Searching      -> CatalogSearchStatus(operationId, Searching(...), cancellation)
+Ready          -> CatalogSearchStatus(operationId, Ready(...), cancellation)
+Failed         -> CatalogSearchStatus(operationId, Failed(...), cancellation)
+OutcomeUnknown -> CatalogSearchStatus(operationId, OutcomeUnknown(...), cancellation)
+Cancelled      -> CatalogSearchStatus(operationId, Cancelled(...), cancellation)
+```
+
+The composite status retains lifecycle/result and the independent cancellation facet together, including `CancellationRejected(reason)`. Search-state `ProjectionOutput` uses this same mapping. A weaker unknown observation cannot regress a proven `Ready`/`Failed` result; a later matching proven result may refine `OutcomeUnknown`.
+
+For its cancellation trigger, compatible accepted-in-progress/result orderings converge without losing lifecycle, cancellation, or rejection reason; terminal cancellation itself proves acceptance; a later weaker observation is a no-op. Mutually exclusive terminal result/cancellation proof preserves the first accepted terminal frame and rejects the contradictory second proof before acceptance, symmetrically in both orders.
+
+`ProductSelected(productId)` has six explicit transitions, set-equal to `Idle`, `Searching`, `Ready`, `Failed`, `OutcomeUnknown`, and `Cancelled`. Each preserves all state-specific fields and facets except the accepted revision advance and emits exactly one output:
+
+```text
+SignalPublication(
+    payload = ProductSelectionConfirmed(productId),
+    sourceOrdinal = 0
+)
+```
+
+Catalog owns `CatalogSignal.ProductSelectionConfirmed`; Assembly only binds its `2.0.0/2.0.0` producer/consumer route and cannot define or synthesize the payload. The selection path shown by Core is actor-independent and carries only its reserved selection ID; actor/configuration/time fields remain absent unless their independent trigger appears.
+
+Persisted schema-v1 state enters v2 `decide` only after authoritative upcast. A v1 cancellation-rejection record is upcast only when bounded accepted evidence supplies the exact newly required reason; otherwise it is quarantined or sent to declared manual remediation. No null, empty, generic, log-derived, or inferred reason is accepted, and retained v1 outputs keep v1 meaning.
 
 A Ball with no external operation, detached result, or cancellation path inherits none of this machinery.
 

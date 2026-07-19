@@ -33,7 +33,7 @@ Materialize only facets that have reachable observations:
 | Dispatch | not sent, sent/might be sent, finite policy stopped |
 | Acceptance | not accepted, accepted, rejected before acceptance, unknown |
 | Business outcome | pending, succeeded, rejected, failed, cancelled, unknown |
-| Cancellation | requested and accepted-before-start/in-progress/too-late/rejected/unknown races |
+| Cancellation | requested and accepted-before-start/in-progress/too-late/rejected-with-reason/unknown races |
 
 Do not flatten independent meanings. A source commit does not imply dispatch; a result with accepted-operation proof implies acceptance; delivery stop proves neither failure nor non-execution; cancellation does not erase a legitimate result.
 
@@ -69,7 +69,9 @@ Test only reachable races, but include both orders. For the canonical Catalog se
 - accepted-in-progress before/after a legitimate result converges without lifecycle regression;
 - terminal cancellation itself proves acceptance, and a later weaker accepted-in-progress observation is a no-op;
 - terminal result versus mutually exclusive terminal cancellation preserves the first accepted frame, while the contradictory second proof fails before acceptance with no state/output; and
-- the conflict rule is symmetric in both arrival orders.
+- the conflict rule is symmetric in both arrival orders;
+- `ProductSearchOutcomeUnknown` creates the explicit `OutcomeUnknown` lifecycle, while a later matching proven result may refine it and a later weaker unknown observation cannot regress `Ready` or `Failed`; and
+- cancellation rejection retains its bounded reason through later compatible result/cancellation orderings.
 
 ## 6. Operation status
 
@@ -93,6 +95,8 @@ optional by subtrigger:
 
 The authority does not become command authority for source facts. Its stamp proves only its own snapshot.
 
+Catalog v2 uses committed `CatalogState` as that authority and `GetCatalogView -> CatalogView` as its one read contract. The mapping is total over exactly `Idle`, `Searching`, `Ready`, `Failed`, `OutcomeUnknown`, and `Cancelled`: `Idle` maps to `CatalogIdle`; every other variant maps to one composite `CatalogSearchStatus(operationId, lifecycle, cancellation)`. There is no fallback or overlapping case, and the payload preserves a proven result/failure, cancellation state, and any `CancellationRejected(reason)` together. Search-state `ProjectionOutput` uses the same mapping so a live projection cannot disagree with a query.
+
 If several independently delivered outputs can stop, retain one bounded canonically ordered record per complete `SemanticHandle`. An identical duplicate is a no-op; conflicting evidence for one handle fails closed; another handle never evicts an existing record; lifecycle and cancellation remain independent. A stop before its causal workflow record is bounded-pending or causally ordered, never dropped.
 
 ## 7. Triggered tests
@@ -110,5 +114,7 @@ Select the rows whose paths exist:
 | delivery observation | commit-before-observation, no direct runtime state write, plus monotonic duplicate handling only for duplicate observations |
 | status | exact stamped authority and base lifecycle; absence, expiry, and bounded stopped handles only when those facets exist |
 | durable retained value | crash at each assignment/output boundary and exact recovery lineage |
+| Catalog v2 status | six set-equal state-to-view mappings, shared Query/Projection mapping, no fallback, lifecycle/cancellation/reason preservation, unknown-to-result refinement, and no proven-result regression |
+| Catalog v1 persistence | every v1 state is authoritatively upcast before v2 `decide`; a missing cancellation-rejection reason or other required evidence quarantines the record instead of inventing a default |
 
 For Checkout-specific `M→S→I→P`, reply-plus-command stop capacity, grant, and migration fixtures, use Core §16 and [EXAMPLE-CROSSWALK.md](EXAMPLE-CROSSWALK.md). They are not inherited by a Ball whose closed paths do not contain those risks.

@@ -16,7 +16,7 @@ All definitions and normative text are in the [canonical Core](../../spec/pokeba
 | 5 | Three logical zones | `DESIGN-RUNBOOK`, `SECURITY-LIMITS-RUNBOOK` |
 | 6 | Protocol algebra | `DESIGN-RUNBOOK`, `ASYNC-STATUS-RUNBOOK` |
 | 7 | State and authority | `DESIGN-RUNBOOK` |
-| 8 | Decision and commit semantics | `DESIGN-RUNBOOK`, effective-policy resolution |
+| 8 | Decision and commit semantics | `DESIGN-RUNBOOK`, effective-policy resolution; §8.12 routes below |
 | 9 | Asynchrony, causality, and delivery semantics | `ASYNC-STATUS-RUNBOOK` |
 | 10 | System composition | `COMPOSITION-PROFILES` |
 | 11 | Security and privacy | `SECURITY-LIMITS-RUNBOOK` |
@@ -33,7 +33,26 @@ All definitions and normative text are in the [canonical Core](../../spec/pokeba
 | 22 | Glossary | This index |
 | 23 | Canonical statement | `AGENT-CONTRACT` overview |
 
-## PBA-01–43
+## Core §8.12 runtime concern index
+
+This is a reference-only routing table. It does not define a runtime, require every concern in every Ball, or move ownership from the exact Core anchors. Determine applicability from Core before following a package route.
+
+| # | Runtime concern | Exact Core anchors | Primary package route |
+|---:|---|---|---|
+| 1 | Cause and field-minimized context | §§3.3–3.4, 6.11, 8.1 | `DESIGN-RUNBOOK`; `ASYNC-STATUS-RUNBOOK` for retained cause |
+| 2 | Finite semantic and runtime bounds | §§8.3–8.4, 10.9, 13.1–13.2; PBA-38 | `SECURITY-LIMITS-RUNBOOK`; `COMPOSITION-PROFILES` for graph ceilings |
+| 3 | Semantic, causal, and mechanical identities | §§3.5–3.6, 9.1–9.2 | `DESIGN-RUNBOOK`, `ASYNC-STATUS-RUNBOOK` |
+| 4 | Preflight, reservation, and admission | §§8.4, 8.7, 13.2 | `DESIGN-RUNBOOK`, `SECURITY-LIMITS-RUNBOOK` |
+| 5 | Atomic Decision acceptance | §§8.5, 8.9; PBA-07 | `DESIGN-RUNBOOK` |
+| 6 | Commit-before-dispatch | §8.6; PBA-08 | `DESIGN-RUNBOOK`, `ASYNC-STATUS-RUNBOOK` |
+| 7 | Preservation of accepted work | §§8.4, 8.8, 9.13, 12.4–12.6 | `DESIGN-RUNBOOK`, `ASYNC-STATUS-RUNBOOK`, `COMPOSITION-PROFILES` |
+| 8 | Results, ACKs, delivery, and trusted observations | §§6.5, 6.9–6.11, 9.3–9.5, 9.11–9.13 | `ASYNC-STATUS-RUNBOOK`; `SECURITY-LIMITS-RUNBOOK` at trust edges |
+| 9 | Rejections, admission failures, and runtime faults | §§6.7, 6.13, 8.7–8.8, 13.2 | `DESIGN-RUNBOOK`, `ASYNC-STATUS-RUNBOOK` |
+| 10 | Persistence, recovery, and migration | §§8.9, 10.11, 12.5–12.6, 17.7 | `COMPOSITION-PROFILES`, `TEST-AND-REVIEW-GATES` |
+| 11 | Local reads and operation-status reads | §§6.3, 8.10, 9.11; PBA-30 | `DESIGN-RUNBOOK`, `ASYNC-STATUS-RUNBOOK` |
+| 12 | Lifecycle, ownership, and fencing | §§7.6, 8.11, 12.3–12.6 | `DESIGN-RUNBOOK`, `COMPOSITION-PROFILES`, `TEST-AND-REVIEW-GATES` |
+
+## PBA-01–44
 
 | Law | Title | Agent rules |
 |---|---|---|
@@ -80,6 +99,7 @@ All definitions and normative text are in the [canonical Core](../../spec/pokeba
 | `PBA-41` | Measured Claim | `PKB-AR-GOV-003`, `PKB-AR-PRF-002`, `PKB-AR-TST-001` |
 | `PBA-42` | Honest Guarantee Scope | `PKB-AR-GOV-003`, `PKB-AR-PRF-002`, `PKB-AR-ASY-005` |
 | `PBA-43` | Foundation Quarantine | `PKB-AR-CMP-004` |
+| `PBA-44` | Trusted Actor Context | `PKB-AR-SEC-002` |
 
 ## Glossary index
 
@@ -109,13 +129,16 @@ Definitions are read only from Core §22.
 | ControlPulse | `ASYNC-STATUS-RUNBOOK` |
 | DeclaredCommandDependency | `COMPOSITION-PROFILES` |
 | DeclaredSignalDependency | `COMPOSITION-PROFILES` |
+| Direct Control Dependency | `COMPOSITION-PROFILES` |
 | Delivery Observation | `ASYNC-STATUS-RUNBOOK` |
 | DispatchStopped | `ASYNC-STATUS-RUNBOOK` |
 | Effective Guardrail | `AGENT-CONTRACT`, `MANIFEST-AND-ASSEMBLY` |
 | Effect | `DESIGN-RUNBOOK` |
 | EffectRequest | `DESIGN-RUNBOOK` |
 | EventJournal | `COMPOSITION-PROFILES` |
+| Execution Gate | `SECURITY-LIMITS-RUNBOOK` |
 | Fact | `ASYNC-STATUS-RUNBOOK` |
+| Field-Minimized | `DESIGN-RUNBOOK`, `ASYNC-STATUS-RUNBOOK` |
 | Feature Ball | `DESIGN-RUNBOOK` |
 | Flow Ball | `COMPOSITION-PROFILES` |
 | Foundation Quarantine | `COMPOSITION-PROFILES` |
@@ -133,6 +156,7 @@ Definitions are read only from Core §22.
 | ObservedSignal | `COMPOSITION-PROFILES` |
 | OutcomeUnknown | `ASYNC-STATUS-RUNBOOK` |
 | OutputId | `DESIGN-RUNBOOK` |
+| Policy Gate | `SECURITY-LIMITS-RUNBOOK` |
 | Projection | `DESIGN-RUNBOOK` |
 | ProjectionOutput | `DESIGN-RUNBOOK` |
 | Pulse | `DESIGN-RUNBOOK` |
@@ -159,5 +183,6 @@ Definitions are read only from Core §22.
 | StateKey | `DESIGN-RUNBOOK`, overlay |
 | Structural Allocation | `COMPOSITION-PROFILES` |
 | TimerRequest | `ASYNC-STATUS-RUNBOOK` |
+| Trusted Boundary | `SECURITY-LIMITS-RUNBOOK`, `DESIGN-RUNBOOK` |
 | Workflow Sovereignty | `COMPOSITION-PROFILES` |
 | Zero Mandatory Runtime Tax | `COMPOSITION-PROFILES` |

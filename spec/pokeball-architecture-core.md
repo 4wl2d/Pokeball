@@ -1,8 +1,8 @@
 # Pokeball Architecture — Core Specification
 
-**Version:** `1.1.0`<br>
-**Status:** canonical release<br>
-**Date:** 2026-07-18<br>
+**Version:** `1.2.0-draft`<br>
+**Status:** canonical draft<br>
+**Date:** 2026-07-19<br>
 **Language:** English; exact protocol type and field names use Latin identifiers
 
 ---
@@ -135,6 +135,33 @@ An existing complete local declaration remains valid. Replacing it with a refere
 
 When the closed inventory proves a trigger absent, the corresponding mechanism, evidence, empty table, zero-valued placeholder, and `not applicable` row are omitted. If absence cannot be proved, the trigger is treated as present unless an explicit accepted decision closes the ambiguity. Missing evidence for a claim prohibits the claim; it does not permit an unprotected triggered path.
 
+### 0.3. Waivers and conformance effect
+
+A waiver is a reviewable record of a deliberate deviation. It does not cancel an applicability trigger, change the meaning or force of a normative word, override a law, or satisfy missing evidence. Compensating controls may reduce risk, but they do not make a violated `MUST` or `MUST NOT` conforming.
+
+When a project records a waiver, the closed record has exactly these eight top-level fields:
+
+```text
+WaiverRecord {
+    owner
+    approvedBy
+    governingAnchor
+    exactScope
+    reason
+    constraintsAndCompensatingControls
+    testsAndEvidence
+    review {
+        expiryOrReviewAt
+        remediation
+        conformanceEffect
+    }
+}
+```
+
+`governingAnchor` identifies the exact Core law, normative clause, accepted extension, or project rule from which the scope deviates. `approvedBy` is the authority permitted to accept the project risk; approval does not create authority over Core. `conformanceEffect` states the consequence literally: a deviation from a `SHOULD` may remain conforming when the required deliberate rationale exists, while a violation of `MUST` or `MUST NOT` blocks a Pokeball conformance claim for `exactScope` until remediation restores compliance. Tests and evidence are immutable or version-pinned within their stated scope.
+
+A waiver for a compile-time import or `Direct Control Dependency` cycle therefore records deliberate non-conformance. It cannot make that graph conforming. A guardrail policy reference, unsafe-site record, claim record, or project overlay is likewise never an implicit waiver.
+
 ---
 
 ## 1. Definition of Pokeball
@@ -153,12 +180,14 @@ The architectural unit is called a `Ball`.
 Every `Ball` contains three logical zones:
 
 ```text
-Interaction Hemisphere
+Interaction Hemisphere     <- Projection / Reply
         ↓ Intent / Query
 Protocol Nucleus
-        ↓ Effect / Command / Projection / Reply / Signal
+        ↓ Effect / Command / Signal / Timer
 Resource Hemisphere and explicit routes
 ```
+
+`ProjectionOutput` and `ReplyOutput` return to Interaction for presentation or response encoding. `EffectRequest`, `ModuleCommandRequest`, `SignalPublication`, and `TimerRequest` leave through the Resource Hemisphere or an explicit route. These are logical directions; a same-stack binding may representation-erase the adapters without changing ownership.
 
 The basic state-transition formula is:
 
@@ -704,8 +733,7 @@ A Fact contains a causal reference that matches it to the accepted `EffectReques
 A `Projection` is an immutable semantic view intended for external presentation or a local observer.
 
 ```text
-SearchLoading(operationId)
-SearchResults(items)
+CatalogSearchStatus(operationId, lifecycle, cancellation)
 CheckoutReady(summary)
 ```
 
@@ -1227,6 +1255,25 @@ Uninitialized -> Initializing -> Ready -> Draining -> Stopped
 
 A domain-visible lifecycle reaction exists only as a declared typed `ControlPulse`. Loss of a process or lease alone does not give a stale owner the right to commit a domain decision. Complete recovery and ownership-reacquisition transitions belong to a durable runtime extension.
 
+### 8.12. Principal runtime concern index
+
+This subsection is reference-only. It introduces no additional runtime component, state, field, mechanism, guarantee, or applicability rule. Each concern remains defined solely by the listed normative Core anchors; an implementation resolves only anchors whose existing trigger applies.
+
+| Principal runtime concern | Sole normative Core anchors |
+|---|---|
+| Cause and field-minimized context | §§3.3–3.4, 6.11, 8.1 |
+| Finite semantic and runtime bounds | §§8.3–8.4, 10.9, 13.1–13.2; PBA-38 |
+| Semantic, causal, and mechanical identities | §§3.5–3.6, 9.1–9.2 |
+| Preflight, reservation, and admission | §§8.4, 8.7, 13.2 |
+| Atomic Decision acceptance | §§8.5, 8.9; PBA-07 |
+| Commit-before-dispatch | §8.6; PBA-08 |
+| Preservation of accepted work | §§8.4, 8.8, 9.13, 12.4–12.6 |
+| Results, ACKs, delivery, and trusted observations | §§6.5, 6.9–6.11, 9.3–9.5, 9.11–9.13 |
+| Rejections, admission failures, and runtime faults | §§6.7, 6.13, 8.7–8.8, 13.2 |
+| Persistence, recovery, and migration | §§8.9, 10.11, 12.5–12.6, 17.7 |
+| Local reads and operation-status reads | §§6.3, 8.10, 9.11; PBA-30 |
+| Lifecycle, ownership, and fencing | §§7.6, 8.11, 12.3–12.6 |
+
 ---
 
 ## 9. Asynchrony, causality, and delivery semantics
@@ -1561,6 +1608,8 @@ Pure stateless code without state, protocol, lifecycle, or resource authority. I
 
 An application `Ball` may declare four kinds of dependency.
 
+`Direct Control Dependency` is an orthogonal graph classification: a compile-time import of another Ball's application surface, or a synchronous cross-Ball call that can transfer control before an asynchronous handoff or yield. Generated inline dispatch is direct control when it executes the target on the current control path before that boundary. A declared asynchronous command or signal route does not create a direct-control edge merely because its binding later uses generated code; if the binding invokes the target synchronously before handoff/yield, the direct edge exists and must be included in the graph.
+
 #### ReadDependency
 
 A small stable read-only contract:
@@ -1583,7 +1632,7 @@ A one-hop addressed command is permitted without a separate Flow when all of the
 - command and result contracts are explicit;
 - an idempotency contract is explicit when duplicate execution is possible;
 - a deadline contract is explicit when the command has a semantic or resource deadline;
-- the dependency graph remains bounded and acyclic at the level of direct control imports.
+- the `Direct Control Dependency` graph remains bounded and acyclic.
 
 Example:
 
@@ -1633,7 +1682,7 @@ A separate Flow is needed when at least one of the following coordination proper
 
 A Flow is not needed merely because one command hop exists.
 
-A one-hop `DeclaredCommandDependency` is permitted only while every condition in §10.2 holds. Adding a Flow does not legalize unbounded fan-out, wildcard routing, or a cycle of direct control dependencies: those relationships must be bounded or redesigned separately.
+A one-hop `DeclaredCommandDependency` is permitted only while every condition in §10.2 holds. Adding a Flow does not legalize unbounded fan-out, wildcard routing, or a cycle of `Direct Control Dependency` edges. Fan-out and routes remain finitely bounded; a direct-control cycle must be removed or redesigned behind an explicit asynchronous handoff with the separate feedback contract in §10.10.
 
 ### 10.4. Workflow sovereignty
 
@@ -1699,6 +1748,8 @@ For a `DeclaredSignalDependency`, Assembly fixes the producer, consumer, effecti
 
 Static composition is the default. It may be generated direct dispatch and does not require a runtime service registry.
 
+Assembly owns route selection and delivery binding, but it does not erase graph facts. A generated route that invokes another Ball synchronously before asynchronous handoff/yield is also a `Direct Control Dependency`; an asynchronous enqueue/handoff followed by later target execution is not.
+
 ### 10.8. No protocol re-export
 
 A Ball does not publish another Ball's owned types as its own contract.
@@ -1745,7 +1796,7 @@ Every `DeclaredSignalDependency` counts toward `maxDeclaredDependenciesPerBall`,
 
 ### 10.10. Cycles
 
-The compile-time import graph and direct synchronous or control dependency graph must be acyclic.
+The compile-time import graph and the `Direct Control Dependency` graph MUST be acyclic. No project policy, overlay, compensating control, or `WaiverRecord` can make a cycle in either graph conforming.
 
 A business process may return to an earlier phase or create feedback through declared asynchronous signal dependencies or other explicit asynchronous routes, but such a cycle must have:
 
@@ -1757,7 +1808,7 @@ A business process may return to an earlier phase or create feedback through dec
 
 If the feedback path can duplicate, it also has idempotency/deduplication. If it retries, it also has one finite owned retry budget.
 
-Permitted asynchronous feedback does not make a compile-time import or direct synchronous or control dependency cycle permissible.
+Permitted asynchronous feedback begins only after an explicit bounded handoff/yield and does not itself add a `Direct Control Dependency` edge. It does not make a compile-time import or direct-control cycle permissible.
 
 ### 10.11. Versioning and compatibility
 
@@ -1848,7 +1899,7 @@ AuthenticatedActorContext {
 
 The effective `stableSubjectId` must be scoped by issuer and realm, whether those identities are materialized or statically fixed. Credential rotation does not automatically create a new subject.
 
-The presence of an `issuer` field is not proof of origin. The selected security or isolation profile MUST define verifiable authenticity and integrity of actor context relative to an approved issuer. `AuthenticatedActorContext` itself describes the actor but grants no authority to perform an arbitrary action.
+The presence of an `issuer` field is not proof of origin. The selected security or isolation profile MUST define verifiable authenticity and integrity of actor context relative to a valid approved issuer. Forged or tampered evidence, evidence from a wrong or unapproved issuer, and missing required evidence fail closed before the actor context can authorize or otherwise change a Decision. `AuthenticatedActorContext` itself describes the actor but grants no authority to perform an arbitrary action. A path whose Decision is actor-independent creates no actor-context value, issuer row, authentication artifact, or actor-specific evidence.
 
 ### 11.3. Policy Gate and Execution Gate
 
@@ -2063,7 +2114,7 @@ bounded mailbox
 Required:
 
 - finite mailbox capacity;
-- typed backpressure/admission outcome;
+- typed `BoundaryResponse(AdmissionFailure(reason))` for pre-acceptance backpressure/admission;
 - finite worker counts when workers exist;
 - a fairness policy when separately queued control inputs could starve;
 - out-of-order Fact/Result handling when completion can reorder;
@@ -2110,13 +2161,14 @@ A concrete binding may claim `at-least-once` only for a present output path, rel
 ### 12.7. InProcess
 
 - boundaries are logical and enforced by compile-time or runtime discipline;
-- direct calls and a shared allocator are permitted;
+- direct calls and a shared allocator are permitted, but every synchronous cross-Ball call before handoff/yield is a `Direct Control Dependency` and the direct-control graph remains acyclic;
 - crash containment and hostile credential isolation are not claimed;
 - least privilege requires scoped external credentials and adapters, not only visibility modifiers.
 
 ### 12.8. Isolated
 
 - process/sandbox boundary;
+- IPC is not automatically asynchronous: a synchronous cross-Ball IPC call before handoff/yield is still a `Direct Control Dependency` and remains subject to the acyclic graph;
 - versioned authenticated IPC; peer authentication does not replace authorization-issuer verification when actor/grant paths exist;
 - profile-defined authenticity and integrity for present actor context and grants under §11.3;
 - bounded frame size/depth;
@@ -2202,6 +2254,8 @@ CapacityExceeded(scope)
 QueueFull
 StoragePressure
 ```
+
+Before Decision acceptance, such overload is returned as `BoundaryResponse(AdmissionFailure(<typed overload outcome>))`. It creates no accepted state, `CommitRevision`, `SemanticHandle`, or `SemanticOutput`. A post-acceptance delivery observation is not retroactively converted into admission failure.
 
 An admission failure does not masquerade as a permanent business rejection. An unbounded queue is prohibited. A direct Inline path with no queue or fallible admission needs no backpressure type or empty policy.
 
@@ -2304,6 +2358,8 @@ An applicable shared guardrail is selected once by its authoritative project/pro
 policy:
   ref: policy:ShopApplication/local-standard@3#sha256:4f923e8b1dbfa6a628f180be90218e9ff9ed5e4a86ad6ff08b3a1c1ad5fe8a77
 ```
+
+This URI and digest are illustrative syntax, not a policy artifact shipped by Core. A real trigger is unresolved until the consuming project replaces the example with an existing immutable in-scope artifact whose exact bytes/digest and authority can be verified. A policy selects only mechanisms, values, evidence, or permitted deltas that Core leaves to that scope; it cannot suppress a trigger, weaken a law, or act as a waiver.
 
 The referenced artifact contains the complete §0.2 ownership, scope, mechanism/value, enforcement, and evidence metadata. A covered Ball repeats no scope-level reference; it records only a different explicit selection or allowed local delta. Static resolution MUST produce one complete effective contract for every triggered guardrail; the reference is not a runtime lookup.
 
@@ -2454,10 +2510,10 @@ routes:
 
   - kind: DeclaredSignalDependency
     producer: Catalog
-    signalType: ProductSelectionConfirmed
+    signalType: CatalogSignal.ProductSelectionConfirmed
     consumer: RecommendationsReadModel
-    producerProtocolVersion: 1.0.0
-    consumerProtocolVersion: 1.0.0
+    producerProtocolVersion: 2.0.0
+    consumerProtocolVersion: 2.0.0
     deliverySemantics: live-duplicate-permitting
     identityPolicy: sourceBallInstanceId+sourceCommitRevision+semanticHandle+sourceOrdinal
     idempotencyOrDedupPolicy: deduplicate-by-identity-within-retention
@@ -2471,6 +2527,8 @@ routes:
 ```
 
 Assembly is responsible for concrete wiring. A `Ball` is responsible for the required semantic contract. The runtime is responsible for the invocation or delivery mechanism.
+
+For the Catalog route, Catalog's version-2 owned protocol is the sole authority for `ProductSelectionConfirmed`; Assembly owns only the producer/consumer version pair and delivery binding. The consumer's `2.0.0` route contract accepts that exact producer payload as `ObservedSignal` and does not redefine it.
 
 For a local monolith, a route may compile to a direct function call. For another process, the same route may use IPC. This must not change domain semantics.
 
@@ -2600,6 +2658,14 @@ This example shows a small `FeatureBall` with an `Inline` decision path and an a
 
 ### 15.1. Protocol
 
+The authoritative Catalog contract identities are:
+
+```text
+protocolVersion = 2.0.0
+stateSchemaVersion = 2
+transitionArtifactVersion = 2.0.0
+```
+
 ```text
 CatalogIntent =
     SearchRequested(query, pageSize)
@@ -2608,6 +2674,9 @@ CatalogIntent =
 
 CatalogQuery =
     GetCatalogView
+
+CatalogSignal =
+    ProductSelectionConfirmed(productId)
 
 CatalogFact =
     ProductsFound(searchHandle, generation, products, provenance)
@@ -2620,32 +2689,38 @@ CatalogFact =
   | ProductSearchCancellationRejected(cancellationHandle, targetSearchHandle, generation, reason, provenance)
   | ProductSearchCancellationOutcomeUnknown(cancellationHandle, targetSearchHandle, generation, provenance)
 
-CatalogProjection =
-    SearchIdle
-  | SearchLoading(operationId, query)
-  | SearchResults(operationId, products)
-  | SearchFailed(operationId, reason)
-  | SearchCancellationStatus(operationId, cancellation)
+CatalogSearchCancellation =
+    NotRequested
+  | Requested
+  | CancellationAcceptedBeforeStart
+  | CancellationAcceptedInProgress
+  | CancellationTooLate
+  | CancellationRejected(reason)
+  | CancellationUnknown
+
+CatalogSearchLifecycle =
+    Searching(generation, query, pageSize)
+  | Ready(generation, products)
+  | Failed(generation, reason)
+  | OutcomeUnknown(generation, query, pageSize)
+  | Cancelled(generation)
+
+CatalogView =
+    CatalogIdle
+  | CatalogSearchStatus(operationId, lifecycle, cancellation)
 
 CatalogEffect =
     FindProducts(searchHandle, query, pageSize, mode, deadline)
   | CancelProductSearch(targetSearchHandle)
 ```
 
-The owned query mapping is `GetCatalogView -> CatalogProjection`. A successful local read returns `ReadResult<CatalogProjection>` with the stamp of the exact committed Catalog snapshot; it creates neither a `ProjectionOutput` nor a new commit.
+`ProductSelectionConfirmed` is owned by Catalog. It can leave the Ball only as the payload of an accepted `SignalPublication`; the Assembly route in §14.4 cannot define or synthesize it.
+
+The owned query mapping is `GetCatalogView -> CatalogView`. A successful local read maps the exact committed `CatalogState` through the total function below and returns `ReadResult<CatalogView>` with the stamp of that snapshot; it creates neither a `ProjectionOutput` nor a new commit. Search-state `ProjectionOutput` uses the same `CatalogView` payload so the live and queried view cannot select different lifecycle facets.
 
 ### 15.2. State
 
 ```text
-SearchCancellationFacet =
-    NotRequested
-  | Requested
-  | CancellationAcceptedBeforeStart
-  | CancellationAcceptedInProgress
-  | CancellationTooLate
-  | CancellationRejected
-  | CancellationUnknown
-
 CatalogState =
     Idle(revision)
   | Searching {
@@ -2655,7 +2730,7 @@ CatalogState =
         pageSize
         pendingSearch: SemanticHandle
         pendingCancellation: SemanticHandle?
-        cancellation: SearchCancellationFacet
+        cancellation: CatalogSearchCancellation
         revision
     }
   | Ready {
@@ -2664,7 +2739,7 @@ CatalogState =
         query
         products
         pendingCancellation: SemanticHandle?
-        cancellation: SearchCancellationFacet
+        cancellation: CatalogSearchCancellation
         revision
     }
   | Failed {
@@ -2672,7 +2747,17 @@ CatalogState =
         generation
         reason
         pendingCancellation: SemanticHandle?
-        cancellation: SearchCancellationFacet
+        cancellation: CatalogSearchCancellation
+        revision
+    }
+  | OutcomeUnknown {
+        operationId
+        generation
+        query
+        pageSize
+        pendingSearch: SemanticHandle
+        pendingCancellation: SemanticHandle?
+        cancellation: CatalogSearchCancellation
         revision
     }
   | Cancelled {
@@ -2680,8 +2765,25 @@ CatalogState =
         generation
         cancellation: CancellationAcceptedBeforeStart | CancellationAcceptedInProgress
         revision
-    }
+}
 ```
+
+`CancellationRejected(reason)` retains the bounded typed rejection reason in committed state. It is not reconstructed from logs or a transient callback. `OutcomeUnknown` retains the current search identity and request fields so a later matching result, cancellation observation, or declared reconciliation decision can refine the same operation without reading runtime history.
+
+Committed `CatalogState` is the sole authority. The version-2 mapping to `CatalogView` is exactly these six cases, with no fallback/default branch and no multiple matching case:
+
+| `CatalogState` source variant | Exact `CatalogView` result |
+|---|---|
+| `Idle(revision)` | `CatalogIdle` |
+| `Searching(operationId, generation, query, pageSize, ..., cancellation, revision)` | `CatalogSearchStatus(operationId, Searching(generation, query, pageSize), cancellation)` |
+| `Ready(operationId, generation, ..., products, cancellation, revision)` | `CatalogSearchStatus(operationId, Ready(generation, products), cancellation)` |
+| `Failed(operationId, generation, reason, ..., cancellation, revision)` | `CatalogSearchStatus(operationId, Failed(generation, reason), cancellation)` |
+| `OutcomeUnknown(operationId, generation, query, pageSize, ..., cancellation, revision)` | `CatalogSearchStatus(operationId, OutcomeUnknown(generation, query, pageSize), cancellation)` |
+| `Cancelled(operationId, generation, cancellation, revision)` | `CatalogSearchStatus(operationId, Cancelled(generation), cancellation)` |
+
+Call this pure total mapping `toCatalogView`. Every state-changing Catalog search/cancellation Decision publishes `toCatalogView(nextState)` when its transition below names a projection. The mapping exposes lifecycle, proven result or failure, cancellation status, and cancellation rejection reason together; private pending handles remain state, not public status.
+
+Persisted schema-v1 state MUST NOT enter normal version-2 `decide`. An authoritative upcaster maps each v1 `Idle`, `Searching`, `Ready`, `Failed`, or `Cancelled` record and its exact fields to the corresponding v2 variant before execution. A v1 `CancellationRejected` record lacks the required reason: it is upcast only when bounded authoritative accepted evidence supplies that exact reason; otherwise the record is quarantined or routed to a declared manual remediation path. No null, empty, generic, or inferred reason is synthesized. Existing retained v1 protocol outputs keep their v1 meaning and are not reinterpreted as v2 `CatalogView` or `CatalogSignal` payloads.
 
 State stores a `SemanticHandle`, not a storage-generated `OutputId`. A runtime ledger may associate:
 
@@ -2711,7 +2813,6 @@ UTF-8 validation
 NFC normalization according to field contract
 SearchText.parse(maxUtf8Bytes = 128)
 PageSize.parse(range = 1..100)
-authentication context lookup
 request deadline construction
 ```
 
@@ -2729,16 +2830,15 @@ The trusted boundary passes:
 
 ```text
 DecisionContext {
-    actorContext
-    configurationSnapshot
     trustedTimeObservation
     reservedSemanticIds = [search-88]
-    issuedAt
     expiresAt
 }
 ```
 
 `operationId` is neither read from an arbitrary client field nor generated from ambient randomness inside the Nucleus.
+
+For `ProductSelected(productId)`, Interaction validates the product identifier and supplies one reserved selection operation ID, for example `reservedSemanticIds = [selection-501]`. The selection path shown here is actor-independent and uses no configuration or trusted time, so it creates no actor/configuration/time context fields. A project adds actor context only when actor, tenant, issuer, realm, assurance, or delegation can change that selection Decision, in which case PBA-44 applies independently of privilege.
 
 ### 15.4. First decision
 
@@ -2766,11 +2866,15 @@ searchHandle = SemanticHandle {
 + ProjectionOutput {
      semanticHandle = SemanticHandle {
          operationId = search-88
-         outputKind = Catalog.SearchLoading
-         localOrdinalOrName = "loading-generation-1"
+         outputKind = Catalog.CatalogView
+         localOrdinalOrName = "view-searching-generation-1"
      }
      sourceOrdinal = 0
-     payload = SearchLoading(search-88, query)
+     payload = CatalogSearchStatus(
+         search-88,
+         Searching(generation = 1, query, pageSize),
+         NotRequested
+     ) # exactly toCatalogView(nextState)
   }
 + EffectRequest {
      semanticHandle = searchHandle
@@ -2786,6 +2890,33 @@ searchHandle = SemanticHandle {
 ```
 
 Runtime checks output bounds and capability binding, accepts the `Decision`, and then dispatches the Effect. If state is persistent, state and the effect outbox are recorded atomically.
+
+`ProductSelected` has one explicit transition from each of the six state variants. These are six closed cases, not a wildcard fallback:
+
+| Source state + `ProductSelected(productId)` | Next state |
+|---|---|
+| `Idle(revision)` | `Idle(revision + 1)` |
+| `Searching(operationId, generation, query, pageSize, pendingSearch, pendingCancellation, cancellation, revision)` | `Searching(operationId, generation, query, pageSize, pendingSearch, pendingCancellation, cancellation, revision + 1)` |
+| `Ready(operationId, generation, query, products, pendingCancellation, cancellation, revision)` | `Ready(operationId, generation, query, products, pendingCancellation, cancellation, revision + 1)` |
+| `Failed(operationId, generation, reason, pendingCancellation, cancellation, revision)` | `Failed(operationId, generation, reason, pendingCancellation, cancellation, revision + 1)`; a `CancellationRejected(reason)` facet retains its own typed cancellation reason independently of the search-failure reason. |
+| `OutcomeUnknown(operationId, generation, query, pageSize, pendingSearch, pendingCancellation, cancellation, revision)` | `OutcomeUnknown(operationId, generation, query, pageSize, pendingSearch, pendingCancellation, cancellation, revision + 1)` |
+| `Cancelled(operationId, generation, cancellation, revision)` | `Cancelled(operationId, generation, cancellation, revision + 1)` |
+
+Each of those six Decisions contains exactly this one output and no Projection, Reply, Effect, Command, or Timer:
+
+```text
+SignalPublication {
+    semanticHandle = SemanticHandle {
+        operationId = context.reservedSemanticIds.single # selection-501
+        outputKind = Catalog.ProductSelectionConfirmed
+        localOrdinalOrName = "selected"
+    }
+    sourceOrdinal = 0
+    payload = ProductSelectionConfirmed(productId)
+}
+```
+
+The accepted revision advance gives the routed publication one exact committed source revision while preserving every state-specific lifecycle and cancellation fact. The Signal is dispatched only after that state/output frame is accepted. Assembly owns the route binding; Catalog owns the payload and publication Decision.
 
 ### 15.5. Resource adapter and safe sink
 
@@ -2837,19 +2968,26 @@ Decision:
 
 ```text
 Searching(generation = 1, pendingSearch = searchHandle, cancellation)
+or OutcomeUnknown(generation = 1, pendingSearch = searchHandle, cancellation)
 + ProductsFound(searchHandle, generation = 1, products, provenance)
 
 -> Ready(operationId, generation = 1, products, pendingCancellation, cancellation)
 + ProjectionOutput {
      semanticHandle = SemanticHandle {
          operationId
-         outputKind = Catalog.SearchResults
-         localOrdinalOrName = "results-generation-1"
+         outputKind = Catalog.CatalogView
+         localOrdinalOrName = "view-ready-generation-1"
      }
      sourceOrdinal = 0
-     payload = SearchResults(operationId, products)
+     payload = CatalogSearchStatus(
+         operationId,
+         Ready(generation = 1, products),
+         cancellation
+     ) # exactly toCatalogView(nextState)
   }
 ```
+
+`ProductSearchFailed` follows the same `Searching|OutcomeUnknown -> Failed` refinement and publishes the complete `CatalogSearchStatus(..., Failed(generation, reason), cancellation)`. A proven result or failure refines an earlier `OutcomeUnknown` but preserves the current cancellation facet, including `CancellationRejected(reason)`.
 
 ### 15.7. Stale result
 
@@ -2871,7 +3009,10 @@ It does not apply a result according to "the last callback wins."
 ### 15.8. Cancellation race
 
 ```text
-Searching(pendingSearch = searchHandle, cancellation = NotRequested)
+Searching or OutcomeUnknown(
+    pendingSearch = searchHandle,
+    cancellation = NotRequested
+)
 + SearchCancelled(operationId)
 
 cancelHandle = SemanticHandle {
@@ -2880,19 +3021,17 @@ cancelHandle = SemanticHandle {
     localOrdinalOrName = "cancel-generation-2"
 }
 
--> Searching(
-     pendingSearch = searchHandle,
-     pendingCancellation = cancelHandle,
-     cancellation = Requested
-   )
+-> same lifecycle and search fields,
+   pendingCancellation = cancelHandle,
+   cancellation = Requested
 + ProjectionOutput {
      semanticHandle = SemanticHandle {
          operationId
-         outputKind = Catalog.SearchCancellationStatus
-         localOrdinalOrName = "cancel-requested-generation-2"
+         outputKind = Catalog.CatalogView
+         localOrdinalOrName = "view-cancel-requested-generation-2"
      }
      sourceOrdinal = 0
-     payload = SearchCancellationStatus(operationId, Requested)
+     payload = toCatalogView(nextState)
   }
 + EffectRequest {
      semanticHandle = cancelHandle
@@ -2905,14 +3044,14 @@ Every cancellation Fact must match simultaneously on `cancellationHandle`, `targ
 
 | Fact | State transition | Subsequent behavior |
 |---|---|---|
-| `ProductSearchCancelledBeforeStart` | `Searching -> Cancelled(cancellation = CancellationAcceptedBeforeStart)`; from `Ready/Failed` with an already accepted terminal search result—an invariant/provenance fault with no new Decision | A search result is no longer expected; a mutually exclusive terminal proof in either order does not overwrite the previously accepted state. |
-| `ProductSearchCancellationAcceptedInProgress` | From `Searching/Ready/Failed(cancellation = Requested)`, the current lifecycle/result is retained and only the facet changes to `CancellationAcceptedInProgress`; a repeat in the same facet or a late weaker proof from `Cancelled(CancellationAcceptedInProgress)` is a corroborating no-op with no new semantic state/output | Acceptance does not prove physical stop; a matching search result before or after this Fact remains authoritative. |
-| `ProductSearchCancelled` | `Searching(cancellation = Requested)` or `Searching(cancellation = CancellationAcceptedInProgress) -> Cancelled(cancellation = CancellationAcceptedInProgress)`; from `Ready/Failed` with an already accepted terminal search result—an invariant/provenance fault with no new Decision | The matching terminal Fact itself proves cancellation acceptance and the `Cancelled` outcome even if the separate accepted-in-progress Fact is delayed or lost; a mutually exclusive terminal proof does not overwrite previously accepted state. |
-| `ProductSearchCancellationTooLate` | The current `Searching/Ready/Failed` is retained with `cancellation = CancellationTooLate` | An already received or subsequent matching result remains authoritative. |
-| `ProductSearchCancellationRejected` | The current state is retained with `cancellation = CancellationRejected` | The ordinary search lifecycle continues; the reason is available to the status projection. |
-| `ProductSearchCancellationOutcomeUnknown` | The current state is retained with `cancellation = CancellationUnknown` | A matching result is not discarded; the reconciliation/status policy remains explicit. |
+| `ProductSearchCancelledBeforeStart` | `Searching|OutcomeUnknown -> Cancelled(cancellation = CancellationAcceptedBeforeStart)`; from `Ready|Failed` with an accepted terminal search result, an invariant/provenance fault with no new Decision | The terminal Fact proves cancellation before start. A mutually exclusive terminal proof in either order does not overwrite the first accepted state. |
+| `ProductSearchCancellationAcceptedInProgress` | From `Searching|OutcomeUnknown|Ready|Failed(cancellation = Requested)`, retain the exact lifecycle/result fields and change only the facet to `CancellationAcceptedInProgress`; a repeat in that facet or a late weaker proof from `Cancelled(CancellationAcceptedInProgress)` is a corroborating no-op | Acceptance does not prove physical stop; a matching result before or after this Fact remains authoritative. |
+| `ProductSearchCancelled` | `Searching|OutcomeUnknown(cancellation = Requested|CancellationAcceptedInProgress) -> Cancelled(cancellation = CancellationAcceptedInProgress)`; from `Ready|Failed`, an invariant/provenance fault with no new Decision | The terminal Fact itself proves accepted cancellation even if the separate accepted-in-progress Fact is delayed or lost. |
+| `ProductSearchCancellationTooLate` | Retain the exact `Searching|OutcomeUnknown|Ready|Failed` lifecycle/result fields and set `cancellation = CancellationTooLate` | An already received or subsequent matching result remains authoritative. |
+| `ProductSearchCancellationRejected(reason)` | Retain the exact `Searching|OutcomeUnknown|Ready|Failed` lifecycle/result fields and set `cancellation = CancellationRejected(reason)` | The bounded reason is committed and remains in every subsequent `CatalogView`. |
+| `ProductSearchCancellationOutcomeUnknown` | Retain the exact `Searching|OutcomeUnknown|Ready|Failed` lifecycle/result fields and set `cancellation = CancellationUnknown` | A matching result is not discarded; reconciliation remains explicit. |
 
-Every accepted state-changing transition above creates a `ProjectionOutput` with a complete `SemanticHandle`, the next zero-based `sourceOrdinal`, and payload `SearchCancellationStatus(operationId, cancellation)`. An exact duplicate or the specified corroborating no-op creates no duplicate semantic state/output. A conflict path is not a transition: it accepts no `Decision`, state, or output and follows the fault/quarantine policy in §8.8.
+Every accepted state-changing transition in the table creates one `ProjectionOutput` with a complete view handle, `sourceOrdinal = 0`, and payload `toCatalogView(nextState)`. It therefore publishes lifecycle/result and cancellation together. An exact duplicate or specified corroborating no-op creates no duplicate semantic state/output. A conflict path is not a transition: it accepts no Decision, state, or output and follows §8.8.
 
 For one exact cancellation/search lineage, observation order is not a hidden precondition:
 
@@ -2938,6 +3077,20 @@ late ProductSearchCancellationAcceptedInProgress
 
 `ProductSearchFailed` follows the same compatible-ordering rules. They imply neither AIP-first transport ordering nor unbounded buffering.
 
+Too-late, rejected, and cancellation-unknown observations commute with a legitimate result because each changes only the cancellation facet:
+
+```text
+CancellationRejected(reason-R)
+ProductsFound(products-P)
+-> Ready(products-P, cancellation = CancellationRejected(reason-R))
+
+ProductsFound(products-P)
+CancellationRejected(reason-R)
+-> Ready(products-P, cancellation = CancellationRejected(reason-R))
+```
+
+`CancellationTooLate` and `CancellationUnknown` follow the same two-order rule. A prior search `OutcomeUnknown` may be refined by a later matching `ProductsFound` or `ProductSearchFailed`; that result changes only the lifecycle and retains the latest accepted cancellation facet and rejection reason.
+
 Mutually exclusive terminal proofs have a symmetric contract:
 
 ```text
@@ -2948,7 +3101,7 @@ ProductsFound          -> Ready
 ProductSearchCancelled -> invariant/provenance fault; no Decision; Ready remains accepted
 ```
 
-`ProductSearchFailed` follows the same terminal-conflict rule. This is neither last-arrival-wins nor an implicit conversion of typed `ProductSearchCancelled` into `CancellationTooLate`. Closing observation ordering changes the concrete Catalog `transitionArtifactVersion`, but not the public `protocolVersion: 1.0.0`, `stateSchemaVersion: 1`, state shape, authoritative surface inventory, or routes; no state migration is required.
+`ProductSearchFailed` follows the same terminal-conflict rule. This is neither last-arrival-wins nor an implicit conversion of typed `ProductSearchCancelled` into `CancellationTooLate`. Catalog v2 pins this closed transition family to `transitionArtifactVersion: 2.0.0`; protocol, state-schema, route, and migration changes are the explicit version-2 boundary in §§14.4/15.1–15.2.
 
 Both permitted ordering traces have the same meaning:
 
@@ -2960,7 +3113,7 @@ ProductsFound       -> Ready(cancellation = Requested)
 CancellationTooLate -> Ready(cancellation = CancellationTooLate)
 ```
 
-Likewise, a matching `ProductsFound` after `CancellationAcceptedInProgress`, `CancellationRejected`, or `CancellationUnknown` is accepted and retains the corresponding cancellation facet. A linear `Loading | Cancelled | Ready` enum without an independent facet is insufficient.
+Likewise, a matching `ProductsFound` after `CancellationAcceptedInProgress`, `CancellationRejected(reason)`, or `CancellationUnknown` is accepted and retains the corresponding cancellation facet. A linear `Loading | Cancelled | Ready` enum without an independent facet is insufficient.
 
 ### 15.9. Timeout and unknown
 
@@ -2970,7 +3123,22 @@ Local deadline expiry means that the caller stopped waiting. If the external req
 ProductSearchOutcomeUnknown
 ```
 
-is not automatically converted into `ProductSearchFailed`. Repetition is usually safe for a read-only search, but that is a property of the specific effect contract, not a general timeout rule.
+is not converted into `ProductSearchFailed`. For a current matching search:
+
+```text
+Searching(all search fields, cancellation)
++ ProductSearchOutcomeUnknown(searchHandle, generation, provenance)
+
+-> OutcomeUnknown(the same operation/search/pending fields, cancellation)
++ ProjectionOutput(
+     sourceOrdinal = 0,
+     payload = toCatalogView(nextState)
+   )
+```
+
+A later matching `ProductsFound` or `ProductSearchFailed` refines `OutcomeUnknown` to `Ready` or `Failed` and preserves the cancellation facet. A later weaker `ProductSearchOutcomeUnknown` received after `Ready`, `Failed`, or proven `Cancelled` is a corroborating no-op with no state or output; it never regresses stronger proof. An exact duplicate in `OutcomeUnknown` is also a no-op.
+
+Repetition is usually safe for a read-only search, but that is a property of this exact Effect contract, not a general timeout rule. Any retry preserves the operation/search handle and finite retry ownership.
 
 ### 15.10. What the example demonstrates
 
@@ -2979,6 +3147,9 @@ is not automatically converted into `ProductSearchFailed`. Repetition is usually
 - The Nucleus does not know the database driver.
 - User text does not become query code.
 - State is protected by generation/handle causality.
+- Committed state maps through one six-case total `CatalogView` for both Query and Projection.
+- Product selection publishes one producer-owned `CatalogSignal` from every state without losing search lifecycle or cancellation facts.
+- Unknown can be refined by proof but cannot regress a proven terminal result.
 - Runtime ID is separate from the semantic handle.
 - The Inline path requires no mediator or queue.
 - The asynchronous adapter can be replaced without changing decision semantics.
@@ -3878,7 +4049,10 @@ Triggered tests are added only for their reachable paths: stale/late results, du
 
 - stale results;
 - duplicate inputs;
-- every cancellation outcome and applicable observation order: `AcceptedInProgress -> ProductsFound|ProductSearchFailed` and `ProductsFound|ProductSearchFailed -> AcceptedInProgress` converge on the same `Ready|Failed(AcceptedInProgress)`; `AcceptedInProgress -> ProductSearchCancelled` and `ProductSearchCancelled -> late AcceptedInProgress` converge on `Cancelled(AcceptedInProgress)` without duplicate output; mutually exclusive terminal result/cancellation proofs in both orders retain the first frame, while the second proof accepts no Decision/state/output and follows the invariant/provenance fault policy;
+- Catalog `ProductSelected` from each of `Idle`, `Searching`, `Ready`, `Failed`, `OutcomeUnknown`, and `Cancelled`: every state-specific field/facet is preserved, only the accepted revision advances, and exactly one `ProductSelectionConfirmed(productId)` `SignalPublication` appears at `sourceOrdinal = 0` with no second output;
+- the six explicit, fallback-free `CatalogState -> CatalogView` cases: `Idle -> CatalogIdle` and each of the five search states -> one composite `CatalogSearchStatus` retaining lifecycle/result, cancellation, and any rejection reason;
+- every cancellation outcome and applicable observation order: `AcceptedInProgress -> ProductsFound|ProductSearchFailed` and `ProductsFound|ProductSearchFailed -> AcceptedInProgress` converge on the same `Ready|Failed(AcceptedInProgress)`; rejection/too-late/cancellation-unknown before or after result converges without losing result, facet, or rejection reason; `AcceptedInProgress -> ProductSearchCancelled` and `ProductSearchCancelled -> late AcceptedInProgress` converge on `Cancelled(AcceptedInProgress)` without duplicate output; mutually exclusive terminal result/cancellation proofs in both orders retain the first frame, while the second proof accepts no Decision/state/output and follows the invariant/provenance fault policy;
+- `Searching -> OutcomeUnknown -> Ready|Failed` refinement retains cancellation; a weaker or duplicate search-unknown observation after `Ready`, `Failed`, or proven `Cancelled` is a no-op and cannot regress proof;
 - deadline transitions;
 - output-limit overflow;
 - exact `N+1` synchronous completion trace at causal-budget exhaustion, with no dropped Fact or hidden continuation;
@@ -3911,7 +4085,13 @@ CheckoutStartFingerprintV1(P with key/transport metadata X, A) = CheckoutStartFi
 retained Checkout ingress fingerprint = atomically accepted Interaction idempotency-record fingerprint
 retained workflow value is not cleared while a dependent transition remains reachable
 same authority action cannot bind different retained value/authority version/conflicting proof; alternate valid observation of the same value only corroborates
+Catalog ProductSelected source-state set = {Idle, Searching, Ready, Failed, OutcomeUnknown, Cancelled}
+every Catalog ProductSelected Decision has outputs = [SignalPublication(ProductSelectionConfirmed(productId), sourceOrdinal = 0)]
+CatalogState-to-CatalogView source-state set = {Idle, Searching, Ready, Failed, OutcomeUnknown, Cancelled}, with one case per state and no fallback
+CatalogView preserves lifecycle/result + cancellation + CancellationRejected(reason) for every reachable state
+ProductSearchOutcomeUnknown cannot regress Ready, Failed, or proven Cancelled; a later proven result may refine OutcomeUnknown
 nonterminal cancellation acceptance commutes with a legitimate matching result and preserves its lifecycle in both observation orders
+too-late, rejected(reason), and cancellation-unknown commute with legitimate result without information loss
 terminal cancellation proof subsumes a delayed accepted-in-progress observation; a later weaker proof does not change terminal state or publish duplicate output
 mutually exclusive terminal result/cancellation proofs never overwrite an accepted terminal frame in either arrival order
 ```
@@ -3943,7 +4123,8 @@ For each present Interaction path, select the reachable cases below. Shared pars
 - invalid boundary input returns `BoundaryResponse` but creates no Pulse, Decision, CommitRevision, SemanticHandle, or committed ReplyOutput;
 - normalization policy;
 - duplicate/unknown field behavior where relevant;
-- authentication context source;
+- authentication context source and approved-issuer evidence only when the actor-context trigger exists; an actor-independent path produces no actor artifact;
+- Catalog search and product-selection IDs come only from validated `reservedSemanticIds`; selection receives one ID for its single routed Signal handle and no unused actor/configuration/time fields;
 - Checkout uses one selected `CheckoutStartFingerprintV1` in Interaction and transition: same key + same fingerprint returns the prior `OperationId`, same key + semantic/actor-scope mismatch returns `IdempotencyConflict`, while key/RequestId/trace/reply changes do not themselves change the fingerprint;
 - external mutation/cancellation after validation creates exactly one declared `Intent`, not a `ControlPulse`;
 - a successful Query response matches the declared result mapping, uses `ReadResult`/`ConsistencyStamp` when the stamped-read trigger applies or call-scope identity otherwise, and creates no commit identity;
@@ -3971,17 +4152,25 @@ no raw external request -> ControlPulse path; every external mutation/cancellati
 every post-commit runtime/route observation that changes Sovereign State resolves to one declared typed ControlPulse, exact previously committed source tuple and trusted provenance, then passes through single-writer decide; source commit and direct runtime state write cannot materialize Dispatched/ACK/ambiguity/DispatchStopped facets
 closed protocol exhaustiveness
 every non-empty Ball-owned protocol category resolves each used variant exactly once through an inline declaration or one version-pinned authoritative reference; omitted categories are empty for FeatureBall and FlowBall alike
+every routed Signal resolves exactly once in the producer-owned protocol; Assembly owns route/version/delivery binding and cannot define the producer payload
 every owned Query resolves exactly one result payload for the same effective protocol identity; triggered stamped reads use canonical ReadResult/ConsistencyStamp, same-stack getters use call-scope identity, and neither creates a Decision, revision, SemanticHandle or SemanticOutput
 every operation-status result payload exhaustively distinguishes only its reachable lifecycle, acceptance, cancellation, ambiguity, delivery-stop and retention variants; any present absence/expiry result is derived from a stamped declared status-authority snapshot
+Catalog protocolVersion = 2.0.0, stateSchemaVersion = 2, transitionArtifactVersion = 2.0.0, and the ProductSelectionConfirmed producer/consumer route pair = 2.0.0/2.0.0
+Catalog ProductSelected transitions are set-equal to {Idle, Searching, Ready, Failed, OutcomeUnknown, Cancelled}; each preserves its state-specific fields/facets and emits exactly one sourceOrdinal-0 ProductSelectionConfirmed SignalPublication
+CatalogState-to-CatalogView mappings are set-equal to the same six states, one case each, with no fallback/default or multiple case; GetCatalogView and every search-state Projection use that mapping
+Catalog v1 persisted state enters v2 decide only through authoritative upcast; missing rejection-reason or other required evidence routes to quarantine/manual remediation and never to an invented default
 for Checkout, the stopped-handle universe includes the initial RequestAccepted ReplyOutput and all nine command Step handles; cap/order/reservation/materialization and 10/11 tests cover the same exact set
 every imported ModuleCommand/ModuleResult resolves through exactly one declared dependency whose effective protocol identity matches Assembly; explicit producer/consumer versions are required only across independent versioning/deployment, and imported target types are not redeclared as caller-owned
 every example output maps to the canonical envelope/payload algebra; no orphan EffectIntent/ModuleCommandIntent/CommandId
-direct import/synchronous/control graphs are acyclic
-async feedback is tested separately for owner, identity, finite budget and escape condition
+compile-time import and Direct Control Dependency graphs are independently and unconditionally acyclic; generated inline dispatch before async handoff/yield is included
+a WaiverRecord on either direct cycle records deliberate non-conformance and cannot make the architecture test pass
+async feedback after a bounded handoff/yield creates no direct-control edge and is tested separately for owner, identity, finite budget, escape condition and fan-out protection
 every inter-Ball edge has ReadDependency, DeclaredCommandDependency, DeclaredSignalDependency or FlowParticipation
 every produced command/read/effect has a declared route or private capability binding
 every present variable dimension resolves to one finite effective bound through static proof, an exact reusable policy, or a local declaration/delta; absent dimensions need no zero or N/A row
 every policy reference is exact, acyclic, in scope, current for its selected revision, and conflict-free; wrong-version/profile/binding/environment and unauthorized overrides fail
+policy references and WaiverRecords cannot suppress an inferred trigger, weaken a law, or convert a MUST/MUST NOT violation into conformance
+when actor, tenant, issuer, realm, assurance, or delegation can change any Decision, PBA-44 resolves approved-issuer authenticity/integrity even for a typed unprivileged inter-Ball input; actor-independent paths resolve no actor artifact
 the §14.2 minimal Inline fixture resolves only always-applicable obligations and contains no absent-path placeholders
 positive and negative fixtures for path-, risk-, and claim-triggered rules respectively activate the guardrail and reject the same reachable trigger when no effective guardrail/evidence resolves
 two Balls can resolve one exact shared policy without copying it; a local delta changes only an explicitly overridable field and leaves all other effective values equal
@@ -3996,7 +4185,7 @@ An import linter result does not prove semantic ownership or security isolation.
 For `BoundedConcurrent`, add the cases whose subpaths exist:
 
 - out-of-order Facts/Results when completion can reorder;
-- mailbox full/backpressure;
+- mailbox full/backpressure returns a closed `BoundaryResponse(AdmissionFailure(reason))` before acceptance;
 - concurrent duplicate ingress when duplication is possible;
 - cancel versus completion when cancellation exists;
 - timeout versus late result when deadlines/ambiguity exist;
@@ -4040,6 +4229,16 @@ Checkout recovery after direct or reconciled PaymentCaptured before Order result
 Checkout recovery after Order rejection before/between Refund, Release and Unlock
 ```
 
+The canonical Catalog v2 example additionally tests persisted-state rollout:
+
+```text
+each v1 Idle/Searching/Ready/Failed/Cancelled variant -> exact authoritative v2 upcast
+v1 CancellationRejected + authoritative bounded reason evidence -> v2 CancellationRejected(reason)
+v1 CancellationRejected without that evidence -> quarantine/manual remediation
+pending v1 output or Fact retains its v1 protocol/artifact meaning and is not decoded as v2
+no schema-v1 record enters normal v2 decide and no missing field receives a null/default substitute
+```
+
 Minimum properties are likewise triggered. The Checkout-specific bullets below are evidence for §16, not a template for an unrelated durable Ball:
 
 - no dispatch before source commit when outputs exist;
@@ -4063,6 +4262,9 @@ Minimum properties are likewise triggered. The Checkout-specific bullets below a
 
 For each present actor, privileged, capability, interpreter, secret, or abuse trigger, select only the applicable tests below. The Capture/Cancel/Refund/Release/Unlock entries are Checkout example evidence only:
 
+- actor context from a valid approved issuer with verified authenticity/integrity becomes trusted Decision input but grants no authority by itself;
+- forged/tampered actor evidence, wrong or unapproved issuer/realm, and missing or unverifiable required evidence fail closed before any actor-dependent Decision, including a typed unprivileged inter-Ball command;
+- an otherwise equivalent actor-independent path creates no actor context, issuer row, authentication artifact, or actor-specific test fixture;
 - missing/expired/wrong-audience grant;
 - forged/tampered grant and untrusted/wrong issuer;
 - substitution of amount/currency/object/operation or another constrained command field after authorization;
@@ -4151,9 +4353,12 @@ Applicability checks:
 - [ ] Absent triggers create no mechanism, empty table, zero field, evidence dossier, or `N/A` row. Ambiguous absence is resolved explicitly or treated as present.
 - [ ] If outputs exist, commit-before-dispatch and complete-batch retention are proven; detached/addressable work has stable semantic identity, while immediate local output need not materialize it.
 - [ ] If a Query/stamped read/status path exists, its exact result/stamp/authority contract is closed; all reads remain non-mutating.
+- [ ] For Catalog v2, all six `CatalogState` variants map exactly once to the composite `CatalogView`, and all six `ProductSelected` transitions preserve state-specific facts and emit only one ordinal-0 `ProductSelectionConfirmed` Signal publication.
 - [ ] If a value crosses Decisions, it is retained or reintroduced with only the correlation/version/provenance/retention required by that path; runtime history is not a hidden decision input.
 - [ ] If late results, ACK, ambiguity, retry, cancellation, deadline, timer, status, or durable delivery paths exist, only their reachable §9 contracts and race tests are present.
 - [ ] If a raw, external-resource, privileged, interpreter, secret, or unsafe path exists, only its reachable §11 guardrails resolve; no forbidden-capability boilerplate substitutes for a closed type graph.
+- [ ] If actor, tenant, issuer, realm, assurance, or delegation can change a Decision, actor context is verified relative to a valid approved issuer under PBA-44; forged, wrong-issuer, or missing evidence fails closed. An actor-independent path creates no actor artifacts.
+- [ ] A policy reference or `WaiverRecord` never suppresses a trigger or weakens a law; any violated `MUST`/`MUST NOT` keeps its exact scope non-conforming.
 - [ ] Performance, durability, delivery, isolation, security, or conformance language is used only with an exact claim record and in-scope evidence.
 
 ### 18.2. Composition
@@ -4169,7 +4374,7 @@ Apply this subsection only when an inter-Ball edge or Flow exists.
 - [ ] A Flow stores only field-minimized workflow values needed by later decisions/recovery; a participant/runtime ledger, outbox, and history do not become hidden decision input.
 - [ ] A public contract does not re-export another authority's owned types.
 - [ ] The route graph and fan-out are bounded.
-- [ ] Compile-time import and direct synchronous/control graphs are acyclic unless covered by a waiver.
+- [ ] Compile-time import and `Direct Control Dependency` graphs are unconditionally acyclic, including generated inline dispatch before handoff/yield. A waiver records deliberate non-conformance and cannot make this check pass.
 - [ ] Async feedback, if present, has an owner, stable identity, a finite causal budget, an escape condition, and fan-out protection; idempotency/deduplication and a retry budget appear only when duplicate or retry paths exist.
 - [ ] A multi-source read is not called an atomic snapshot without a corresponding mechanism.
 
@@ -4178,7 +4383,7 @@ Apply this subsection only when an inter-Ball edge or Flow exists.
 Apply this subsection only for `BoundedConcurrent` or another explicitly claimed concurrent binding.
 
 - [ ] The mailbox is bounded.
-- [ ] Backpressure is typed.
+- [ ] Pre-acceptance backpressure is a typed `BoundaryResponse(AdmissionFailure(reason))` and creates no accepted state/output.
 - [ ] Worker concurrency is bounded when workers exist.
 - [ ] Out-of-order result tests exist when completion can reorder.
 - [ ] One primary retry owner is selected for every retrying failure mode.
@@ -4206,6 +4411,8 @@ Apply this subsection only for `SnapshotOutbox`, `EventJournal`, or another expl
 
 Apply this subsection only for the selected `Hardened`/`Isolated` profile or corresponding security/isolation claim.
 
+PBA-44 already applies in every profile when actor context can change a Decision. This subsection checks only the stronger profile-specific realization and evidence.
+
 - [ ] Actor context comes from a trusted boundary when actor identity affects semantics.
 - [ ] A privileged output is bound to a scoped grant when proof crosses an authority.
 - [ ] The execution gate checks current authoritative constraints for each privileged path.
@@ -4230,7 +4437,7 @@ Apply this subsection only for the selected `Hardened`/`Isolated` profile or cor
 | `Map<String, Any>` / string message names | No closed algebra or exhaustiveness | Tagged unions / sealed types |
 | `ExecuteSql(String)` | Raw interpreter authority | `FindUserById(UserId)` + safe adapter |
 | `FetchUrl(String)` | SSRF and arbitrary endpoint authority | Endpoint-scoped typed capability |
-| `RunShell(String)` | Command injection and ambient OS authority | Structured OS operation; waiver for shell |
+| `RunShell(String)` | Command injection and ambient OS authority | Structured OS operation; if raw shell is unavoidable, use the explicit unsafe escape-hatch contract in §11.10. Add a `WaiverRecord` only for a separate unresolved `MUST`/`MUST NOT` deviation; that deviation remains non-conforming in its exact scope. |
 | Unbounded queue/retry/fan-out | Unpredictable memory/latency/cost | Declared finite limits |
 | Retry in SDK + adapter + runtime + Flow for one failure mode | Multiplicative attempts and unclear ownership | One primary retry owner per failure mode; other layers disabled or bounded and semantically transparent |
 | Timeout = failed action | The external action might have occurred | `OutcomeUnknown` + reconciliation |
@@ -4351,6 +4558,10 @@ Apply this subsection only for the selected `Hardened`/`Isolated` profile or cor
 
 **PBA-43 — Foundation Quarantine.** Foundation contains mechanical primitives, not a shared mutable domain model.
 
+### Actor-context authenticity
+
+**PBA-44 — Trusted Actor Context.** When actor, tenant, issuer, realm, assurance, or delegation can change a Decision, actor context originates at a Trusted Boundary and its authenticity and integrity are verified relative to a valid approved issuer before it becomes trusted Decision input. Forged or tampered evidence, a wrong or unapproved issuer/realm, and missing or otherwise unverifiable required evidence fail closed. Actor context grants no authority by itself, and an actor-independent path materializes no actor-context, issuer, authentication, or actor-evidence artifact.
+
 ### 20.1. Applicability and resolution matrix
 
 The law ID is the stable source anchor. `A` means `always`, `P` path-triggered, `R` risk-triggered, and `C` claim-triggered. The law text above remains normative in full whenever its trigger is true. “Declaration owner” identifies semantic authority, not a required manifest row; construction or a closed type may be the declaration. For every `P`, `R`, or `C` row, a proven-absent trigger omits the mechanism, evidence, zero placeholder, empty table, and `N/A` row. Ambiguity is handled by §0.2.
@@ -4400,6 +4611,7 @@ The law ID is the stable source anchor. `A` means `always`, `P` path-triggered, 
 | `PBA-41` | `C`: performance, durability, isolation/security, delivery, or conformance claim is made. | Claimant names exact binding/scope. | Benchmark/security/fault/conformance evidence owner. | Reuse only on identical digest/scope; without evidence omit the claim. |
 | `PBA-42` | `C`: delivery/durability/recovery/RPO/RTO/receipt/acceptance/once-only claim is made. | Claimant and binding owner. | Delivery/crash/recovery/downstream evidence owner. | Failure model/evidence reusable only in identical scope; weaker/no claim needs no table. |
 | `PBA-43` | `P`: shared foundation exists. | Project foundation owner. | Dependency/ownership scan. | One project policy serves all Balls; Balls do not copy it; omit if no shared foundation. |
+| `PBA-44` | `R`: actor, tenant, issuer, realm, assurance, or delegation can change a Decision. | Ball semantic owner plus Trusted Boundary/security-binding owner defines the approved issuer and evidence contract. | Trusted Boundary verifier; transition and actor-origin security tests. | Exact issuer/verifier policy may be reused only in its scope; actor-independent paths omit actor context, issuer data, authentication, and actor-evidence artifacts. |
 
 ---
 
@@ -4532,6 +4744,8 @@ Every extension must:
 
 **DeclaredSignalDependency** — an explicit one-hop route from a committed `SignalPublication` to an `ObservedSignal` with exact effective protocol identity, delivery, source identity/provenance, and finite fan-out/observation bounds; version, deduplication, ordering, buffering, causal, and retry fields appear only when triggered.
 
+**Direct Control Dependency** — a compile-time import of another Ball's application surface or a synchronous cross-Ball call that transfers control before an asynchronous handoff/yield, including generated inline dispatch with that behavior. Its graph is unconditionally acyclic; bounded asynchronous feedback after handoff creates no direct-control edge.
+
 **Delivery Observation** — a provenance-bound post-commit mechanical fact about a dispatch attempt, target acceptance/rejection, ambiguity, or exhaustion of the delivery policy; it differs from a business `Fact`/`ModuleResult` and affects Sovereign State only through a declared typed `ControlPulse`.
 
 **DispatchStopped** — a terminal delivery observation that the declared finite dispatch policy is exhausted; it does not prove business failure, cancellation, or non-execution. Operation status with multiple independently delivered outputs/steps retains a bounded record for every stopped `SemanticHandle` rather than selecting one.
@@ -4544,7 +4758,11 @@ Every extension must:
 
 **EventJournal** — a durability profile in which authoritative state is reconstructed from committed domain events and every accepted input, including `NoDomainChange`, receives a durable `AcceptedEventCommit`; idempotency, status, and source-output records join that transaction only when their paths exist.
 
+**Execution Gate** — the target/resource check immediately before authoritative execution that enforces every currently triggered technical capability, authenticity, authorization, binding, version, idempotency, quota, endpoint, and safe-sink constraint without inventing a new business decision.
+
 **Fact** — a validated provenance-bound outcome of a previously accepted `EffectRequest`; immediate completion may use call-scope correlation, while detached/reorderable completion and subscription observations carry stable materialized causal identity.
+
+**Field-Minimized** — containing exactly the semantic, correlation, version, provenance, validity, and lifetime fields activated by the value's actual decision and boundary triggers; fields with absent triggers are omitted rather than filled with defaults or placeholders.
 
 **Feature Ball** — a Ball that owns a local business capability/state authority.
 
@@ -4579,6 +4797,8 @@ Every extension must:
 **OutcomeUnknown** — a state in which an external action might have occurred but no proven outcome exists.
 
 **OutputId** — the runtime/storage identity of a committed output record. It need not be part of domain state.
+
+**Policy Gate** — the Nucleus decision that determines whether an action is permitted for the actor in the current state and trusted context; it is distinct from the target/resource Execution Gate.
 
 **Projection** — immutable semantic view state for a consumer/renderer.
 
@@ -4632,6 +4852,8 @@ Every extension must:
 
 **TimerRequest** — a canonical detached `SemanticOutput` envelope with a complete `SemanticHandle`, materialized `sourceOrdinal`, and a `TimerIntent` payload for a Ball with declared timers.
 
+**Trusted Boundary** — an explicitly authorized binding edge that validates representation, provenance, and any triggered authenticity/integrity evidence before constructing trusted semantic input. It does not replace the Nucleus business decision or grant authority merely by authenticating origin.
+
 **Workflow Sovereignty** — the rule of one coordination owner for one stateful multi-participant workflow.
 
 **Zero Mandatory Runtime Tax** — the absence of mandatory mediator/reflection/serialization/queue/thread-hop/object-hierarchy overhead in Core Inline semantics; concrete zero-allocation claims require a benchmark.
@@ -4661,4 +4883,4 @@ Declare once; reference exactly.
 
 ---
 
-**End of Pokeball Architecture — Core Specification `1.1.0`.**
+**End of Pokeball Architecture — Core Specification `1.2.0-draft`.**

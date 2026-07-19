@@ -1,25 +1,26 @@
-# Baseline gate
+# Agent Pack Integrity Manifest
 
-> **Status:** derived noncanonical package. This file does not define the architecture. If the two conflict, the canonical specification prevails.
+> **Status:** derived noncanonical package metadata. This file does not define or extend Pokeball Architecture. If it conflicts with the canonical specification, Core prevails.
 
-This is the only place within `docs/agents/` where the exact SHA-256 of the canonical Core is recorded. The hash is calculated over exact bytes without normalizing line endings, Unicode, or whitespace.
+This manifest identifies one exact Core candidate and its matching Agent Pack. It is the only file in `docs/agents/` that records the exact Core SHA-256. Hashes cover exact bytes without line-ending, Unicode, or whitespace normalization.
 
 ```yaml
-schema: pokeball-agent-pack/v1
-packRevision: 1
+schema: pokeball-agent-pack/v2
+packRevision: 2
 status: derived-noncanonical
 canonicalSpec:
   pathFromRepositoryRoot: spec/pokeball-architecture-core.md
-  declaredVersion: 1.1.0
-  sha256: 0b4bc7da84c255adf1f36484993863f8c926e5cb4e508e918a217c275d536f78
-  bytes: 254896
+  declaredVersion: 1.2.0-draft
+  declaredStatus: canonical draft
+  sha256: 001dbcf45acb49e298b474bd78c5fc842a80a7cabc17e1d57179edb64f020d83
+  bytes: 277970
 packageIntegrity:
   fileCountIncludingBaseline: 15
   digestScope: lexicographic filename + NUL + exact bytes + NUL for every sibling Markdown file except BASELINE.md
-  sha256: 9f0b1302d51baf89735271b2d431e8251436fd9a4e723d3e2bfa979ad032fce6
-validation:
-  status: criteria-passed
-  evidenceMode: embedded-metadata
+  sha256: 3c5370a203ba7c98b56c5a2bc0ae53c5e023cca8c02cf7655e7f93821cd19cbd
+readinessRequirements:
+  sameImmutablePublishedSnapshot: true
+  exactIntegrityMatch: true
 hashOccurrencePolicy: BASELINE-only
 ```
 
@@ -32,7 +33,7 @@ shasum -a 256 spec/pokeball-architecture-core.md
 wc -c spec/pokeball-architecture-core.md
 ```
 
-For package content, from the target repository root:
+For the package digest:
 
 ```sh
 python3 - <<'PY'
@@ -50,31 +51,28 @@ print(h.hexdigest())
 PY
 ```
 
-The Core hash/byte count/version, package file count, and package digest must exactly match the machine-readable block. `validation.status` must be `criteria-passed`; delivery integrity is verified through the self-contained fields above.
+The declared Core version/status/hash/bytes, package file count, and package digest must all match. The root `LICENSE` and `NOTICE.md` are outside the package digest. Portable copies retain the digest-covered `LICENSING.md` without replacing the consuming project's software license.
 
-The root `LICENSE` and `NOTICE.md` license the source repository and are not included in the package content digest. The portable package carries the scoped `LICENSING.md`; it is included in the exact digest, so `AP-GATE-10` requires this file to be retained without replacing the consuming project's software license. Additional equivalent attribution is permitted, but does not replace the file within the verified package.
+## Readiness rule
 
-## Gate states
+Matching metadata proves byte identity, not architectural quality and not publication provenance. The package is ready for application only when both conditions hold:
 
-| State | Condition | Agent action |
-|---|---|---|
-| `READY` | The path, exact Core hash/byte count/version, and package count/digest match, and `validation.status = criteria-passed`. | The contract and runbooks may be applied within their scope. |
-| `STALE` | The specification exists, but at least one value does not match. | Do not use the package as the basis for a change or conformance claim; read the actual Core and synchronize the entire package. |
-| `MISSING` | The Core or this file is absent. | Stop the Pokeball-specific change and request the canonical artifacts. |
-| `UNVALIDATED` | Integrity matches, but `validation.status` is not `criteria-passed`. | Analysis is permitted; release and conformance claims are prohibited until validation. |
+1. the exact Core and Agent Pack bytes came from the same immutable published snapshot; and
+2. every integrity value above matches those delivered bytes.
 
-Do not update only the hash. A new hash is permitted only after verifying the semantic diff, traceability, runbooks, reference index, and package gates. An absent accepted project overlay does not make the package stale or block construction/local project decisions; it blocks only a decision or claim that actually depends on an unresolved shared policy.
+If immutable publication provenance is absent, the files are a candidate rather than a ready package. If any value differs, treat the package as stale. If Core or this manifest is missing, stop Pokeball-specific application and obtain the canonical artifacts.
 
-## Baseline gate report
+Do not edit an installed manifest or update only its hash. Replace Core and the entire Agent Pack from one later immutable published snapshot. An absent project overlay does not make the package stale: an overlay is needed only when a task depends on a shared policy, permitted delta, waiver, or claim that is not otherwise resolved.
 
-The agent records:
+## Consumer integrity report
 
 ```text
-Pokeball baseline: READY | STALE | MISSING | UNVALIDATED
+Immutable snapshot provenance: present | absent
 Core path: ...
-Declared version: ...
-Exact hash/bytes match: yes | no
-Accepted overlay: path + revision | absent
+Declared version/status: ...
+Exact Core hash/bytes match: yes | no
+Exact package count/digest match: yes | no
+Project policy or overlay used by this task: exact reference | absent
 Task scope: ...
 Applicable PKB-AR rules: ...
 ```

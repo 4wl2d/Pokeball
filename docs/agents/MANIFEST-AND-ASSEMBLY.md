@@ -12,11 +12,14 @@ A manifest is an optional materialized view, not a mandatory source file or runt
 | inter-Ball routes and effective protocol identities; explicit versions when independently versioned | Assembly |
 | shared profiles, limits, bindings, ceilings | static/local declaration or optional exact project/binding policy |
 | Ball-specific fact or difference | local declaration or allowlisted delta |
+| deliberate deviation and conformance effect | exact eight-field `WaiverRecord` |
 | claim evidence | claim record |
 
 An independently versioned owned category is declared inline or by one exact authoritative reference. A same-build closed type is already the inventory. An absent category is empty and has no row.
 
 Every Query that exists maps to one result payload. Imported `ModuleCommand`/`ModuleResult` types remain target-owned and resolve through one Assembly edge; the caller never redeclares them.
+
+Every routed Signal likewise resolves exactly once in the producer-owned protocol. Assembly owns the endpoints, version pair, delivery binding, and route limits; it cannot define, synthesize, or re-own the producer payload. Catalog's canonical version-2 route therefore resolves `ProductSelectionConfirmed` from `CatalogSignal` and pins the independently versioned producer/consumer pair to `2.0.0/2.0.0`.
 
 ## 2. Exact policy resolution
 
@@ -39,6 +42,23 @@ policyDelta:
 Omit `policyDelta` when empty. A Ball-local policy reference is used only for a genuinely different explicit selection. The referenced policy identifies owner, revision/digest, covered guardrails, scope, effective values/mechanisms, override allowlist, enforcement/evidence ownership, and review/expiry condition when relevant.
 
 Static resolution must produce one effective contract for every inferred trigger. Reject missing, mutable, stale, cyclic, conflicting, wrong-version/profile/binding/environment references and unauthorized deltas. Resolution is build/review work, never runtime lookup or ambient inheritance.
+
+A policy reference selects only mechanisms and values that Core leaves open. It never changes applicability, normative strength, protocol ownership, or conformance. A deliberate deviation is separate and uses exactly:
+
+```text
+WaiverRecord {
+    owner
+    approvedBy
+    governingAnchor
+    exactScope
+    reason
+    constraintsAndCompensatingControls
+    testsAndEvidence
+    review { expiryOrReviewAt, remediation, conformanceEffect }
+}
+```
+
+The record does not satisfy the missing guardrail. A violated `MUST`/`MUST NOT` blocks conformance for `exactScope`; a compile-time-import or `Direct Control Dependency` cycle remains non-conforming regardless of waiver or compensating control.
 
 ## 3. Sparse local example
 
@@ -74,6 +94,8 @@ effective route/fan-out bounds
 
 A local route may compile to a direct call. A process boundary may use IPC. Neither changes domain semantics, and neither requires a universal mediator.
 
+Classify the binding separately for graph review. A compile-time import or synchronous cross-Ball invocation before asynchronous handoff/yield—including generated inline dispatch—is a `Direct Control Dependency`. Compile-time-import and direct-control graphs are independently and unconditionally acyclic. Bounded asynchronous feedback begins after handoff/yield, creates no direct-control edge, and retains its owner/identity/budget/escape/fan-out contract.
+
 ## 5. Static validation
 
 For routine work, validate the affected source/delta/edge:
@@ -84,8 +106,9 @@ For routine work, validate the affected source/delta/edge:
 - every triggered guardrail has one construction proof, local declaration, or exact policy reference plus allowed delta;
 - every present variable dimension has a finite effective bound;
 - output paths have acceptance-before-dispatch and route/capability binding;
-- state-shape persistence changes have migration/quarantine; and
-- direct/control graphs, async feedback, fan-out, foundation, and unsafe checks run only when those paths exist.
+- state-shape persistence changes have authoritative migration or quarantine, with no invented defaults for newly required semantic fields;
+- every routed type resolves once from its owner and independently versioned endpoint pairs match Assembly; and
+- compile-time/direct-control graphs, async feedback, fan-out, foundation, and unsafe checks run only when those paths exist, while policy and waiver records never weaken their result.
 
 For a claim, generate the complete resolved view, prove absent triggers once from the closed inventory, and run the `RG-*` gates. Manifest text alone never proves enforcement.
 
