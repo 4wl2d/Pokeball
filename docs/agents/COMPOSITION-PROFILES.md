@@ -15,6 +15,8 @@ Use this runbook only when an inter-Ball edge, Flow, shared foundation, profile 
 
 No edge is implied by package visibility, service locator, event-bus label, or runtime discovery. Each edge resolves once in Assembly.
 
+`Direct Control Dependency` is an orthogonal graph classification: a compile-time import of another Ball's application surface or a synchronous cross-Ball call that transfers control before an asynchronous handoff/yield. Generated inline dispatch is direct control when it invokes the target on that current control path. A declared asynchronous route does not add this edge merely because code is generated, but its binding does add the edge if target execution occurs synchronously before handoff/yield.
+
 ## 2. One hop or Flow
 
 Keep one hop when there is one target and no independent coordination lifecycle, branching/join, compensation, reconciliation, manual queue, shared deadline/cancellation, or separate terminal outcome.
@@ -28,13 +30,13 @@ Compensation is new fallible work. When triggered it has its own identity and ou
 Inspect only graph kinds that exist:
 
 1. compile-time imports;
-2. direct synchronous/control edges;
+2. `Direct Control Dependency` edges;
 3. async signal/command feedback; and
 4. data/read provenance.
 
-The first two are acyclic unless an accepted deviation says otherwise. Async feedback resolves an owner, stable identity, finite causal budget, escape condition, and fan-out protection; deduplication and retry budgets appear only when duplicate delivery or retry exists.
+The first two are independently and unconditionally acyclic. A project policy, overlay, compensating control, or `WaiverRecord` cannot make either cycle conforming; a waiver records deliberate non-conformance for its exact scope. Async feedback begins only after an explicit bounded handoff/yield, creates no direct-control edge, and resolves an owner, stable identity, finite causal budget, escape condition, and fan-out protection; deduplication and retry budgets appear only when duplicate delivery or retry exists.
 
-Each present ceiling resolves through a static proof, local declaration, or optional exact project policy. Assembly records endpoints, effective protocol identity, delivery semantics, and triggered route fields/deltas. Verify no wildcard target/consumer, duplicate resolution, protocol re-export, hidden feature-internal import, or unsupported multi-source atomicity claim.
+Each present ceiling resolves through a static proof, local declaration, or optional exact project policy. Assembly records endpoints, effective protocol identity, delivery semantics, and triggered route fields/deltas, but it never defines or synthesizes a producer-owned protocol type. Verify no wildcard target/consumer, duplicate resolution, protocol re-export, hidden feature-internal import, unsupported multi-source atomicity claim, or routed type missing from its owner. For an independently versioned Signal route, verify the exact producer/consumer pair selected by Assembly; Catalog's canonical v2 fixture uses `2.0.0/2.0.0` for `ProductSelectionConfirmed`.
 
 ## 4. Effective profile
 

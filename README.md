@@ -175,7 +175,7 @@ All inter-Ball dependencies are explicit and bounded. Each has an exact effectiv
 
 ## Core rules developers must preserve
 
-The Core specification defines 43 canonical laws. The groups below are an orientation map, not a substitute for their exact wording. They do not require 43 local artifacts: Core §20.1 assigns each law an applicability class, exact trigger, declaration owner, enforcement or evidence owner, and reuse rule.
+The Core specification defines 44 canonical laws. The groups below are an orientation map, not a substitute for their exact wording. They do not require 44 local artifacts: Core §20.1 assigns each law an applicability class, exact trigger, declaration owner, enforcement or evidence owner, and reuse rule.
 
 | Area | Developer-facing rule | Laws |
 |---|---|---|
@@ -184,7 +184,7 @@ The Core specification defines 43 canonical laws. The groups below are an orient
 | State and identity | One mutable fact has one authority and one writer; state kinds remain distinct; detached or independently observable work uses stable semantic identity. | `PBA-11–18` |
 | Async and delivery | When those paths exist, separate ACK/result and model ambiguity, idempotency, cancellation races, and retry ownership. | `PBA-19–24` |
 | Composition | For actual inter-Ball edges and stateful coordination, declare dependencies/owners and bound routes and fan-out. | `PBA-25–30` |
-| Security and resources | Apply quarantine, capabilities, gates, safe sinks, secret, and unsafe controls at the trust/resource/risk edges that exist; ambient authority is always prohibited. | `PBA-31–37` |
+| Security and resources | Apply quarantine, actor-context authenticity, capabilities, gates, safe sinks, secret, and unsafe controls at the trust/resource/risk edges that exist; ambient authority is always prohibited. | `PBA-31–37, PBA-44` |
 | Cost and claims | Keep every present variable dimension finite; reuse exact policies; require binding evidence only for a concrete claim. | `PBA-38–43` |
 
 See [Core sections 18 and 20](spec/pokeball-architecture-core.md) for the practical implementation checklist and the exact laws.
