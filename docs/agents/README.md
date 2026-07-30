@@ -1,6 +1,6 @@
 # Pokeball Agent Pack
 
-> **Status:** derived noncanonical package. It neither defines nor extends Pokeball Core. Before using it, verify the integrity manifest and published immutable Core snapshot recorded in [BASELINE.md](BASELINE.md). If package guidance conflicts with Core, Core prevails.
+> **Status:** derived noncanonical package. It neither defines nor extends Pokeball Core. Before using it, verify the integrity manifest and published immutable ordered Core set recorded in [BASELINE.md](BASELINE.md). If package guidance conflicts with Core, Core prevails.
 
 This package turns Core into a sparse workflow for project agents. It preserves every applicable guardrail while avoiding duplicate policy, empty sections, and claim evidence for properties the project does not claim.
 
@@ -8,7 +8,7 @@ Every contract row, runbook, gate, example, index, and summary here is a project
 
 ## Start
 
-1. Verify the package files and published immutable Core snapshot against [BASELINE.md](BASELINE.md); this is an integrity check, not an architectural-quality verdict.
+1. Verify the package files and published immutable ordered Core set against [BASELINE.md](BASELINE.md); this is an integrity check, not an architectural-quality verdict.
 2. Read the authoritative typed source or manifest for the affected Ball; read an exact accepted project policy only when referenced, and Assembly only when an inter-Ball edge exists.
 3. Classify each relevant law as `always`, `path-triggered`, `risk-triggered`, or `claim-triggered` using Core §20.1.
 4. Resolve every triggered guardrail through construction, one local declaration, or one exact immutable policy reference plus a permitted delta.
@@ -19,24 +19,23 @@ A missing optional path produces no placeholder artifact. An inferred trigger ca
 
 ## Task routing
 
-| Trigger or task | Primary document | Additional source |
+| Trigger or task | Read first | Continue only when triggered |
 |---|---|---|
-| Ball boundary, state, protocol, or selected Snapshot/Event mutation and accepted frame | [DESIGN-RUNBOOK.md](DESIGN-RUNBOOK.md) | authoritative Ball source and effective state profile |
-| Inter-Ball command ingress/result return or refusal classification | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) | target contract and Assembly route |
-| Cross-authority Query/read, total target-owned post-admission result, or command-vs-read choice | [COMPOSITION-PROFILES.md](COMPOSITION-PROFILES.md) | target read contract and Assembly binding |
-| Detached work, result, retry, cancellation, unknown, status | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) | Core §§3, 9 |
-| Utility ownership/sharing, inter-Ball edge, Nucleus import, Application Surface, FlowParticipation, cumulative fan-out, profile, foundation | [COMPOSITION-PROFILES.md](COMPOSITION-PROFILES.md) | owning Ball/role or mechanical Foundation; target/producer-owned protocol/application surface, caller closed contract, Assembly; project policy if referenced |
-| Trust/Trusted Boundary edge, protocol-validation versus State/Context business stage, capability, safe sink, unsafe path, secret, effective bound or Decision Work Meter | [SECURITY-LIMITS-RUNBOOK.md](SECURITY-LIMITS-RUNBOOK.md) | construction/static proof, local declaration, or exact reusable policy |
-| Manifest view, policy resolution, Assembly | [MANIFEST-AND-ASSEMBLY.md](MANIFEST-AND-ASSEMBLY.md) | [REFERENCE-INDEX.md](REFERENCE-INDEX.md) |
+| Ball boundary, state kind, or always-applicable design | [DESIGN-RUNBOOK.md](DESIGN-RUNBOOK.md) | [PROTOCOL-DESIGN-RUNBOOK.md](PROTOCOL-DESIGN-RUNBOOK.md) for a protocol, accepted frame, output, lifecycle, or read; [BOUNDS-AND-CHANGE-DESIGN.md](BOUNDS-AND-CHANGE-DESIGN.md) for bounds, profiles, impact, or review output |
+| Inter-Ball command ingress/result return, refusal, root idempotency, retry, or cancellation | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) | [STATUS-AND-ASYNC-TESTS.md](STATUS-AND-ASYNC-TESTS.md) for status, materialization, delivery-stop evidence, or the async test catalogue |
+| Cross-authority Query/read, command-vs-read choice, utility ownership, Application Surface, FlowParticipation, graph, or cumulative fan-out | [COMPOSITION-PROFILES.md](COMPOSITION-PROFILES.md) | [COMPOSITION-PROFILES-AND-CLAIMS.md](COMPOSITION-PROFILES-AND-CLAIMS.md) for the effective profile, explicit claim, Foundation, or change output |
+| Trust/Trusted Boundary edge, protocol-validation versus State/Context business stage, capability, safe sink, unsafe path, or secret | [SECURITY-LIMITS-RUNBOOK.md](SECURITY-LIMITS-RUNBOOK.md) | [LIMITS-AND-EVIDENCE-RUNBOOK.md](LIMITS-AND-EVIDENCE-RUNBOOK.md) for an effective finite bound, Decision Work Meter, admission/economic authority, or evidence reuse |
+| Authority map, policy resolution, or sparse resolved view | [MANIFEST-AND-ASSEMBLY.md](MANIFEST-AND-ASSEMBLY.md) | [ASSEMBLY-AND-MANIFEST-VALIDATION.md](ASSEMBLY-AND-MANIFEST-VALIDATION.md) for imported edges, Assembly, static validation, or change discipline |
 | Runtime/acceptor mechanics, concern placement, or ownership | [REFERENCE-INDEX.md](REFERENCE-INDEX.md) §8.12 runtime concern index | the exact Core anchors named there; Runtime owns no business policy or direct State write |
-| Routine validation or conformance/release claim | [TEST-AND-REVIEW-GATES.md](TEST-AND-REVIEW-GATES.md) | [TRACEABILITY.md](TRACEABILITY.md) |
+| Ordinary change tests | [ROUTINE-TEST-MATRIX.md](ROUTINE-TEST-MATRIX.md) | shared evidence at its accepted scope; no claim record |
+| Conformance/release claim, profile suite, or full package fixture catalogue | [TEST-AND-REVIEW-GATES.md](TEST-AND-REVIEW-GATES.md) | [TEST-FIXTURES-AND-PROFILES.md](TEST-FIXTURES-AND-PROFILES.md) and [TRACEABILITY.md](TRACEABILITY.md) |
 | Verdict or accepted ambiguity decision relying on trigger absence | [MANIFEST-AND-ASSEMBLY.md](MANIFEST-AND-ASSEMBLY.md) proof contract | [TEST-AND-REVIEW-GATES.md](TEST-AND-REVIEW-GATES.md) |
-| Catalog/Checkout analogy | [EXAMPLE-CROSSWALK.md](EXAMPLE-CROSSWALK.md) | canonical Core §§15–16 |
-| Install or update the package | [INSTALL.md](INSTALL.md) | [PROJECT-OVERLAY.template.md](PROJECT-OVERLAY.template.md) |
+| Catalog or Checkout analogy | [EXAMPLE-CROSSWALK.md](EXAMPLE-CROSSWALK.md) | [EXAMPLE-CHECKOUT.md](EXAMPLE-CHECKOUT.md) only for an analogous Checkout property; canonical Core §§15–16 control |
+| Install or update the package | [INSTALL.md](INSTALL.md) | [PORTABILITY-VALIDATION.md](PORTABILITY-VALIDATION.md) and optional [PROJECT-OVERLAY.template.md](PROJECT-OVERLAY.template.md) |
 
 ## Source precedence
 
-1. the exact Core pinned in `BASELINE.md`;
+1. the exact ordered Core set pinned in `BASELINE.md`;
 2. an accepted extension, only in its declared scope;
 3. an accepted exact project policy, only for mechanisms or values Core leaves open;
 4. `AGENT-CONTRACT.md`, runbooks, traceability, and indexes;
@@ -58,7 +57,7 @@ Freeze exact baselines, resolve the whole claimed scope, and run all applicable 
 
 ## Package contents
 
-`AGENT-CONTRACT.md` defines all stable `PKB-AR-*` rules once. The focused runbooks provide procedures; `TRACEABILITY.md` maps rules to Core, triggers, authoritative sources, and gates. `PROJECT-OVERLAY.template.md` is an optional compact shared project-policy template, not a Ball inventory or installation requirement. `REFERENCE-INDEX.md` supplies the explicit 44-row source-record → complete §20 audit projection → limited §20.1 applicability/ownership/navigation index → primary §17 test route, complete glossary lookup, and the reference-only §8.12 runtime concern routes. An exhaustive semantic audit reads each unique authoritative source once and checks generated alternatives mechanically; ordinary task routes are smaller, but neither route implies that all unique Core content is trivial to review. The index is not a statement that every indexed rule applies to every Ball.
+`AGENT-CONTRACT.md` defines all stable `PKB-AR-*` rules once. The task-split runbooks provide procedures, with their original filenames retained as stable entry routes; `TRACEABILITY.md` maps rules to Core, triggers, authoritative sources, and gates. `PROJECT-OVERLAY.template.md` is an optional compact shared project-policy template, not a Ball inventory or installation requirement. `REFERENCE-INDEX.md` supplies the explicit 44-row source-record → complete §20 audit projection → limited §20.1 applicability/ownership/navigation index → primary §17 test route, complete glossary lookup, and the reference-only §8.12 runtime concern routes. An exhaustive semantic audit reads each unique authoritative source once and checks generated alternatives mechanically; ordinary task routes are smaller, but neither route implies that all unique Core content is trivial to review. The index is not a statement that every indexed rule applies to every Ball.
 
 The package does not select project identities, profiles, policies, routes, grants, or claims; create a runtime or extension; or turn Catalog and Checkout into mandatory templates.
 

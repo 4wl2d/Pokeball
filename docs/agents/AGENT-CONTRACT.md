@@ -4,6 +4,8 @@
 
 Every `PKB-AR-*` rule is defined exactly once in this file. `A`, `P`, `R`, and `C` mean `always`, `path-triggered`, `risk-triggered`, and `claim-triggered` under Core §§0.2 and 20.1.
 
+**Task navigation:** start with [DESIGN-RUNBOOK.md](DESIGN-RUNBOOK.md) for boundary/state work, [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) for command or detached-work paths, [COMPOSITION-PROFILES.md](COMPOSITION-PROFILES.md) for inter-authority composition, [SECURITY-LIMITS-RUNBOOK.md](SECURITY-LIMITS-RUNBOOK.md) for trust and risk paths, and [MANIFEST-AND-ASSEMBLY.md](MANIFEST-AND-ASSEMBLY.md) for resolved views. Each entry route links only the continuation activated by the task; [README.md](README.md) contains the complete routing table.
+
 ## Workflow
 
 Before changing or reviewing Pokeball scope, the agent:

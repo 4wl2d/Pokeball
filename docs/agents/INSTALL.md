@@ -8,7 +8,8 @@ Installation transfers a projection of Core, never a second normative source. If
 
 ```text
 target-repo/
-├── spec/pokeball-architecture-core.md
+├── spec/pokeball-architecture-core.md # stable Core entrypoint and ordered manifest
+├── spec/core/**                       # every manifest-listed Core chapter
 ├── docs/agents/                    # exact portable package
 ├── docs/pokeball-project-overlay.md # optional accepted shared project policy
 └── AGENTS.md
@@ -18,13 +19,13 @@ Ball contracts remain in their normal typed source or local manifests. Assembly 
 
 ## Initial installation
 
-1. Copy Core and every `docs/agents/` file from one published immutable snapshot, preserving exact bytes and filenames. Retain `LICENSING.md` without replacing the target software `LICENSE`.
-2. Verify the Core/package integrity manifest in [BASELINE.md](BASELINE.md). Readiness requires both immutable publication provenance and exact matching metadata; the manifest contains no embedded validation verdict.
+1. Copy the stable Core entrypoint, every exact `spec/core/**` path listed by its ordered manifest, and every `docs/agents/` file from one published immutable snapshot, preserving repository-relative paths, exact bytes, and filenames. Retain `LICENSING.md` without replacing the target software `LICENSE`.
+2. Verify the ordered Core-set and package integrity manifest in [BASELINE.md](BASELINE.md). Readiness requires both immutable publication provenance and exact matching metadata; the manifest contains no embedded validation verdict.
 3. Inspect one real Ball and resolve its present guardrails by construction, local declaration, or reusable policy; do not create an overlay merely to complete installation.
 4. Only when shared policies, bindings, ceilings, deviations, or claims are useful, copy [PROJECT-OVERLAY.template.md](PROJECT-OVERLAY.template.md) to `docs/pokeball-project-overlay.md`, remove unused sections, resolve its source paths, and obtain owner acceptance plus an immutable revision/digest.
 5. Pin the exact policy once in its authoritative project/binding scope; a Ball records a reference only when not already covered, plus any allowlisted local delta. A fully local/static Ball has no policy row.
 6. Add the routing block below to root `AGENTS.md`; keep existing repository/build/test instructions.
-7. Run package portability plus a routine dry run. Run full `RG-*` gates only before a conformance or release claim.
+7. Run the routine dry run and clean-layout catalogue in [PORTABILITY-VALIDATION.md](PORTABILITY-VALIDATION.md). Run full `RG-*` gates only before a conformance or release claim.
 
 Routine installation, design, and adoption do not create `TriggerAbsenceProof`. Only an absence-dependent conformance/release verdict or accepted ambiguity-resolution decision records one exact proof at its evidence-owning scope; an `always` or present trigger cannot be proved absent.
 
@@ -40,78 +41,45 @@ For Pokeball-scoped work, verify `docs/agents/BASELINE.md`, then read
 source/profile/route/risk/claim inventory. If the affected source references
 `docs/pokeball-project-overlay.md`, read that exact accepted policy too.
 
-Use the command/result runbooks for root idempotency or an inter-Ball command round trip, the
-ReadDependency guidance for an ordinary cross-authority read, the composition
-runbook for utility ownership, a Nucleus import of an owner-authored Application
-Surface, FlowParticipation, dependency/Flow-route counting, or cumulative fan-out,
-the limits runbook for any numeric input/State/output byte limit, a triggered Decision Work Meter,
-or a runtime-enforced fan-out ceiling, the design runbook for the selected
-Snapshot/Event mutation and accepted frame, the security runbook for
-protocol-validation versus State/Context business-stage ownership, and the
-absence proof gate only when a claim or accepted ambiguity decision relies on
-absence.
+Use `ASYNC-STATUS-RUNBOOK.md` for root idempotency, an inter-Ball command/result
+round trip, retry, or cancellation, and continue to `STATUS-AND-ASYNC-TESTS.md`
+only for operation status or its async test catalogue. Use
+`COMPOSITION-PROFILES.md` for an ordinary cross-authority ReadDependency,
+utility ownership, a Nucleus import of an owner-authored Application Surface,
+FlowParticipation, dependency/Flow-route counting, or cumulative fan-out;
+continue to `COMPOSITION-PROFILES-AND-CLAIMS.md` only for profile, claim, or
+Foundation work.
 
-Canonical Core: `spec/pokeball-architecture-core.md`.
+Use `DESIGN-RUNBOOK.md` for boundary and State, then
+`PROTOCOL-DESIGN-RUNBOOK.md` for the selected Snapshot/Event mutation,
+accepted frame, protocol, output, lifecycle, or read. Use
+`SECURITY-LIMITS-RUNBOOK.md` for protocol-validation versus State/Context
+business-stage ownership, capabilities, sinks, secrets, or unsafe paths; use
+`LIMITS-AND-EVIDENCE-RUNBOOK.md` for any numeric input/State/output byte limit,
+a triggered Decision Work Meter, runtime-enforced fan-out ceiling, admission,
+or evidence reuse. Use the absence-proof gate only when a claim or accepted
+ambiguity decision relies on absence.
+
+Canonical Core set: `spec/pokeball-architecture-core.md` plus every exact
+ordered manifest-listed path under `spec/core/**`.
 Core prevails. Shared policies are exact static references; Balls record only
 allowed deltas. Absent paths create no placeholder artifacts.
 ```
 
 ## Routine dry run
 
-Choose one bounded change in a real Ball. The agent should report:
-
-```text
-baseline and affected authority
-authoritative source and exact project-policy reference, if used
-semantic delta and inferred triggers
-local declaration or allowlisted policy delta, if present
-base plus triggered tests
-explicit claim boundary, if any; otherwise no claim is made
-```
-
-The dry run fails if the agent copies the whole project policy into the Ball, repeats routes or protocol inventories in the overlay, suppresses a trigger through missing metadata, uses a mutable policy alias, invents project values, or creates a claim without evidence.
-
-The dry run also fails if it aliases a command to external `Intent`/`Reply`, forces Snapshot and EventJournal into one runtime Decision union, adds an Event `nextState`, represents a root idempotency conflict as Nucleus `DecisionRejected`, reconstructs an accepted root Reply instead of redelivering its original frame, waits/re-decides/fabricates a result or repeats a Resource action on duplicate-before-result, lets Assembly synthesize command/result tuples, target/producer-owned semantic types, refusal meaning, or a post-admission read outcome, mirrors/redeclares an imported Application Surface under caller ownership, imports foreign State/internals/private adapters, re-exports a foreign protocol, treats a helper-package boundary as a fifth semantic dependency kind, shares ownerless domain/business utility semantics or relabels them as Foundation, substitutes a command for a non-recording Query, turns a reserved root ID or pre-acceptance response into known status, reads a required version through an absent/ambient Context alias, widens admitted `ReadResult` with `BoundaryResponse`, `BusinessRejection`, exception, or undeclared `NotFound`, dynamically moves one constraint between protocol validation and Nucleus business policy without a protocol-semantic version change, gives Runtime business policy/direct State authority, creates actor evidence on an actor-independent path, or materializes an absence-proof placeholder.
-
-Portability validation additionally resolves:
-
-- a sparse local Ball with no optional path artifacts;
-- a triggered Ball resolved entirely by construction/local declaration with no overlay;
-- two Balls covered by one exact shared policy without copied rows, plus one allowlisted local delta;
-- policy revision/digest, scope, override allowlist, cycle/conflict/mismatch failures, including wrong version/profile/environment and stale references;
-- one root idempotency fixture with proof of the exact original accepted `ReplyOutput(RequestAccepted(operationId))` frame, preservation of every Core §9.6 identity/lineage field and only a new `AttemptId`, pre-Intent `ValidationFailure(IdempotencyConflict)` for a covered fingerprint mismatch, and no second operation mapping/Decision/revision/accepted frame/output/command/status source;
-- one accepted source/target/source command round trip in routed and same-stack form, all three verified pre-acceptance responses, accepted same-state refusal, carrier/result conflict, static versioned reclassification, duplicate-before-result verified ACK only, duplicate-after-result exact accepted-frame replay, different-fingerprint/conflicting-evidence failure, target result crash/stop/late delivery, complete-sequence `DecisionOutputs` byte-measure `N/N+1`, source level-1 reservation failure, target level-2 failure for every carrier variant, no accepted target frame on failure, atomic level-1 carrier transfer, carrier-output reservation, successful causal levels `0/1/2`, async removal of only the synchronous-invocation contribution while any independent import edge and causal budget remain, and command-vs-read selection;
-- one selected mutation-form pair: canonical `decide(...) -> SnapshotDecisionResult<State>` with flattened `AcceptedSnapshotDecisionFrame<State> { commitRevision?, nextState, outputs }` for Snapshot profiles, and canonical `decide(...) -> EventDecisionResult` with `AcceptedEventCommit(decision: EventDecision)` and no Event `nextState`; reject a mandatory runtime union or cross-profile frame;
-- one complete `ReadDependency` with target-owned mapping/read authority, caller freshness/consistency requirement and Assembly binding; reachable permitted, denied/redacted, and deliberately non-disclosing payload variants plus actor-independent sparsity; wrong provenance/version/authority/mapping/stamp, caller/Assembly/runtime payload invention, semantic `NotFound` substitution, `BusinessRejection`, exception, post-admission `BoundaryResponse`, no accepted read marker, and no multi-source atomicity fixtures;
-- one owner-authored Application Surface and one resolved FlowParticipation per Flow/participant pair; the caller Nucleus imports only the exact target/producer-owned public semantics required by its closed Query/Pulse/Decision contract, ownership does not transfer, and negatives reject foreign State/internals/private adapters, caller redeclaration or structurally identical mirror, protocol re-export, and Interaction/Assembly synthesis; inspect semantic ownership/import/sync-control/async-data/Assembly relations separately and record the import in both compile-time and `Direct Control Dependency` graphs; separately prove Ball-local helper ownership by one logical role, shared mechanical Foundation, ownerless shared domain/business utility rejection, explicit local-copy and Ball-owned Application-Surface alternatives, and acyclic physical imports without inventing a fifth dependency kind; exact dependency counting treats distinct read/command/signal/FlowParticipation declarations as four kinds, retains referenced rows, rejects duplicate/equivalent-alias identities, accepts exact static `N`, and rejects the Ball contract at `N+1`; exact Flow route counting treats only command/result mappings as units, unifies command ingress plus result return, gives reads/signals/participation/references zero command-route units, rejects exact duplicate/spelling-alias/equivalent-row/split-leg aliases, accepts exact static `N`, and rejects the Flow/Assembly contract at `N+1`; Checkout resolves four participant-owned surfaces, nine command declarations/round-trip routes, and thirteen declared dependencies;
-- one trusted context/Dual-Gate/logical-role fixture with Interaction adaptation and Trusted Boundary verification/construction edge evidence separated, per-Pulse Inline deque/continuation Context association, root-context non-inheritance, equal candidate Decision under different remaining runtime capacity, explicit verified versions for every consumed/retained lineage field, the combined privileged-action Policy-then-Execution Gate trigger, actor-dependent-read Policy-only path, and cross-authority-action-only Grant; and the three stage cases: malformed representation/out-of-type input fails with pre-semantic `ValidationFailure`, a valid typed State/Context business-limit breach reaches the Nucleus, and promoting a fixed limit into the type invariant requires a new compatible protocol identity/version; plus missing capability, forged context/proof, wrong issuer/realm/target/field/version, an absent/ambient version alias, a wrapper/admin credential that lacks a real bounded-operation capability boundary, Runtime-owned business policy/read-result selection/direct State write, hidden service locator, Assembly-created meaning, and foundation-mediated communication negatives;
-- within that Dual-Gate fixture, one cross-authority Grant for an action with target/payload constraints and possible duplicate execution proves matching constrained-field and idempotency-identity binding and rejects substitution/mismatch, while an otherwise equivalent Grant with neither subtrigger materializes no corresponding field, check, default, or placeholder;
-- one retry fixture with exactly one primary owner per active failure mode, disabled-or-finite-and-transparent secondary evidence, cumulative attempt calculation, and failure for multiple primary-like layers;
-- one profile pair in which an ordinary scoped credential remains trusted `InProcess + Hardened` without hostile-containment/separate-principal requirements and a credential exposed to less-trusted co-resident code selects `Isolated`;
-- one applicable safe-sink fixture covering parameterized, structured, capability-rooted, or context-encoded enforcement, including capability-rooted filesystem success and raw-traversal failure when that path exists; one secret fixture covers every reachable State, output, persistence, serialization, log, and telemetry path with exact path/scope policy and fails a non-log leak;
-- one explicit claim fixture names its boundary and scope, mechanism, assumptions, retention, evidence, and non-guarantees and rejects source durability or retained pending work as proof of a stronger downstream guarantee;
-- one fixture for every active numeric input/State/output byte limit: exact immutable dimension/identity/version/representation/limit tuple; raw-boundary or normalized-trusted input stage with complete metadata/Context inclusion and pre-`decide` `N/N+1`; complete candidate `nextState` semantic representation with pre-State/revision/output `N/N+1`; complete ordered output sequence/envelope/correlation/`sourceOrdinal`/payload inclusion and later-mechanics exclusion with whole-Decision `N/N+1`; exact alternate-representation mapping, erasure invariance, tuple incomparability, static-proof case, and no truncation/partial acceptance; one triggered Decision Work Meter with exact meter identity/version, transition artifact version, unit/cap/overflow, deterministic monotonic one-start counting, helper/phase/retry/yield/erasure no-reset cases, exact `N/N+1`, and valid/invalid cross-binding comparisons; separately, when `maxCumulativeFanout` exists, test one causal scope, distinct source-output/route/consumer branch identity, tree/diamond/terminal/converging and co-reachable counting, mutually exclusive maximum reservation, duplicate/redelivery versus new accepted tuple, async handoff versus independent root, and exact `N/N+1` with no partial Decision dispatch;
-- one status materializer fixture with a reserved root candidate before/after acceptance; each root validation/admission/Decision rejection creates only `BoundaryResponse` and no operation/known row/marker/handle/output; namespace-and-barrier-proven `NotFound`; participant carrier isolation; observation-before-source, bounded pending, duplicate/monotonic conflict, reserved `N/N+1` capacity/no eviction, covered-source/empty-pending marker, expiry/no resurrection, and target-result crash-before-dispatch;
-- Catalog Ball-owned domain `revision` distinct from acceptor-owned `CommitRevision`, with any equality/derivation explicitly proven; `transitionArtifactVersion = 2.0.1`, six state/view mappings and six selection transitions; in `Searching|OutcomeUnknown` with present `pendingSearch`, exact `intent.operationId = state.operationId = pendingSearch.operationId` cancellation guard and stale A-after-B `Rejected(BusinessRejection.StaleSearchOperation(expectedOperationId, receivedOperationId))`/Interaction `DecisionRejected` carrier with no Decision/State/revision/handle/projection/Effect/output; other-state closed-rejection/no-borrowed-handle cases; cancellation/unknown/reason orderings, actor-independent sparsity, and authoritative migration/quarantine;
-- Checkout's explicit verified `DecisionContext(actorContext=A, artifactVersion=IV)`, exact retained `interactionArtifactVersion=IV` distinct from `transitionArtifactVersion`, two-version/missing/mismatch/untrusted/retry/recovery/migration cases, exact original accepted `ReplyOutput(RequestAccepted(operationId))` frame replay versus pre-Intent idempotency conflict, accepted-only root status, exact carrier aliases, nine accepted-result command routes, accepted `StillUnknown -> NeedsManualReconciliation` with preserved capture evidence, `Accepted + Succeeded`, `outputs = []`, no second generation/timer/command/Effect/compensation/reopen path, duplicate/no-revision/no-handle/manual-artifact cases, ten source stop slots including the initial Reply, reply-plus-nine, and `10/11` capacity;
-- when an absence-dependent verdict exists, present/absent path/risk/claim predicates, `always` misuse, present-claim contradiction, accepted/unaccepted ambiguity, wrong scope/profile/inventory/revision/digest, invalidation and reevaluation; routine fixtures contain no proof;
-- exact equality and order of the 44 source-record, complete-§20-audit, limited-§20.1-index, and explicit primary-§17-test-route rows; all 94 glossary terms; every package modal traces set-equally to its named source tuple and no orphan modal creates authority; a full semantic audit reads every unique authoritative source and applicable test/checklist route once and mechanically equality-checks generated §§20/22 alternatives without claiming the unique review surface is trivial;
-- relocated links/routing in a standalone target; and
-- exact `LICENSING.md` while preserving the target software license;
-- operation without any source-repository governance, review ledger, decision history, or release-evidence path;
-- one complete `WaiverRecord` fixture whose `MUST`/`MUST NOT` violation remains non-conforming rather than becoming policy precedence; and
-- an active pilot whose project-selected state-size, per-key-load, transition-cost, and design-time measures drive continue/reshape/stop against claimed benefit, with no universal thresholds or worksheet outside pilot work.
+Moved to [PORTABILITY-VALIDATION.md](PORTABILITY-VALIDATION.md#routine-dry-run), which owns the routine report shape and clean-layout fixture catalogue.
 
 ## Updating
 
-1. Freeze old Core, package, Ball-source, and claim baselines plus any project policy affected by the update.
-2. Replace Core and the whole Agent Pack from one new published immutable snapshot; never edit an installed snapshot into another revision in place.
+1. Freeze the old ordered Core set, package, Ball-source, and claim baselines plus any project policy affected by the update.
+2. Replace the Core entrypoint, every manifest-listed Core chapter, and the whole Agent Pack from one new published immutable snapshot; never edit an installed snapshot into another revision in place.
 3. If a shared policy changes, publish it as a new immutable revision/digest and enumerate referencing Balls and invalidated evidence.
 4. Update only affected Ball references/deltas and triggered tests. Do not copy unchanged policy.
-5. Verify the new `BASELINE.md` hash/bytes/version/package digest after semantic and portability checks; consumers do not update that manifest themselves.
+5. Verify the new `BASELINE.md` Core entrypoint version/status, manifest file count, Core-set digest/bytes, and package file count/digest after semantic and portability checks; consumers do not update that manifest themselves.
 6. Re-run full project gates only for an existing or proposed claim whose scope changed.
 
-Prohibited partial updates include changing only a hash, retaining a mutable “latest” policy reference, copying one runbook without its baseline/contract/index/trace/gates, replacing `LICENSING.md`, treating the template as accepted policy, treating a waiver as precedence, or retaining a claim or absence proof after its profile/policy/route/inventory/evidence digest changes.
+Prohibited partial updates include changing only a digest, retaining a mutable “latest” policy reference, copying one runbook without its baseline/contract/index/trace/gates, replacing `LICENSING.md`, treating the template as accepted policy, treating a waiver as precedence, or retaining a claim or absence proof after its profile/policy/route/inventory/evidence digest changes.
 
 ## Discontinuing Pokeball
 

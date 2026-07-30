@@ -6,6 +6,8 @@ Use this runbook only when an inter-Ball edge, Flow, shared foundation, profile 
 
 This runbook is a projection of the marked Core source clauses. It constrains valid ownership and authority graphs but does not promise one unique decomposition graph for a system.
 
+**Task routing:** edge classification, reads, command edges, Flow selection, and graph resolution remain below; effective profiles, claims, Foundation, and change output continue in [COMPOSITION-PROFILES-AND-CLAIMS.md](COMPOSITION-PROFILES-AND-CLAIMS.md).
+
 ## 1. Classify existing edges
 
 Classify physical helper imports before applying the four-kind semantic inter-authority taxonomy below:
@@ -87,46 +89,19 @@ When `maxCumulativeFanout` is present, its counting contract is exact. The scope
 
 Each present ceiling resolves through a static proof, local declaration, or optional exact project policy. Assembly records endpoints, effective protocol identity, delivery semantics, and triggered route fields/deltas, but it never defines or synthesizes a producer/target-owned protocol type or business meaning. Verify no wildcard target/consumer, duplicate resolution, caller-owned mirror or redeclaration, protocol re-export, foreign State/internal/private-adapter import, Interaction/Assembly synthesis, unsupported multi-source atomicity claim, or routed type missing from its owner. For an independently versioned Signal route, verify the exact producer/consumer pair selected by Assembly; Catalog's canonical v2 fixture uses `2.0.0/2.0.0` for `ProductSelectionConfirmed`.
 
+
 ## 5. Effective profile
 
-Resolve the four dimensions independently, even when one named policy supplies them together:
-
-| Dimension | Choices | Triggered mechanism |
-|---|---|---|
-| Execution | `Inline` / `BoundedConcurrent` | mailbox/workers/backpressure only for concurrent selection |
-| State | `Transient` / `SnapshotOutbox` / `EventJournal` | durable records/recovery/status only for durable selection |
-| Isolation | `InProcess` / `Isolated` | IPC/principal/resource containment only for isolation selection |
-| Security | `Standard` / `Hardened` | stronger actor/grant/audit/abuse controls only for hardening selection |
-
-State-profile resolution also selects exactly one mutation and acceptance form. `Transient` and `SnapshotOutbox` use the canonical `decide(...) -> SnapshotDecisionResult<State>` signature and publish the flattened `AcceptedSnapshotDecisionFrame<State> { commitRevision?, nextState, outputs }`. `EventJournal` uses the canonical `decide(...) -> EventDecisionResult` signature and records `AcceptedEventCommit` with `decision: EventDecision`; it reconstructs State through `evolve` and never adds an independent Event `nextState`. These are mutually exclusive selected contracts, not a runtime union.
-
-A project/binding may select an exact default policy once. A Ball needs no repeated policy row when that binding selection covers it; it records only an explicit local selection or allowlisted difference. Resolution must yield one effective profile; a mutable “latest” alias or runtime registry is invalid.
-
-Credential scope and credential containment are separate triggers. An ordinary scoped external credential may remain in a trusted `InProcess + Hardened` binding when the threat model makes no hostile-component-containment claim and requires no separate security principal for that credential. Select `Isolated` when the credential must be inaccessible to less-trusted co-resident code or a high-privilege credential requires protection by its own principal; least privilege and all triggered Policy/Execution Gate rules apply in either profile.
+Moved to [Effective profile](COMPOSITION-PROFILES-AND-CLAIMS.md#5-effective-profile).
 
 ## 6. Claims
 
-Profile selection is not a claim. When a project says `durable`, `at-least-once`, `isolated`, `secure`, `atomic`, `zero overhead`, or similar, create a claim record:
-
-```text
-claim and exact boundary
-exact scope
-effective profile/policy digest
-mechanism and failure assumptions
-ordering/delivery point and retention horizon
-evidence artifact and observed result
-explicit non-guarantees
-owner/review date
-```
-
-The record never derives target receipt/acceptance, executor safety, durable reply, eventual delivery, once-only execution, or recovery beyond its named boundary merely from source durability or retained pending work. Without the record, remove the claim rather than adding speculative mechanisms.
+Moved to [Claims](COMPOSITION-PROFILES-AND-CLAIMS.md#6-claims).
 
 ## 7. Foundation
 
-When a helper is proposed for more than one Ball, one project-scoped authoritative source and scan classify it as stable mechanical Foundation or reject it as ownerless domain/business semantics. Record the export/dependency/call-graph scan, mutable-state/protocol/resource-authority/route-selection/hidden-communication result, accepted exceptions, owner, and exact source or policy digest once.
-
-Shared foundation contains no mutable business meaning, business-policy decision, domain authority, route selection, service locator, runtime registry, or hidden communication state. Domain/business helper semantics remain Ball-local, including deliberate small duplication, or acquire one Ball/Flow owner and a declared Application Surface/protocol; relabelling them as Foundation is invalid. The project/binding scope covers its Balls without repeating the scan in each one; a Ball records only a local exception or delta. If no shared mechanical foundation exists, no foundation artifact is created.
+Moved to [Foundation](COMPOSITION-PROFILES-AND-CLAIMS.md#7-foundation).
 
 ## 8. Change output
 
-Routine composition work reports only changed edges, effective declaration or policy/delta, newly activated risks, and tests. Update Assembly, target contracts, Flow state, or shared policy only where authoritative. A full graph/claim dossier is produced only for a conformance or release claim under [TEST-AND-REVIEW-GATES.md](TEST-AND-REVIEW-GATES.md).
+Moved to [Change output](COMPOSITION-PROFILES-AND-CLAIMS.md#8-change-output).

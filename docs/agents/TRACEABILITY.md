@@ -2,11 +2,11 @@
 
 > **Status:** derived noncanonical package. It neither defines nor extends Pokeball Core. Verify [BASELINE.md](BASELINE.md); Core prevails.
 
-Sole rule definitions are in [AGENT-CONTRACT.md](AGENT-CONTRACT.md). This matrix routes each rule to Core, applicability, its authoritative source, and validation. `A/P/R/C` are the four classes in Core §0.2 and the limited §20.1 index. Traceability compares each package rule with the complete Core-embedded source record and its full §20 projection; §20.1 is checked only for its declared applicability, owner, source, and test-route columns. Matching an anchor ID alone is insufficient.
+Sole rule definitions are in [AGENT-CONTRACT.md](AGENT-CONTRACT.md). This matrix routes each rule to the ordered Core document set, applicability, its authoritative source, and validation. `A/P/R/C` are the four classes in Core §0.2 and the limited §20.1 index. Traceability compares each package rule with the complete Core source record and its full §20 projection; §20.1 is checked only for its declared applicability, owner, source, and test-route columns. Matching an anchor ID alone is insufficient.
 
 | AgentRuleId | Core / law | Class and trigger | Authoritative source | Enforcement or evidence | Gate |
 |---|---|---|---|---|---|
-| `PKB-AR-GOV-001` | §0 | `A`: package used or claim made | published immutable Core snapshot and package integrity manifest in `BASELINE` | exact version/status/hash/bytes/file digest | `AP-GATE-02`, `RG-10` |
+| `PKB-AR-GOV-001` | §0 | `A`: package used or claim made | published immutable Core-set snapshot and package integrity manifest in `BASELINE` | exact entrypoint version/status, manifest file count, Core-set digest/bytes, and package file count/digest | `AP-GATE-02`, `RG-10` |
 | `PKB-AR-GOV-002` | §§0, 0.3, 21.6 | `A`: every decision; `P`: waiver exists | Core, accepted extension, accepted exact project policy; exact `WaiverRecord` is nonprecedential | precedence plus policy-nonweakening and waiver-effect checks | `AP-GATE-03`, `AP-GATE-07`, `RG-01` |
 | `PKB-AR-GOV-003` | §§0.2, 9.13, 12–13, 20–20.1; PBA-39/41/42 | `A`: resolve applicability; `C`: concrete claim | Ball source/policy; complete claim record naming the exact guarantee boundary and scope for `C` | resolver; exact mechanism, assumptions, retention, evidence, and non-guarantees; reject any stronger downstream inference from source durability or retained pending work alone | `RG-01`, `RG-08`, `RG-10`, `AP-GATE-09` |
 | `PKB-AR-GOV-004` | §§0, 2.2, 21.6 | `P`: extension need; `C`: excluded guarantee claim | accepted extension or claim/non-claim record | scope check | `RG-01`, `RG-08` |
