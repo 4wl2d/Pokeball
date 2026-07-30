@@ -76,7 +76,7 @@ Core constrains valid authority and dependency graphs; it does not promise one u
 
 - combine parts when one strict invariant requires one state key, writer, lifecycle, and recovery unit, unless a stronger trust, ownership, partition, durability, or containment boundary forbids it;
 - separate parts when they need independent owners, state keys, lifecycles, terminal outcomes, trust/durability boundaries, or material load/containment;
-- keep a candidate as a utility or adapter when it owns no mutable semantic fact, business decision, protocol/lifecycle, or resource consequence;
+- keep stateless mechanics as a Ball-local utility owned by one logical role, or as shared mechanical Foundation; shared domain/business semantics stay as explicit local implementations or acquire one Ball/Flow owner and a declared Application Surface/protocol;
 - use a `Feature Ball` for one local capability's state and decisions, a `Flow Ball` for material cross-authority coordination, and a `Read Model Ball` only for derived query state, source positions, freshness, and rebuild policy without command authority.
 
 A Ball is not automatically a screen, endpoint, table, repository, service, aggregate, or use case. `EphemeralState` is limited to focus, scroll, animation, layout, transport, and equivalent mechanics that cannot change a business `Decision`; a decision-relevant UI or transport value is committed State or an explicit trusted current `Pulse`/`DecisionContext` input.
@@ -101,7 +101,7 @@ These are logical roles, not necessarily separate processes, classes, or heap ob
 
 - **Interaction Hemisphere** parses, validates, bounds, and encodes channel-specific data; it authenticates actor/origin only when that identity affects the decision. It cannot mutate canonical state or create business effects.
 - **Protocol Nucleus** owns the Ball's `SovereignState` and is the only place that makes a local business decision. It performs no I/O and reads no ambient clock, random source, environment, service locator, or platform SDK.
-- **Resource Hemisphere** executes a present private `Effect` through the minimum capability. It adds a safe sink at an interpreter edge and validates/maps a response to `Fact` only for a result-producing path; it does not make a new business decision.
+- **Resource Hemisphere** executes a present private `Effect` through the minimum explicit technical authority for its bounded operation class, enforced at a real capability boundary. It uses the applicable parameterized, structured, capability-rooted, or context-encoded safe sink at an interpreter or dialect edge and validates/maps a response to `Fact` only for a result-producing path; it does not make a new business decision.
 
 The diagram shows a mutating resource cycle. A `Query` is separate and never mutates state or creates a `Decision`/`SemanticOutput`. It carries a consistency stamp when it crosses an authority or time boundary, can be cached or compared, proves status, aggregates sources, or makes a consistency claim; a same-stack getter may use call-scope snapshot identity.
 
@@ -223,7 +223,9 @@ flowchart TB
 
 **Arrow legend.** Solid arrows show protocol direction: an accepted source output becomes a verified later target/source Pulse. Dashed arrows show static Assembly route, effective-version, and binding selection—not execution, business authority, or a `Direct Control Dependency` edge by themselves.
 
-All inter-Ball dependencies are explicit and bounded. Each has an exact effective protocol identity; explicit versions appear when the endpoints can version or deploy independently. `Assembly` declares route/version/binding only; it is not a runtime mediator, payload constructor, refusal classifier, or business authority.
+All semantic inter-Ball dependencies are explicit and bounded. Physical helper imports remain in the acyclic compile-time graph but are not a fifth semantic dependency kind. Each semantic edge has an exact effective protocol identity; explicit versions appear when the endpoints can version or deploy independently. `Assembly` declares route/version/binding only; it is not a runtime mediator, payload constructor, refusal classifier, or business authority.
+
+When `maxCumulativeFanout` applies, it counts each distinct accepted source-output-to-effective-route/consumer branch once across one root causal scope. Terminal and converging traversals count, co-reachable branches sum, mutually exclusive alternatives share their maximum reservation, retry/redelivery of the same tuple and route does not add a unit, and async handoff preserves the remaining scope. Exact `N+1` rejects the whole over-limit Decision before acceptance and dispatches no partial batch.
 
 **Material coordination** exists when one authority must own any independent workflow lifecycle, semantic ordering or branch/join, compensation or recovery, cancellation, reconciliation, or terminal outcome across participant authorities. One such property is sufficient when it makes the simple one-hop conditions false. Call count, sequential syntax, or one command round trip alone is not material coordination and does not require a `Flow Ball`.
 
@@ -233,7 +235,7 @@ A cross-authority `ReadDependency` resolves exactly one target authority, target
 
 `Draining` rejects new logical mutations but serves every available declared `Query` and status Query from its committed authority. If the read authority is unavailable, the trusted boundary can return an existing validation/admission response before `read`; once admitted, `read(...) -> ReadResult` remains successful and creates no Decision.
 
-Each status namespace has exactly one committed, revisioned, single-writer query authority without taking command authority over the underlying business facts. Co-location can reduce lag and transaction boundaries; a separate status/Read Model authority can isolate query load and combine declared sources but pays materialization lag and source-position evidence. Neither choice permits two independently writable status answers.
+Each status namespace has exactly one committed, revisioned, single-writer query authority without taking command authority over the underlying business facts. `OperationId` identifies an accepted root operation: reserving a candidate before `decide`, or rejecting root validation/admission/Decision before acceptance, creates no operation, handle, output, known status row, or retention marker. A covered committed snapshot may return `NotFound`; downstream target nonacceptance remains a Step facet of an already accepted source operation. Co-location can reduce lag and transaction boundaries; a separate status/Read Model authority can isolate query load and combine declared sources but pays materialization lag and source-position evidence. Neither choice permits two independently writable status answers.
 
 ### Security, context, and foundation
 
@@ -241,11 +243,11 @@ When actor, tenant, issuer, realm, assurance, or delegation can change a `Decisi
 
 The Nucleus Policy Gate alone decides business permission from committed State, the current cause or Query, and trusted context. Immediately before authoritative execution, the Resource/target Execution Gate verifies every triggered proof, capability, constraint, version, freshness/revocation, endpoint, quota, and safe-sink binding without making a new business decision. A post-acceptance gate failure remains a declared Resource/result/status path; it cannot roll back or downgrade accepted work or become a pre-acceptance carrier.
 
-Shared foundation code contains mechanical primitives only. It owns no mutable business meaning, business-policy decision, domain or status authority, route selection, service locator, or hidden communication state.
+Shared foundation code contains mechanical primitives only. It owns no mutable business meaning, business-policy decision, domain or status authority, route selection, service locator, or hidden communication state. An ownerless shared domain/business utility is prohibited: keep the semantics Ball-local, including deliberate small duplication, or assign one Ball/Flow owner and expose its declared Application Surface/protocol.
 
 ## Core rules developers must preserve
 
-The Core specification has 44 stable law identifiers. Their §20 statements and §20.1 matrix are projection indexes back to the marked body source clauses, not independent authority. The groups below are also an orientation map and do not require 44 local artifacts.
+The Core specification has 44 stable law identifiers. Section 20 is the complete generated audit projection of the marked body source records; §20.1 is only the compact applicability, ownership, and navigation index. Neither is independent authority. The groups below are also an orientation map and do not require 44 local artifacts.
 
 | Area | Developer-facing rule | Laws |
 |---|---|---|
@@ -254,8 +256,8 @@ The Core specification has 44 stable law identifiers. Their §20 statements and 
 | State and identity | One mutable fact has one authority and one writer; state kinds remain distinct; detached or independently observable work uses stable semantic identity. | `PBA-11–18` |
 | Async and delivery | When those paths exist, separate ACK/result and model ambiguity, idempotency, cancellation races, and retry ownership. | `PBA-19–24` |
 | Composition | For actual inter-Ball edges and stateful coordination, declare dependencies/owners and bound routes and fan-out. | `PBA-25–30` |
-| Security and resources | Apply quarantine, actor-context authenticity, capabilities, gates, safe sinks, secret, and unsafe controls at the trust/resource/risk edges that exist; ambient authority is always prohibited. | `PBA-31–37, PBA-44` |
-| Cost and claims | Keep every present variable dimension finite; reuse exact policies; require binding evidence only for a concrete claim. | `PBA-38–43` |
+| Security and resources | Apply quarantine, actor-context authenticity, real capability boundaries, safe sinks including capability-rooted forms, and exact-path-and-scope secret/unsafe controls at the trust/resource/risk edges that exist; ambient authority is always prohibited. | `PBA-31–37, PBA-44` |
+| Cost and claims | Keep every present variable dimension finite; reuse exact policies; qualify each concrete claim by its named boundary, scope, assumptions, retention, and evidence without implying a stronger downstream guarantee. | `PBA-38–43` |
 
 See [Core sections 18 and 20](spec/pokeball-architecture-core.md) for the practical implementation checklist and the exact laws.
 
@@ -332,11 +334,11 @@ foundation/
 
 `ball.yaml` is optional: typed source may be authoritative, while tools may generate a fully resolved view for deployment, review, or a conformance claim.
 
-The important part is the direction of authority and dependencies: Interaction adapts external channels, Resources adapt external systems, the Nucleus depends only on its own state and protocols plus mechanical foundation, and Assembly depends only on public protocols and explicit route declarations. Feature internals and mutable state never become another feature's dependency.
+The important part is the direction of authority and dependencies: Interaction adapts external channels, Resources adapt external systems, and the Nucleus owns its State and protocols while importing only its Ball-local Nucleus utilities, the exact declared target- or producer-owned Application Surfaces required by its closed Query, Pulse, and Decision contracts, and mechanical foundation. Local/mechanical helper imports remain ordinary compile-time edges; they create no inter-authority route or `Direct Control Dependency` absent an actual cross-authority condition. An Application Surface import transfers no ownership. Foreign State, internals, private Resource adapters, ownerless shared domain utilities, caller-owned mirrors or redeclarations, protocol re-export, and semantic synthesis by Interaction or Assembly remain prohibited; Assembly selects only public routes, versions, and bindings.
 
 ## Adopt Pokeball
 
-Pokeball is not automatically the right choice. Use an ordinary utility, module, or adapter—or stop the pilot—when the candidate is a stateless library/algorithm, presentation-only focus/scroll/animation state, a passive adapter with no owned semantic Decision, a project unwilling to establish one writer/authority/closed bounded paths, or a slice whose measured design/runtime cost exceeds its authority, invariant, recovery, or change-radius benefit.
+Pokeball is not automatically the right choice. Use a Ball-local utility, an adapter, shared mechanical Foundation, or stop the pilot when the candidate is only stateless mechanics, presentation-only focus/scroll/animation state, a passive adapter with no owned semantic Decision, a project unwilling to establish one writer/authority/closed bounded paths, or a slice whose measured design/runtime cost exceeds its authority, invariant, recovery, or change-radius benefit. This simplification does not permit ownerless shared domain/business semantics; keep them local or give them one Ball/Flow owner and a declared Application Surface/protocol.
 
 During active adoption or pilot work, the project architecture owner `SHOULD` record or otherwise prove the boundary's semantic facts, state key, strict invariants, dependencies, trust/lifecycle/recovery owners, expected size/load, and public protocol surface. This is project-owned guidance only—not a universal Core artifact, runtime record, or conformance placeholder. Outside adoption/pilot work, no worksheet or empty fields are required.
 
@@ -369,7 +371,7 @@ For agent-assisted adoption in another repository, start with the [Agent Pack](d
 2. §§3–5 — canonical model, falsifiable Ball boundaries, and logical roles.
 3. §§6–8 — closed protocols, state authority, pure decisions, reads, and acceptance.
 4. Read only the triggered parts of §§9–13 for async delivery, composition, security, profiles, and bounds.
-5. Use §14 only when materializing a manifest or Assembly view; use §§15–16 as worked examples, §§17–18 for evidence/checks, and §20 only as a projection index back to source clauses.
+5. Use §14 only when materializing a manifest or Assembly view; use §§15–16 as worked examples, §§17–18 for evidence/checks, §20 as the complete generated audit projection, §20.1 as the limited applicability/ownership/navigation index, and §22 for glossary lookup.
 
 ### Main documents
 
