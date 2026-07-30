@@ -21,14 +21,14 @@ A missing optional path produces no placeholder artifact. An inferred trigger ca
 
 | Trigger or task | Primary document | Additional source |
 |---|---|---|
-| Ball boundary, state, protocol, Decision | [DESIGN-RUNBOOK.md](DESIGN-RUNBOOK.md) | authoritative Ball source |
+| Ball boundary, state, protocol, or selected Snapshot/Event mutation and accepted frame | [DESIGN-RUNBOOK.md](DESIGN-RUNBOOK.md) | authoritative Ball source and effective state profile |
 | Inter-Ball command ingress/result return or refusal classification | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) | target contract and Assembly route |
-| Cross-authority Query/read or command-vs-read choice | [COMPOSITION-PROFILES.md](COMPOSITION-PROFILES.md) | target read contract and Assembly binding |
+| Cross-authority Query/read, total target-owned post-admission result, or command-vs-read choice | [COMPOSITION-PROFILES.md](COMPOSITION-PROFILES.md) | target read contract and Assembly binding |
 | Detached work, result, retry, cancellation, unknown, status | [ASYNC-STATUS-RUNBOOK.md](ASYNC-STATUS-RUNBOOK.md) | Core §§3, 9 |
-| Inter-Ball edge, Flow, profile, foundation | [COMPOSITION-PROFILES.md](COMPOSITION-PROFILES.md) | Assembly; project policy if referenced |
-| Trust edge, capability, unsafe path, secret, effective bound | [SECURITY-LIMITS-RUNBOOK.md](SECURITY-LIMITS-RUNBOOK.md) | static/local declaration or exact reusable policy |
+| Utility ownership/sharing, inter-Ball edge, Nucleus import, Application Surface, FlowParticipation, cumulative fan-out, profile, foundation | [COMPOSITION-PROFILES.md](COMPOSITION-PROFILES.md) | owning Ball/role or mechanical Foundation; target/producer-owned protocol/application surface, caller closed contract, Assembly; project policy if referenced |
+| Trust/Trusted Boundary edge, protocol-validation versus State/Context business stage, capability, safe sink, unsafe path, secret, effective bound or Decision Work Meter | [SECURITY-LIMITS-RUNBOOK.md](SECURITY-LIMITS-RUNBOOK.md) | construction/static proof, local declaration, or exact reusable policy |
 | Manifest view, policy resolution, Assembly | [MANIFEST-AND-ASSEMBLY.md](MANIFEST-AND-ASSEMBLY.md) | [REFERENCE-INDEX.md](REFERENCE-INDEX.md) |
-| Runtime concern placement or ownership | [REFERENCE-INDEX.md](REFERENCE-INDEX.md) §8.12 runtime concern index | the exact Core anchors named there |
+| Runtime/acceptor mechanics, concern placement, or ownership | [REFERENCE-INDEX.md](REFERENCE-INDEX.md) §8.12 runtime concern index | the exact Core anchors named there; Runtime owns no business policy or direct State write |
 | Routine validation or conformance/release claim | [TEST-AND-REVIEW-GATES.md](TEST-AND-REVIEW-GATES.md) | [TRACEABILITY.md](TRACEABILITY.md) |
 | Verdict or accepted ambiguity decision relying on trigger absence | [MANIFEST-AND-ASSEMBLY.md](MANIFEST-AND-ASSEMBLY.md) proof contract | [TEST-AND-REVIEW-GATES.md](TEST-AND-REVIEW-GATES.md) |
 | Catalog/Checkout analogy | [EXAMPLE-CROSSWALK.md](EXAMPLE-CROSSWALK.md) | canonical Core §§15–16 |
@@ -54,11 +54,11 @@ Resolve the affected Ball and any policy it references, infer triggers from the 
 
 ### Claim or release
 
-Freeze exact baselines, resolve the whole claimed scope, and run all applicable profile and `RG-*` gates. When the verdict actually relies on a non-`always` trigger being absent, record one exact scope/profile/inventory/digest-bound `TriggerAbsenceProof`, reject contradiction or invalidation, and assign evidence ownership; otherwise create no proof. Evaluate every applicable waiver's conformance effect and attach evidence to the claim record. Without that record, omit the claim.
+Freeze exact baselines, resolve the whole claimed scope, and run all applicable profile and `RG-*` gates. A claim record names its exact boundary and scope, mechanism, assumptions, retention, evidence, and non-guarantees; source durability or retained pending work alone supplies no stronger downstream guarantee. When the verdict actually relies on a non-`always` trigger being absent, record one exact scope/profile/inventory/digest-bound `TriggerAbsenceProof`, reject contradiction or invalidation, and assign evidence ownership; otherwise create no proof. Evaluate every applicable waiver's conformance effect and attach evidence to the claim record. Without that record, omit the claim.
 
 ## Package contents
 
-`AGENT-CONTRACT.md` defines all stable `PKB-AR-*` rules once. The focused runbooks provide procedures; `TRACEABILITY.md` maps rules to Core, triggers, authoritative sources, and gates. `PROJECT-OVERLAY.template.md` is an optional compact shared project-policy template, not a Ball inventory or installation requirement. `REFERENCE-INDEX.md` supplies complete law/glossary lookup and the reference-only §8.12 runtime concern routes; it is not a statement that every indexed rule applies to every Ball.
+`AGENT-CONTRACT.md` defines all stable `PKB-AR-*` rules once. The focused runbooks provide procedures; `TRACEABILITY.md` maps rules to Core, triggers, authoritative sources, and gates. `PROJECT-OVERLAY.template.md` is an optional compact shared project-policy template, not a Ball inventory or installation requirement. `REFERENCE-INDEX.md` supplies the explicit 44-row source-record → complete §20 audit projection → limited §20.1 applicability/ownership/navigation index → primary §17 test route, complete glossary lookup, and the reference-only §8.12 runtime concern routes. An exhaustive semantic audit reads each unique authoritative source once and checks generated alternatives mechanically; ordinary task routes are smaller, but neither route implies that all unique Core content is trivial to review. The index is not a statement that every indexed rule applies to every Ball.
 
 The package does not select project identities, profiles, policies, routes, grants, or claims; create a runtime or extension; or turn Catalog and Checkout into mandatory templates.
 

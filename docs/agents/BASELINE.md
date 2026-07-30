@@ -6,18 +6,18 @@ This manifest identifies one exact Core candidate and its matching Agent Pack. I
 
 ```yaml
 schema: pokeball-agent-pack/v2
-packRevision: 3
+packRevision: 11
 status: derived-noncanonical
 canonicalSpec:
   pathFromRepositoryRoot: spec/pokeball-architecture-core.md
-  declaredVersion: 1.3.0-draft
+  declaredVersion: 1.4.0-draft
   declaredStatus: canonical draft
-  sha256: 015c18e7c35e9cb5b72349570483f05c0c738d0911d7411a921a824842d8d5dd
-  bytes: 404753
+  sha256: 39e570a1d0d52eaeb35eadf6ffd8b29a2cdfda51da73e98ec7d48a6944131b2e
+  bytes: 709928
 packageIntegrity:
   fileCountIncludingBaseline: 15
   digestScope: lexicographic filename + NUL + exact bytes + NUL for every sibling Markdown file except BASELINE.md
-  sha256: 06059ec91cd5709d59a015ec37293f39a3565682dbe0581694f4e6e32e595a2e
+  sha256: 209b027852c05efc23dca47bb25b5b87f010e688193c0afaec4e0ad186e1076d
 readinessRequirements:
   sameImmutablePublishedSnapshot: true
   exactIntegrityMatch: true

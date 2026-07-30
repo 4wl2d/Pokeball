@@ -44,7 +44,7 @@ Core ограничивает допустимые графы authority и depen
 
 - части объединяют, когда строгий инвариант требует одного state key, writer, lifecycle и recovery unit, если этому не мешает более сильная граница trust, ownership, partition, durability или containment;
 - части разделяют, когда им нужны независимые owners, state keys, lifecycles, terminal outcomes, границы trust/durability либо существенно разные load/containment;
-- кандидат оставляют утилитой или adapter, если он не владеет mutable semantic fact, business Decision, protocol/lifecycle или resource consequence;
+- stateless mechanics оставляют Ball-local utility во владении одной logical role либо выносят в shared mechanical Foundation; shared domain/business semantics сохраняют явными local implementations или назначают им одного Ball/Flow owner с объявленным Application Surface/protocol;
 - `Feature Ball` используют для состояния и решений одной локальной capability, `Flow Ball` — для material coordination между authorities, а `Read Model Ball` — только для derived query state, source positions, freshness и rebuild policy без command authority.
 
 `Ball` не обязан совпадать с экраном, конечной точкой API, таблицей, репозиторием, сервисом, агрегатом или сценарием использования. `EphemeralState` ограничен focus, scroll, animation, layout, transport и аналогичной механикой, которая не меняет business `Decision`; значимое для Decision UI- или transport-значение становится committed State либо явным доверенным текущим входом `Pulse`/`DecisionContext`.
@@ -69,7 +69,7 @@ flowchart LR
 
 - **Interaction Hemisphere** разбирает, проверяет, ограничивает и кодирует данные канала; actor/origin аутентифицируется, только если эта identity влияет на решение. Она не меняет каноническое состояние и не создаёт прикладных эффектов.
 - **Protocol Nucleus** владеет каноническим состоянием `Ball` (`SovereignState`) и единолично принимает локальные прикладные решения. Он не выполняет I/O и не читает ambient clock, random source, environment, service locator или platform SDK.
-- **Resource Hemisphere** выполняет существующий типизированный `Effect` через minimum capability. Safe sink добавляется только на interpreter edge, а ответ проверяется и преобразуется в `Fact` только на result-producing path; сама Hemisphere не принимает прикладных решений.
+- **Resource Hemisphere** выполняет существующий типизированный `Effect` через минимальные явные технические полномочия для его bounded operation class, принудительно ограниченные реальной capability boundary. На interpreter или dialect edge применяется подходящий parameterized, structured, capability-rooted или context-encoded safe sink, а ответ проверяется и преобразуется в `Fact` только на result-producing path; сама Hemisphere не принимает прикладных решений.
 
 Схема показывает цикл изменения состояния с обращением к внешнему ресурсу. `Query` не меняет состояние и не создаёт `Decision` или `SemanticOutput`. `ConsistencyStamp` нужен, когда чтение пересекает границу authority или времени, кэшируется, сравнивается, подтверждает status, объединяет источники либо заявляет consistency; локальному getter в одном call scope достаточно идентичности текущего снимка.
 
@@ -191,7 +191,9 @@ flowchart TB
 
 **Легенда стрелок.** Сплошные стрелки показывают направление протокола: accepted source output становится более поздним verified target/source Pulse. Пунктирные стрелки показывают статический выбор route, effective version и binding в Assembly, а не execution, business authority или сам по себе edge `Direct Control Dependency`.
 
-Все связи между `Ball` объявляются явно и имеют конечные пределы. У каждой есть точная effective protocol identity; явные версии нужны, когда endpoints версионируются или развёртываются независимо. `Assembly` описывает только route/version/binding; он не служит runtime-посредником, payload constructor, refusal classifier или business authority.
+Все semantic-связи между `Ball` объявляются явно и имеют конечные пределы. Physical helper imports остаются в ациклическом compile-time graph, но не образуют пятый вид semantic dependency. У каждого semantic edge есть точная effective protocol identity; явные версии нужны, когда endpoints версионируются или развёртываются независимо. `Assembly` описывает только route/version/binding; он не служит runtime-посредником, payload constructor, refusal classifier или business authority.
+
+Когда применяется `maxCumulativeFanout`, он один раз считает каждую distinct accepted ветвь source-output-to-effective-route/consumer в одном root causal scope. Terminal и converging traversals учитываются, co-reachable branches суммируются, mutually exclusive alternatives разделяют maximum reservation, retry/redelivery того же tuple по тому же route не добавляет единицу, а async handoff сохраняет оставшийся scope. Точная граница `N+1` отклоняет весь over-limit Decision до acceptance и не отправляет partial batch.
 
 **Material coordination** существует, когда одна authority должна владеть любым независимым workflow lifecycle, semantic ordering или branch/join, compensation или recovery, cancellation, reconciliation либо terminal outcome между participant authorities. Одного такого свойства достаточно, если из-за него перестают выполняться условия простого one-hop. Call count, sequential syntax или один command round trip сами по себе не являются material coordination и не требуют `Flow Ball`.
 
@@ -201,7 +203,7 @@ flowchart TB
 
 `Draining` отклоняет новые logical mutations, но обслуживает все доступные объявленные `Query` и status Query из committed authority. Если read authority недоступна, trusted boundary может вернуть существующий validation/admission response до `read`; после admission контракт `read(...) -> ReadResult` остаётся успешным и не создаёт Decision.
 
-У каждого status namespace ровно одна committed, revisioned, single-writer query authority, которая не забирает command authority над underlying business facts. Co-location может уменьшить lag и число transaction boundaries; отдельная status/Read Model authority может изолировать query load и объединять объявленные источники, но платит materialization lag и source-position evidence. Ни один выбор не разрешает два независимо записываемых status answer.
+У каждого status namespace ровно одна committed, revisioned, single-writer query authority, которая не забирает command authority над underlying business facts. `OperationId` идентифицирует accepted root operation: резервирование candidate до `decide` либо отклонение root validation/admission/Decision до acceptance не создаёт operation, handle, output, known status row или retention marker. Покрывающий namespace committed snapshot может вернуть `NotFound`; downstream target nonacceptance остаётся Step facet уже accepted source operation. Co-location может уменьшить lag и число transaction boundaries; отдельная status/Read Model authority может изолировать query load и объединять объявленные источники, но платит materialization lag и source-position evidence. Ни один выбор не разрешает два независимо записываемых status answer.
 
 ### Security, context и foundation
 
@@ -209,11 +211,11 @@ flowchart TB
 
 Только Nucleus Policy Gate принимает business permission из committed State, текущего cause или Query и trusted context. Непосредственно перед authoritative execution Resource/target Execution Gate проверяет все triggered proof, capability, constraint, version, freshness/revocation, endpoint, quota и safe-sink binding, не принимая нового business decision. Post-acceptance gate failure остаётся объявленным Resource/result/status path; он не может откатить или понизить accepted work либо стать pre-acceptance carrier.
 
-Общий foundation содержит только mechanical primitives. Он не владеет mutable business meaning, business-policy decision, domain или status authority, route selection, service locator или hidden communication state.
+Общий foundation содержит только mechanical primitives. Он не владеет mutable business meaning, business-policy decision, domain или status authority, route selection, service locator или hidden communication state. Ownerless shared domain/business utility запрещена: semantics сохраняют Ball-local, включая deliberate small duplication, либо назначают им одного Ball/Flow owner с объявленным Application Surface/protocol.
 
 ## Правила Core, которые нельзя нарушать
 
-В Core есть 44 стабильных идентификатора законов. Их формулировки в §20 и матрица §20.1 — projection indexes к помеченным body source clauses, а не независимая authority. Таблица ниже — тоже обзорная карта и не означает 44 локальных артефакта.
+В Core есть 44 стабильных идентификатора законов. Раздел 20 — полная generated audit projection помеченных body source records; §20.1 — только компактный индекс applicability, ownership и навигации. Ни один из них не является независимой authority. Таблица ниже — тоже обзорная карта и не означает 44 локальных артефакта.
 
 | Область | Правило для разработчика | Законы |
 |---|---|---|
@@ -222,8 +224,8 @@ flowchart TB
 | Состояние и identity | У каждого изменяемого факта один authority и writer; виды состояния не смешиваются; отложенная или отдельно наблюдаемая работа получает stable semantic identity. | `PBA-11–18` |
 | Асинхронность и доставка | Если такие пути есть, разделяйте ACK/result и моделируйте ambiguity, idempotency, cancellation races и retry ownership. | `PBA-19–24` |
 | Композиция | Для реальных связей между `Ball` и процессов с состоянием объявляйте dependencies/owners и ограничивайте routes и fan-out. | `PBA-25–30` |
-| Безопасность и ресурсы | Применяйте quarantine, actor-context authenticity, capabilities, gates, safe sinks и secret/unsafe controls только на существующих границах и рисках; ambient authority запрещён всегда. | `PBA-31–37, PBA-44` |
-| Цена и гарантии | Каждая реально переменная величина конечна; точные policies используются повторно; evidence нужен только для конкретного claim. | `PBA-38–43` |
+| Безопасность и ресурсы | Применяйте quarantine, actor-context authenticity, реальные capability boundaries, safe sinks, включая capability-rooted формы, и exact-path-and-scope secret/unsafe controls только на существующих границах и рисках; ambient authority запрещён всегда. | `PBA-31–37, PBA-44` |
+| Цена и гарантии | Каждая реально переменная величина конечна; точные policies используются повторно; каждый конкретный claim указывает named boundary, scope, assumptions, retention и evidence и не подразумевает более сильную downstream guarantee. | `PBA-38–43` |
 
 Точные законы находятся в [§20 Core](../../spec/pokeball-architecture-core.md#20-canonical-pokeball-laws), а рабочий checklist — в [§18 Core](../../spec/pokeball-architecture-core.md#18-practical-checklist).
 
@@ -300,11 +302,11 @@ foundation/
 
 `ball.yaml` необязателен: источником истины может быть typed source, а инструмент при необходимости создаст полный resolved view для deployment, review или conformance claim.
 
-Важны не названия папок, а направление полномочий и зависимостей. Interaction связывает внешние каналы с протоколом, Resources — с внешними системами, Nucleus зависит только от собственного состояния, протокола и mechanical foundation, а Assembly — только от публичных протоколов и явных routes. Внутреннее устройство и изменяемое состояние одного Feature не становятся зависимостью другого.
+Важны не названия папок, а направление полномочий и зависимостей. Interaction связывает внешние каналы с протоколом, Resources — с внешними системами, а Nucleus владеет собственными State и protocols и импортирует только свои Ball-local Nucleus utilities, точные объявленные target- или producer-owned Application Surfaces, необходимые его закрытым Query, Pulse и Decision contracts, и mechanical foundation. Local/mechanical helper imports остаются обычными compile-time edges; без реального cross-authority condition они не создают inter-authority route или `Direct Control Dependency`. Импорт Application Surface не передаёт ownership. Foreign State, internals, private Resource adapters, ownerless shared domain utilities, caller-owned mirrors или redeclarations, protocol re-export и синтез семантики в Interaction или Assembly запрещены; Assembly выбирает только публичные routes, versions и bindings.
 
 ## Как начать
 
-Pokeball подходит не всегда. Используйте обычную utility, module или adapter — либо остановите pilot — если кандидат является stateless library/algorithm, хранит только presentation focus/scroll/animation state, служит passive adapter без собственного semantic Decision, проект не готов установить one writer/authority/closed bounded paths или измеренная design/runtime cost выбранного среза превышает пользу для authority, invariant, recovery или change radius.
+Pokeball подходит не всегда. Используйте Ball-local utility, adapter, shared mechanical Foundation — либо остановите pilot — если кандидат представляет только stateless mechanics, хранит лишь presentation focus/scroll/animation state, служит passive adapter без собственного semantic Decision, проект не готов установить one writer/authority/closed bounded paths или измеренная design/runtime cost выбранного среза превышает пользу для authority, invariant, recovery или change radius. Такое упрощение не разрешает ownerless shared domain/business semantics: сохраняйте их локально либо назначьте одного Ball/Flow owner с объявленным Application Surface/protocol.
 
 Во время активного adoption или pilot владелец архитектуры проекта `SHOULD` записать или иначе доказать semantic facts границы, state key, strict invariants, dependencies, владельцев trust/lifecycle/recovery, ожидаемые size/load и public protocol surface. Это только project-owned guidance, а не universal Core artifact, runtime record или conformance placeholder. Вне adoption/pilot не нужны ни worksheet, ни пустые поля.
 
@@ -337,7 +339,7 @@ Pokeball подходит не всегда. Используйте обычну
 2. §§3–5 — canonical model, проверяемые границы `Ball` и логические роли.
 3. §§6–8 — закрытые протоколы, state authority, чистые Decisions, reads и acceptance.
 4. Читайте только triggered части §§9–13 об async delivery, composition, security, profiles и bounds.
-5. Используйте §14 только при материализации manifest или Assembly view; §§15–16 — как worked examples, §§17–18 — для evidence/checks, а §20 — только как projection index к source clauses.
+5. Используйте §14 только при материализации manifest или Assembly view; §§15–16 — как worked examples, §§17–18 — для evidence/checks, §20 — как полную generated audit projection, §20.1 — как ограниченный индекс applicability/ownership/навигации, а §22 — для glossary lookup.
 
 ### Основные документы
 
