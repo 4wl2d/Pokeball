@@ -330,6 +330,8 @@ flow-to-feature ratio
 
 A simple Ball should not pay ceremony for unused distributed guarantees.
 
+Human first-use cost is part of that tax: time to the first correct change, reference lookups, expert interventions, wrong-owner edits, and rework. Compare the same behavior and required guarantees with the project's competent existing approach. Count shared binding setup and evidence maintenance separately from per-feature work, then include both in the adoption decision; moving cost into a shared component or generated file does not erase it. A smaller file count alone proves neither easier maintenance nor correctness.
+
 For an adoption pilot, the project selects the relevant measure, workload, measurement method, baseline, and continue/reshape/stop threshold. Candidate measures include state size, peak operations per key, transition cost, contention, change radius, recovery cost, and the design-time items above. Core supplies no universal number. A pilot measurement becomes a performance claim only when the project makes that claim under §13.4.
 
 Shared mechanisms, policies, and evidence are reviewed once at their exact scope and referenced by every covered Ball. A local change records only a newly triggered guardrail, semantic delta, override, or invalidated evidence item. Copying an unchanged project policy or repeating `N/A` for absent paths is itself avoidable design-time tax.

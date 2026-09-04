@@ -206,3 +206,7 @@ Definitions are read only from Core §22.
 | Workflow Sovereignty | §10 | §22 `Workflow Sovereignty` |
 | Zero Mandatory Runtime Tax | §13 | §22 `Zero Mandatory Runtime Tax` |
 <!-- pkb:generated:end -->
+
+## Everyday development route
+
+Core §21.7 separates feature changes, binding work and production claims without adding architecture roles or required artifacts. Use §§0.4–0.5 for changed paths, §5/PBA-01 for a source-carried role/edge map, §§14.1–14.2 for the minimal source contract, and §13.5 for human first-use and total adoption cost. These are task routes, not additional PBA definitions.

@@ -2,7 +2,7 @@
 
 **Version:** `1.4.0-draft`<br>
 **Status:** canonical draft<br>
-**Date:** 2026-07-20<br>
+**Date:** 2026-09-05<br>
 **Language:** English; exact protocol type and field names use Latin identifiers
 
 ---
@@ -74,6 +74,7 @@ The `Core part` heading, breadcrumb, and canonical-part banner at the top of eac
 
 ## Suggested reading paths
 
+- **First implementation and everyday changes:** §§14.1–14.2 for the smallest source contract, §21.7 for responsibility and change routing, then only the triggered authoritative routes.
 - **Meaning and semantic foundation:** §§0–3.
 - **Ball, state, protocol, and composition design:** §§4–10.
 - **Runtime profile selection:** §12.

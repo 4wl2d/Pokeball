@@ -17,6 +17,12 @@ Every contract row, runbook, gate, example, index, and summary here is a project
 
 A missing optional path produces no placeholder artifact. An inferred trigger cannot be disabled by omitting metadata. If absence is ambiguous, treat the trigger as present or obtain an accepted decision. Routine work creates no `TriggerAbsenceProof`; one is materialized only when a conformance/release verdict or accepted ambiguity-resolution decision relies on absence.
 
+## Helping a human make an ordinary change
+
+Start from the affected feature source and its existing tests, then use Core §21.7. Explain the owned fact, the requested business change, the acceptance point, and only the paths this change activates. A small local feature can use one source file, a pure function, a serial owner, and a direct local getter under Core §§3.3, 5, 8.5 and 8.10. Show those concrete source locations before presenting a catalog of terminology or scaffolding folders.
+
+The feature author owns decisions and affected tests. The binding owner supplies and verifies reusable writer, acceptance, dispatch and triggered resource mechanics; the same person may hold both responsibilities. Reuse is justified by exact scope and assumptions, not by a label. A production claimant resolves actual project evidence. No human or agent needs to repeat unchanged binding design for every business-rule edit, and the short path does not erase a new trigger.
+
 ## Task routing
 
 | Trigger or task | Read first | Continue only when triggered |

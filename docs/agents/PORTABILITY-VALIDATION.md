@@ -2,7 +2,7 @@
 
 > **Status:** derived noncanonical package. It neither defines nor extends Pokeball Core. Verify [BASELINE.md](BASELINE.md); Core prevails.
 
-Use this continuation after installation or update to exercise one bounded routine change and the governance-free clean-layout portability catalogue.
+After consumer installation or update, verify the copied integrity, relocated links/routing, and one bounded relevant routine change below. The complete clean-layout catalogue is package-maintainer validation under `AP-GATE-10`, performed in a clean fixture without source-repository governance. It does not require a consuming project to add absent commands, persistence, isolation, grants, Catalog, or Checkout implementations.
 
 Every `PKB-AR-*` rule is defined only in [AGENT-CONTRACT.md](AGENT-CONTRACT.md). This document is task guidance projected from the named Core source clauses.
 

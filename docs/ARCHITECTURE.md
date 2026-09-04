@@ -7,6 +7,8 @@
 
 Use this guide for the Ball model, logical zones, accepted decisions, output discipline, and the developer-facing law map.
 
+For your first feature, begin with the [human quickstart](QUICKSTART.md): ordinary types, a pure function, one state owner, and a visible acceptance point. Use this page to resolve the detailed concepts that example or your next change introduces. The complete protocol catalog is a reference, not a set of types to create in every feature.
+
 ## One Ball at a glance
 
 ```mermaid

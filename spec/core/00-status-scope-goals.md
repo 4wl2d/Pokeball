@@ -239,6 +239,7 @@ Core is a complete normative reference, not one mandatory linear reading assignm
 
 | Reader task | Minimum authoritative route | Views that are alternatives, not cumulative required reading |
 |---|---|---|
+| Make an ordinary change inside an established project binding | §21.7; the affected source and tests; the applicable §0.4 change row and newly triggered source/test routes | Relearning unchanged binding internals, every profile, or the complete law catalog for each feature edit. |
 | Place a responsibility or choose a boundary | §0.4 question 1, §4.4, then only the source laws and falsifiers activated by that choice | The full §20 catalog and unrelated examples. |
 | Design or change one Ball/path | The applicable §0.4 question/change row; the owning sections; triggered source laws; their primary §17 route and affected §18 items | Untriggered profiles, absent-path evidence, and both a source record and its complete §20 duplicate. |
 | Implement or replace a binding | §0.4 questions 4–8; the selected Interaction/Resource/Assembly/profile sections; applicable tests | Unselected profiles and unrelated Ball examples. |

@@ -25,7 +25,7 @@ Ball contracts remain in their normal typed source or local manifests. Assembly 
 4. Only when shared policies, bindings, ceilings, deviations, or claims are useful, copy [PROJECT-OVERLAY.template.md](PROJECT-OVERLAY.template.md) to `docs/pokeball-project-overlay.md`, remove unused sections, resolve its source paths, and obtain owner acceptance plus an immutable revision/digest.
 5. Pin the exact policy once in its authoritative project/binding scope; a Ball records a reference only when not already covered, plus any allowlisted local delta. A fully local/static Ball has no policy row.
 6. Add the routing block below to root `AGENTS.md`; keep existing repository/build/test instructions.
-7. Run the routine dry run and clean-layout catalogue in [PORTABILITY-VALIDATION.md](PORTABILITY-VALIDATION.md). Run full `RG-*` gates only before a conformance or release claim.
+7. Check the copied files, relocated links and routing, then run one relevant routine dry run from [PORTABILITY-VALIDATION.md](PORTABILITY-VALIDATION.md). The complete clean-layout catalogue validates the Agent Pack itself under `AP-GATE-10`; a consuming project does not implement absent features to repeat it. Run full applicable `RG-*` gates before a conformance or release claim.
 
 Routine installation, design, and adoption do not create `TriggerAbsenceProof`. Only an absence-dependent conformance/release verdict or accepted ambiguity-resolution decision records one exact proof at its evidence-owning scope; an `always` or present trigger cannot be proved absent.
 
