@@ -133,3 +133,7 @@ These generated navigation tables reverse the rule matrix by PBA and gate; they 
 - A Ball records only its authoritative semantics plus any local declaration, different explicit selection, or allowed delta; the enclosing accepted scope owns a shared policy reference once.
 - Ordinary work creates no artifact for a proven-absent trigger. A conformance/release claim or accepted ambiguity-resolution decision that relies on absence records the exact `TriggerAbsenceProof` once; `always`, a present trigger/claim, an unaccepted ambiguity, wrong or stale scope/profile/revision/digest, conflict, or invalidation makes it unusable until reevaluated.
 - A change to Core source, rule meaning, trigger, policy schema, or gate requires synchronized package validation.
+
+## Human workflow projection
+
+Core §21.7 and §§0.5/13.5/14.1–14.2 route everyday feature work to existing source and affected tests, binding work to reusable mechanisms/evidence, and claims to exact production scope. Core §5/PBA-01 permits the inspectable source/binding itself to carry the role/edge map. Consumer installation checks and the package-maintainer portability catalogue have distinct owners under `AP-GATE-10`. None adds a rule ID, component, absent-path fixture obligation, or claim shortcut.

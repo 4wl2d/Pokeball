@@ -301,6 +301,16 @@ For a local monolith, a route may compile to a direct function call. For another
 
 ### 14.5. Recommended directory structure
 
+Start with the smallest source layout that exposes the authority and permitted calls. For a local state-only feature this may be:
+
+```text
+features/
+  order_draft.ext        # owned types, pure decision/read, serial binding
+  order_draft_test.ext   # behavior and the binding's actual acceptance boundary
+```
+
+The extension is illustrative. Source names and physical files are project choices; the closed protocol meaning and logical roles remain inspectable under §5. A separate Resource file, interface, manifest, or empty directory has no purpose when its path is absent. Split a file when actual adapters, platform dependencies, ownership, or readability call for it. A larger project may use the following layout; it is not a scaffold to populate before the first feature:
+
 ```text
 features/
   catalog/

@@ -20,7 +20,7 @@ new, removed, and unchanged triggers
 explicit exclusions
 ```
 
-After editing, run base tests and the tests selected by changed triggers. Report the diff, policy delta, commands/results, and any unresolved triggered decision. Do not record absent paths individually, create `TriggerAbsenceProof` placeholders, or make a conformance or stronger guarantee claim. The proof is materialized only when a conformance/release claim or accepted ambiguity-resolution decision relies on absence.
+After editing, run the affected Ball behavior tests and tests selected by changed triggers. Reuse existing applicable binding evidence at its exact scope; rerun or extend it when this change invalidates its source, profile, limit, environment, or other assumptions. Base tests do not mean recreating an unchanged binding suite for each Ball. Report the diff, policy delta, commands/results, and any unresolved triggered decision. Do not record absent paths individually, create `TriggerAbsenceProof` placeholders, or make a conformance or stronger guarantee claim. The proof is materialized only when a conformance/release claim or accepted ambiguity-resolution decision relies on absence.
 
 ## 2. Trigger-to-test matrix
 

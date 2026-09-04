@@ -7,139 +7,83 @@
 </p>
 
 <p align="center">
-  <strong>An architecture specification for applications built from explicitly composed, state-owning functional modules with pure bounded decisions, closed typed protocols, and evidence-qualified guarantees.</strong>
+  <strong>Stateful features with one owner, pure decisions, and explicit effects.</strong>
 </p>
 
 <p align="center">
-  <a href="spec/pokeball-architecture-core.md"><img alt="Core specification" src="https://img.shields.io/badge/CORE-SPECIFICATION-1F6FEB?style=flat-square&amp;labelColor=0D1117" /></a>
-  <a href="docs/agents/README.md"><img alt="Agent Pack" src="https://img.shields.io/badge/AGENT-PACK-0969DA?style=flat-square&amp;labelColor=0D1117" /></a>
-  <a href="docs/ADOPTION.md"><img alt="Adoption guide" src="https://img.shields.io/badge/ADOPTION-GUIDE-1F6FEB?style=flat-square&amp;labelColor=0D1117" /></a><br />
-  <a href="docs/ru/README.md"><img alt="Russian overview" src="https://img.shields.io/badge/RU-OVERVIEW-0969DA?style=flat-square&amp;labelColor=0D1117" /></a>
-  <a href="#documentation"><img alt="Documentation" src="https://img.shields.io/badge/READ-DOCUMENTATION-1F6FEB?style=flat-square&amp;labelColor=0D1117" /></a>
-  <a href="#license-and-authorship"><img alt="CC BY 4.0 license" src="https://img.shields.io/badge/CC_BY_4.0-LICENSE-58A6FF?style=flat-square&amp;labelColor=0D1117" /></a>
+  <a href="docs/QUICKSTART.md">Write your first feature</a> ·
+  <a href="docs/EVALUATION.md">Decide whether it pays off</a> ·
+  <a href="spec/pokeball-architecture-core.md">Core specification</a> ·
+  <a href="docs/ru/README.md">Russian</a>
 </p>
 
-<table>
-  <tr>
-    <td width="33%" align="center">
-      <strong>Explicit ownership</strong><br />
-      <sub>One explicit canonical state scope per Ball.</sub>
-    </td>
-    <td width="33%" align="center">
-      <strong>Pure bounded decisions</strong><br />
-      <sub>No I/O or ambient authority in the Nucleus.</sub>
-    </td>
-    <td width="33%" align="center">
-      <strong>Closed typed protocols</strong><br />
-      <sub>Only used paths, each with an effective finite bound.</sub>
-    </td>
-  </tr>
-</table>
+Pokeball is an architecture specification for stateful applications. A feature owns its state, makes decisions in a pure function, and performs external actions only after accepting the decision. It can start as one source file with ordinary types and functions.
 
-> [!IMPORTANT]
-> For each law, the marked `Source clause for PBA-xx` in the numbered body of the [Core specification](spec/pokeball-architecture-core.md) is the sole normative authority. The law list, applicability matrix, tests, checklist, examples, glossary, this README, and the [Agent Pack](docs/agents/README.md) are projections. If a projection differs from its source clause, the source clause controls.
+**Start with the [human quickstart](docs/QUICKSTART.md).** It shows a complete local feature, its tests, and a business-rule change before introducing asynchronous work. You do not need to master the full reference before making an ordinary change inside an established project binding.
 
-This repository contains the Core specification and practical adoption guidance. It does not contain a Pokeball runtime, framework, library, or reference implementation.
+## Why use it?
 
-## What problem does Pokeball address?
+Consider a search that starts A, then B, but receives A's result last; or a payment that times out after the provider may have charged the customer. Layers and dependency direction alone do not select how your application handles these situations.
 
-Stateful applications become difficult to reason about when state ownership, side effects, asynchronous results, authorization, retries, and delivery guarantees are implicit. Pokeball makes those decisions visible in the architecture:
+Pokeball gives a team explicit contracts for recurring questions:
 
-- Who owns each mutable fact?
-- Which exact inputs may change it?
-- Which typed outputs may leave the module, and only after what acceptance point?
-- How does an asynchronous result prove which operation caused it?
-- Which queues, retries, fan-out, state, and work limits are finite?
-- Which guarantees come from Core semantics, and which require a concrete runtime profile and evidence?
+- **State ownership:** one authority and one logical writer for each mutable fact.
+- **Decisions and consequences:** decide from State and explicit current input/context; accept State and all present outputs together; dispatch afterward.
+- **Asynchronous work:** associate results with accepted causes, reject or handle stale results by policy, and distinguish a timeout from a known failure.
+- **Bounded operation:** resolve finite limits for present variable dimensions and name the evidence behind stronger guarantees.
 
-Pokeball does this without requiring a mediator, broker, queue, reflection, serialization, runtime DI container, or a particular database for a local `Inline` binding.
+These contracts can make reviews and failure handling more consistent. They also cost design, code, tests, and learning. The [value comparison and pilot](docs/EVALUATION.md) explains how to measure both.
 
-## The architecture in one sentence
+Good Clean Architecture can use the same mechanisms. Pure functions, isolated tests, and replaceable adapters are shared benefits; Pokeball's additional value is a common, explicit contract for stateful behavior. If your project already has equivalent rules and checks, adopting another vocabulary may add little.
 
-A `Ball` is the smallest operationally feasible scope in which one authority can enforce the required invariants without reading another Ball's mutable state.
+## What do I write?
 
-Each Ball:
+| Everyday code | Pokeball term | Responsibility |
+|---|---|---|
+| A state-owning feature module | Ball | Own the fact, its invariant, and lifecycle. |
+| Input adapter | Interaction | Validate/adapt the present input channel; keep business choices in the decision. |
+| Pure decision and read functions | Nucleus | Compute the proposed change or read result from explicit values. |
+| Adapter for an external action | Resources | Execute only accepted requested work through the required boundary. |
 
-1. owns one explicit canonical state scope;
-2. separates external interaction, pure decision logic, and resource execution;
-3. exposes only the closed typed protocol paths it actually uses;
-4. atomically accepts its snapshot state mutation or `EventDecision` together with the complete semantic-output batch;
-5. dispatches no `SemanticOutput` before that acceptance;
-6. gives detached or independently observable work stable causal identity and verified provenance;
-7. keeps every present variable dimension within one finite effective bound.
+The binding connects these roles and enforces the writer, acceptance, and applicable execution rules. A small project can implement it directly; an established project can reuse it. It is real integration work, not something this specification supplies.
 
-Pokeball has one sparse Core, not separate “Lite” and “full” architectures. Its always-applicable invariants remain universal. A reachable path or named risk activates only its guardrail; a concrete claim activates its evidence. Each activated guardrail resolves once through construction, a local declaration, or an exact immutable project-, profile-, Assembly-, or binding-scoped policy, with only permitted Ball-specific deltas. A proven-absent trigger needs no empty table, zero, `N/A`, or evidence placeholder.
+For a local state-only feature, the Resource role is empty. Three logical roles do not require three classes, folders, interfaces, or a message bus. Source types, calls, verification sites, and the single accepted-write site can carry the role map; a separate document is unnecessary when those facts are already inspectable.
 
-`TriggerAbsenceProof` is materialized only when a Pokeball conformance or release claim, or an accepted ambiguity-resolution decision, relies on trigger absence. Routine design, implementation, adoption, or piloting creates no proof merely because a category is absent. An `always` obligation or present trigger cannot use such a proof; contrary present evidence invalidates it and requires the guardrail to resolve.
+## How much machinery is required?
 
-Core constrains valid authority and dependency graphs; it does not promise one unique decomposition graph. Boundary choices are falsifiable:
+There is one Core. Always-applicable invariants remain in force; optional machinery appears when a real path, risk, or claim activates it.
 
-- combine parts when one strict invariant requires one state key, writer, lifecycle, and recovery unit, unless a stronger trust, ownership, partition, durability, or containment boundary forbids it;
-- separate parts when they need independent owners, state keys, lifecycles, terminal outcomes, trust/durability boundaries, or material load/containment;
-- keep stateless mechanics as a Ball-local utility owned by one logical role, or as shared mechanical Foundation; shared domain/business semantics stay as explicit local implementations or acquire one Ball/Flow owner and a declared Application Surface/protocol;
-- use a `Feature Ball` for one local capability's state and decisions, a `Flow Ball` for material cross-authority coordination, and a `Read Model Ball` only for derived query state, source positions, freshness, and rebuild policy without command authority.
+| Situation | Start with |
+|---|---|
+| Local state and synchronous calls | Owned State, closed typed input, pure decision, serial atomic publication, relevant tests. |
+| Detached external work | Accepted outputs, verified result correlation, bounded execution, and the required operation-status contract. |
+| Accepted work must survive process loss | A concrete durable binding, crash/recovery tests, and explicit external-outcome handling. |
+| Multiple authorities need an independent workflow | A Flow owner for the actual coordination and terminal outcome. |
 
-A Ball is not automatically a screen, endpoint, table, repository, service, aggregate, or use case. `EphemeralState` is limited to focus, scroll, animation, layout, transport, and equivalent mechanics that cannot change a business `Decision`; a decision-relevant UI or transport value is committed State or an explicit trusted current `Pulse`/`DecisionContext` input.
+No standalone manifest, empty protocol category, unused adapter, runtime DI container, or per-feature copy of an unchanged shared policy is required. A present obligation still needs a real mechanism. Learn the details when the task activates them through [adoption](docs/ADOPTION.md), [composition](docs/COMPOSITION.md), and [Core's everyday workflow](spec/core/reference/21-adoption.md#217-everyday-development-and-production-responsibility).
 
-## One Ball at a glance
+## Is it appropriate for production?
 
-A Ball owns one explicit canonical state scope and keeps Interaction, pure Nucleus decisions, and Resources logically separate. [Read the complete Ball and logical-zone guide](docs/ARCHITECTURE.md#one-ball-at-a-glance).
+Production readiness belongs to an implemented system and its exact binding, workload, and guarantees. This repository provides the specification, teaching examples, and verification routes; it contains no runtime, library, reference implementation, comparative benchmark, or evidence for your deployment. Version and compatibility status are owned by the [Core header](spec/pokeball-architecture-core.md).
 
-## The decision and acceptance model
+Use one real slice to check failure behavior, implementation cost, and a human's first change. Include shared setup and maintenance cost. Continue when the benefit is demonstrated within your budget; reshape or stop when the existing approach satisfies the same requirements more simply. Use ordinary utilities or adapters for stateless mechanics and passive paths that need no state-owning decision module. Pokeball does not promise an advantage on every project.
 
-Pokeball accepts State or an Event decision together with the complete semantic-output batch, then dispatches only after acceptance. [Read the complete decision, command/result, and law guide](docs/ARCHITECTURE.md#the-decision-and-acceptance-model).
-
-## How an application is composed
-
-Applications combine Feature, Flow, and Read Model Balls through explicit bounded dependencies; utility packages remain stateless mechanics. [Read the complete composition guide](docs/COMPOSITION.md#how-an-application-is-composed).
-
-## Core rules developers must preserve
-
-The 44 stable `PBA-*` laws remain projections of their unique marked Core source clauses. [Use the developer-facing law map](docs/ARCHITECTURE.md#core-rules-developers-must-preserve).
-
-## Profiles: pay only for the guarantees you use
-
-Profiles are independent dimensions and cannot waive an activated guardrail. [Compare the profiles and their costs](docs/ADOPTION.md#profiles-pay-only-for-the-guarantees-you-use).
-
-## Guarantee boundaries
-
-Every guarantee ends at its named boundary and requires the mechanism and evidence claimed for that scope. [Review the explicit non-guarantees](docs/ADOPTION.md#guarantee-boundaries).
-
-## A typical project layout
-
-Folders are non-normative; authority and dependency direction are what matter. [See the suggested project shape and its constraints](docs/ADOPTION.md#a-typical-project-layout).
-
-## Adopt Pokeball
-
-Start with one suitable vertical slice, add only triggered machinery, and stop or reshape the pilot when its measured cost exceeds its benefit. [Follow the complete adoption workflow](docs/ADOPTION.md#adopt-pokeball).
+Follow the [project evaluation and production evidence guide](docs/EVALUATION.md). Documentation consistency and agent walkthroughs do not establish human usability or production reliability.
 
 ## Documentation
 
-### Where to start
-
-- **Learn the architecture:** read this overview, then the [architecture](docs/ARCHITECTURE.md) and [composition](docs/COMPOSITION.md) guides; use Core §§0–3 for scope and semantics and §§4–10 for boundaries, state, protocols, and composition.
-- **See complete flows:** study the Catalog and Checkout walkthroughs in Core §§15–16.
-- **Apply Pokeball:** follow the [adoption guide](docs/ADOPTION.md), use the [Agent Pack](docs/agents/README.md) for design and review guidance, and follow its [installation guide](docs/agents/INSTALL.md) when bringing it into another repository.
-
-### Minimal Core reading path
-
-1. §§0.1–0.2 — source-clause authority, applicability, absence, and exact reuse.
-2. §§3–5 — canonical model, falsifiable Ball boundaries, and logical roles.
-3. §§6–8 — closed protocols, state authority, pure decisions, reads, and acceptance.
-4. Read only the triggered parts of §§9–13 for async delivery, composition, security, profiles, and bounds.
-5. Use §14 only when materializing a manifest or Assembly view; use §§15–16 as worked examples, §§17–18 for evidence/checks, §20 as the complete generated audit projection, §20.1 as the limited applicability/ownership/navigation index, and §22 for glossary lookup.
-
-### Main documents
-
-| Document | What it contains |
+| Start here when you want to… | Document |
 |---|---|
-| [Core specification](spec/pokeball-architecture-core.md) | Stable entrypoint and reading map for the complete ordered Core document set |
-| [Architecture guide](docs/ARCHITECTURE.md) | Non-normative Ball, decision, acceptance, and law orientation |
-| [Composition guide](docs/COMPOSITION.md) | Non-normative application roles, dependencies, reads, status, security, and Foundation orientation |
-| [Adoption guide](docs/ADOPTION.md) | Non-normative profiles, guarantee boundaries, project shape, and pilot workflow |
-| [Agent Pack](docs/agents/README.md) | Practical guidance and runbooks derived from the Core for applying Pokeball in another project |
-| [Russian overview](docs/ru/README.md) | Russian-language introduction to the architecture |
-| [License](LICENSE) and [notice](NOTICE.md) | License terms, authorship, scope, and reusable attribution |
+| Write and change a small feature | [Human quickstart](docs/QUICKSTART.md) |
+| Compare benefits, cost, and production fit | [Project evaluation](docs/EVALUATION.md) |
+| Select profiles and adopt incrementally | [Adoption guide](docs/ADOPTION.md) |
+| Understand decisions and logical roles | [Architecture guide](docs/ARCHITECTURE.md) |
+| Choose boundaries, dependencies, and Flow ownership | [Composition guide](docs/COMPOSITION.md) |
+| Resolve an exact rule or audit the architecture | [Core specification](spec/pokeball-architecture-core.md) |
+| Use an agent in another repository | [Agent Pack](docs/agents/README.md) and [installation](docs/agents/INSTALL.md) |
+| Read the localized overview | [Russian overview](docs/ru/README.md) |
+
+The Core entrypoint and its ordered manifest form the canonical specification. Each marked source clause owns its law; guides, examples, law indexes, and the Agent Pack are derived views. If a view conflicts with its source clause, Core controls. Ordinary work follows affected sources and tests; a full audit still covers every unique source.
 
 ## License and authorship
 

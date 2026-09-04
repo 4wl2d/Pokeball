@@ -12,6 +12,8 @@
 
 Minimal reading path for an adoption decision:
 
+For a first implementation, start from the local typed-source contract in §§14.1–14.2 before adding optional mechanisms. For an ordinary change in an established project, use §21.7. The authoritative route below is for resolving the adoption/binding choices; it is not a prerequisite to every feature edit.
+
 1. Read §§0.1–0.2 for authority, applicability, and reuse semantics.
 2. Read §§3–5 for the model, boundary decision tree, and logical roles.
 3. Read §§6–8 for the closed protocol, state authority, pure Decision, and acceptance boundary.
@@ -116,5 +118,27 @@ Every extension must:
 - have executable examples;
 - record limits and the failure model;
 - not claim a guarantee without a reference implementation/tests.
+
+### 21.7. Everyday development and production responsibility
+
+An ordinary feature change starts from the owning source, its behavior tests, and the project's effective binding. It does not start by reproducing the full Core inventory. The following workflow applies the existing responsibilities in §§0.2, 5, 8, 13.5, and 14; it introduces no additional runtime role, required document, profile, or conformance shortcut.
+
+| Work | What the responsible developer resolves | Reused within its existing exact scope |
+|---|---|---|
+| Change a feature's business rule | Owned State and inputs, the pure Decision/read, changed consequences and behavioral tests | Existing writer, acceptance, adapter and bound mechanisms whose assumptions remain true. |
+| Add an input, effect or dependency | Its closed type and authority, representation/trust boundary, reachable failure cases, new bounds and causal/lifecycle obligations | Existing verified ingress, resource and route bindings that actually cover the new path. |
+| Implement or replace a binding | Applicable writer/admission/atomic-acceptance/dispatch mechanics, provenance, finite execution and profile-specific failure evidence | One implementation and its tests can cover multiple features with equal effective contracts. |
+| Approve a production deployment or publish a guarantee | Exact project revision, binding, workload/environment, intended guarantee boundary, relevant tests/operational evidence and invalidation conditions | Existing in-scope evidence only; a source guide or a successful lint cannot supply missing deployment evidence. |
+
+For a routine change:
+
+1. Locate the owner of the mutable fact and the existing decision/read that owns the rule.
+2. Change the smallest relevant source and behavior test. Keep binding mechanics reusable and business choices in the owner.
+3. Check whether the change introduces or alters an external action, detached work, another authority, persistence, trust, variable dimension, or explicit claim. Follow only the affected source and verification routes in §§0.4–0.5; a new trigger is not covered merely because the old code was reviewed.
+4. Reuse unchanged mechanism/evidence at its exact scope. Revisit it when the source, profile, bounds, dependency, environment or evidence assumptions change; no fresh copy of unchanged policy is needed.
+
+The same person may perform all of these jobs in a small project. Assigning responsibility does not require a platform team or a framework. Before reuse is possible, someone still implements and verifies the selected binding; Core does not ship one. Source-backed role/edge evidence under §5 and authoritative typed contracts under §14.1 can make the local implementation reviewable without a second architecture document. An unresolved required mechanism remains unresolved, even if a short guide omits it.
+
+For adoption, use the project-selected comparison in §§4.5/13.5. A human exercise checks whether a developer can complete a useful change from the task guide and project source without mastering the whole reference; an agent's successful walkthrough does not establish that result. Generality across languages or application types is not evidence of suitability for every project. Production readiness belongs to the exact implemented system and claimed boundary under §13.4, not to the architecture's name.
 
 ---

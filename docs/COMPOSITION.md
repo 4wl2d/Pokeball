@@ -7,6 +7,8 @@
 
 Use this guide for application roles, inter-Ball dependencies, command/result routes, reads, status authority, security context, and mechanical Foundation.
 
+For a change inside one state owner, start from its source and decision function. Use this guide when a real dependency or boundary choice appears; a helper call or a new folder alone does not create a Flow. The [human quickstart](QUICKSTART.md) shows the local case, and [project evaluation](EVALUATION.md) measures whether a larger decomposition is paying for itself.
+
 ## How an application is composed
 
 Pokeball distinguishes four application component roles:

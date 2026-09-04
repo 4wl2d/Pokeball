@@ -389,6 +389,7 @@ The zones are architectural roles. They do not require three processes, three cl
 **Source clause for PBA-01 — Three-Zone Boundary.**
 
 - **Rule:** Every application `Ball` has the logically separated Interaction, Nucleus, and Resource/route roles defined in §§5.1–5.3. This separation preserves their distinct authority and permitted calls even when one file, call stack, or generated binding uses **representation erasure**—omitting a materialized wrapper or adapter while proving the same semantic facts and role edges (§22); physical co-location alone is not evidence of separation.
+  The logical-role and verification/construction-edge map may be carried directly by authoritative source and its enclosing binding: typed entrypoints, visibility/import restrictions, actual call sites, verified construction sites, and accepted-write sites. When those facts are unambiguous and inspectable there, no separate map document, table, or manifest is required. Add annotations or exact source references only for facts not already evident; an annotation is not enforcement. Every present path still has an identifiable role, authority, verified origin where required, and permitted call direction; empty Resource roles require no implementation artifact.
 - **Applicability:** `A`: every Ball, including same-file/stack/generated layouts.
 - **Declaration owner:** Ball owner defines the logical-role map and distinct authority.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.

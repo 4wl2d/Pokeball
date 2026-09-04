@@ -6,7 +6,7 @@ This manifest identifies one exact ordered Core-set candidate and its matching A
 
 ```yaml
 schema: pokeball-agent-pack/v3
-packRevision: 12
+packRevision: 13
 status: derived-noncanonical
 canonicalCore:
   entrypointFromRepositoryRoot: spec/pokeball-architecture-core.md
@@ -14,12 +14,12 @@ canonicalCore:
   declaredStatus: canonical draft
   fileCountIncludingEntrypoint: 25
   digestScope: manifest order + repository-relative path + NUL + exact bytes + NUL
-  sha256: d7792cb6adfaf9d7e3cf0c59bcc40b1158200bfcd0496661d3293035917f352c
-  bytes: 725281
+  sha256: cd1322a8fe58ad429587120e32d04281b5d9d4df6c68b51a2a0ce1cd3e090637
+  bytes: 732089
 packageIntegrity:
   fileCountIncludingBaseline: 25
   digestScope: lexicographic filename + NUL + exact bytes + NUL for every sibling Markdown file except BASELINE.md
-  sha256: 1332fbc4ccbc55112ea87fa902437e6bb27f043a67663ebbe6e11f3e4239089d
+  sha256: c40b5cd1b4608cf97f75111f238440c7b4577b72e472032a6d581ee2bcfb7ced
 readinessRequirements:
   sameImmutablePublishedSnapshot: true
   exactIntegrityMatch: true

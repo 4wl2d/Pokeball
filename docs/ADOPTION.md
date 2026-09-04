@@ -7,6 +7,30 @@
 
 Use this guide to select only the profiles and guarantees a project needs, choose a readable project shape, and pilot one bounded vertical slice.
 
+For a first implementation, use the [human quickstart](QUICKSTART.md). For the adoption decision, use the [equal-scope comparison](EVALUATION.md) to decide whether the extra contracts pay for themselves. The tables below are reference choices for actual paths, not a checklist to populate before writing a feature.
+
+## Adopt Pokeball
+
+Pokeball is not automatically the right choice. Use a Ball-local utility, an adapter, shared mechanical Foundation, or stop the pilot when the candidate is only stateless mechanics, presentation-only focus/scroll/animation state, a passive adapter with no owned semantic Decision, a project unwilling to establish one writer/authority/closed bounded paths, or a slice whose measured design/runtime cost exceeds its authority, invariant, recovery, or change-radius benefit. This simplification does not permit ownerless shared domain/business semantics; keep them local or give them one Ball/Flow owner and a declared Application Surface/protocol.
+
+During active adoption or pilot work, the project architecture owner `SHOULD` record or otherwise prove the boundary's semantic facts, state key, strict invariants, dependencies, trust/lifecycle/recovery owners, expected size/load, and public protocol surface. This is project-owned guidance only—not a universal Core artifact, runtime record, or conformance placeholder. Outside adoption/pilot work, no worksheet or empty fields are required.
+
+For a suitable candidate, start with one vertical slice rather than redesigning the whole application:
+
+1. Assign one authority to each mutable semantic fact.
+2. Choose the Ball boundary; materialize `StateKey` only when there can be multiple instances or identity crosses call scope.
+3. Define only the used closed inputs, state, and outputs.
+4. Implement pure bounded `decide` before introducing a framework or DSL.
+5. Inventory reachable paths, risks, selected profiles, and intended claims.
+6. Resolve each applicable guardrail once through construction, a local declaration, or an exact project/binding policy plus permitted delta.
+7. Add adapters, revisions, handles, stale-result, retry, cancellation, status, security, and durability only when first triggered.
+8. Test base semantics, triggered paths, and local deltas; test shared mechanisms once at their scope.
+9. Add dependencies and Assembly routes only for actual inter-Ball edges.
+10. Create evidence only for claims actually made; generate a fully resolved contract view only when deployment or conformance review needs it.
+
+For agent-assisted adoption in another repository, start with the [Agent Pack](agents/README.md). It can guide ordinary design without a fully populated overlay. Its [installation guide](agents/INSTALL.md) explains how to select exact reusable project policies and Ball deltas; an accepted resolved project contract and claim evidence are required before making a Pokeball conformance claim.
+
+
 ## Profiles: pay only for the guarantees you use
 
 Profiles are independent dimensions. Every selection preserves the always-applicable Core semantics and cannot waive a guardrail activated by its actual paths, risks, or claims.
@@ -45,7 +69,9 @@ Stronger durable runtime, distributed delivery, full replay, secure isolation, s
 
 ## A typical project layout
 
-Physical folders are not normative, but the Core recommends a shape that makes dependency direction visible:
+Start with ordinary source files. A local feature can keep its owned types, pure decision/read, and serial binding in one file, with behavior tests alongside it. Add Resource adapters or split packages when real dependencies and readability require them; see the [complete small example](QUICKSTART.md).
+
+Physical folders are not normative. The larger layout below is useful when those responsibilities exist; it is not a mandatory starter scaffold:
 
 ```text
 features/
@@ -85,26 +111,6 @@ foundation/
 The important part is the direction of authority and dependencies: Interaction adapts external channels, Resources adapt external systems, and the Nucleus owns its State and protocols while importing only its Ball-local Nucleus utilities, the exact declared target- or producer-owned Application Surfaces required by its closed Query, Pulse, and Decision contracts, and mechanical foundation. Local/mechanical helper imports remain ordinary compile-time edges; they create no inter-authority route or `Direct Control Dependency` absent an actual cross-authority condition. An Application Surface import transfers no ownership. Foreign State, internals, private Resource adapters, ownerless shared domain utilities, caller-owned mirrors or redeclarations, protocol re-export, and semantic synthesis by Interaction or Assembly remain prohibited; Assembly selects only public routes, versions, and bindings.
 
 
-## Adopt Pokeball
-
-Pokeball is not automatically the right choice. Use a Ball-local utility, an adapter, shared mechanical Foundation, or stop the pilot when the candidate is only stateless mechanics, presentation-only focus/scroll/animation state, a passive adapter with no owned semantic Decision, a project unwilling to establish one writer/authority/closed bounded paths, or a slice whose measured design/runtime cost exceeds its authority, invariant, recovery, or change-radius benefit. This simplification does not permit ownerless shared domain/business semantics; keep them local or give them one Ball/Flow owner and a declared Application Surface/protocol.
-
-During active adoption or pilot work, the project architecture owner `SHOULD` record or otherwise prove the boundary's semantic facts, state key, strict invariants, dependencies, trust/lifecycle/recovery owners, expected size/load, and public protocol surface. This is project-owned guidance only—not a universal Core artifact, runtime record, or conformance placeholder. Outside adoption/pilot work, no worksheet or empty fields are required.
-
-For a suitable candidate, start with one vertical slice rather than redesigning the whole application:
-
-1. Assign one authority to each mutable semantic fact.
-2. Choose the Ball boundary; materialize `StateKey` only when there can be multiple instances or identity crosses call scope.
-3. Define only the used closed inputs, state, and outputs.
-4. Implement pure bounded `decide` before introducing a framework or DSL.
-5. Inventory reachable paths, risks, selected profiles, and intended claims.
-6. Resolve each applicable guardrail once through construction, a local declaration, or an exact project/binding policy plus permitted delta.
-7. Add adapters, revisions, handles, stale-result, retry, cancellation, status, security, and durability only when first triggered.
-8. Test base semantics, triggered paths, and local deltas; test shared mechanisms once at their scope.
-9. Add dependencies and Assembly routes only for actual inter-Ball edges.
-10. Create evidence only for claims actually made; generate a fully resolved contract view only when deployment or conformance review needs it.
-
-For agent-assisted adoption in another repository, start with the [Agent Pack](agents/README.md). It can guide ordinary design without a fully populated overlay. Its [installation guide](agents/INSTALL.md) explains how to select exact reusable project policies and Ball deltas; an accepted resolved project contract and claim evidence are required before making a Pokeball conformance claim.
 
 
 ---
