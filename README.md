@@ -73,9 +73,9 @@ Follow the [project evaluation and production evidence guide](docs/EVALUATION.md
 
 ## Agent skills
 
-Give your coding agent a practical Pokeball workflow with the [official skills](docs/SKILLS.md). Start with `pokeball` for everyday feature changes; add `pokeball-async`, `pokeball-composition`, `pokeball-binding`, or `pokeball-review` for those tasks. Short entrypoints lead to only the source sections needed for the work, while the canonical Core stays in one place.
+Give your coding agent a practical Pokeball workflow with the [official skills](docs/SKILLS.md). Start with `pokeball` for everyday feature changes; add `pokeball-async`, `pokeball-composition`, `pokeball-binding`, or `pokeball-review` for those tasks. Each skill is independently installable and bundles its own task references and derived source sections. Short entrypoints select only the local context needed for the work; the canonical Core remains authoritative.
 
-[Download and install from GitHub](docs/SKILLS.md#download-once), then connect only the skills you want. The same page explains explicit Git updates. Skills provide coding workflows; the [Agent Pack](docs/agents/README.md) provides the broader contract, runbooks and review gates. Neither supplies an application runtime or a conformance verdict. Contributors should follow the [skill authoring guide](docs/SKILL-AUTHORING.md) when changing a skill or a source it uses.
+[Download and install from GitHub](docs/SKILLS.md#download-once), copying only the complete skill directories you want. Installed skills work without a local Pokeball checkout or network access. The same page explains separate updates from GitHub. Skills provide coding workflows; the [Agent Pack](docs/agents/README.md) provides the broader contract, runbooks and review gates. Neither supplies an application runtime or a conformance verdict. Contributors should follow the [skill authoring guide](docs/SKILL-AUTHORING.md) when changing a skill or a source it uses.
 
 ## Documentation
 

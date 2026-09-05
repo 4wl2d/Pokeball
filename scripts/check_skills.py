@@ -19,7 +19,6 @@ from skill_context import ContextError, ROOT, local_path, markdown_index, visibl
 
 SKILL_WORD_LIMIT = 800
 REFERENCE_WORD_LIMIT = 1600
-REFERENCE_TOTAL_LIMIT = 8000
 
 
 def scalar(value: str) -> str:
@@ -141,65 +140,79 @@ def verify_sources(root: Path) -> list[str]:
     return errors
 
 
-def long_paragraphs(source: str) -> set[str]:
-    """Catch copied prose blocks; this is intentionally not a semantic detector."""
-    paragraphs = {" ".join(paragraph.split()) for paragraph in re.split(r"\n\s*\n", source)}
-    return {paragraph for paragraph in paragraphs if len(paragraph.split()) >= 40}
+def check_package(skill_root: Path) -> list[str]:
+    """Validate one isolated installation; no source checkout is consulted."""
+    skill_root = skill_root.resolve()
+    errors: list[str] = []
+    entrypoint = skill_root / "SKILL.md"
+    if not entrypoint.is_file():
+        return [f"{skill_root.name}: missing SKILL.md"]
+    source = entrypoint.read_text(encoding="utf-8")
+    try:
+        fields = frontmatter(source)
+        name = fields.get("name", "")
+        if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name) or len(name) > 64 or name != skill_root.name:
+            errors.append("name must match its lowercase hyphenated folder (maximum 64 characters)")
+        if not 30 <= len(fields.get("description", "")) <= 600:
+            errors.append("description must be a discriminating 30–600 character string")
+    except ValueError as error:
+        errors.append(f"SKILL.md: {error}")
+    if len(source.split()) > SKILL_WORD_LIMIT:
+        errors.append(f"SKILL.md exceeds {SKILL_WORD_LIMIT} words")
+    for name in ("LICENSE", "NOTICE.md"):
+        if not (skill_root / name).is_file():
+            errors.append(f"missing bundled {name}")
+    for path in sorted(skill_root.rglob("*")):
+        if path.is_symlink():
+            errors.append(f"{path.relative_to(skill_root)}: symlinks are not standalone files")
+            continue
+        if not path.is_file() or path.suffix != ".md":
+            continue
+        errors.extend(check_links(skill_root, path))
+        source = path.read_text(encoding="utf-8")
+        if re.search(r"^(?:\|\s*`?PKB-AR-[A-Z]+-\d+`?\s*\||#{1,6}\s+.*PKB-AR-[A-Z]+-\d+)", source, re.M):
+            errors.append(f"{path.relative_to(skill_root)}: duplicated PKB-AR definition")
+        # Exact generated Core references retain complete clauses, not a word cap.
+        if not path.is_relative_to(skill_root / "references/core") and path.name != "NOTICE.md":
+            if len(source.split()) > REFERENCE_WORD_LIMIT:
+                errors.append(f"{path.relative_to(skill_root)} exceeds {REFERENCE_WORD_LIMIT} workflow words")
+            if re.search(r"skill_context\.py|build_skills\.py|/path/to/Pokeball|pokeball_source", source):
+                errors.append(f"{path.relative_to(skill_root)}: task-time source-checkout/tool dependency")
+    return errors
 
 
 def check(root: Path) -> tuple[list[str], dict[str, int]]:
+    """Repository maintenance gate: generated identity plus isolated closure."""
+    from build_skills import generate
+
     root = root.resolve()
     errors = verify_sources(root)
-    skills_root = root / "skills"
-    skill_paths = sorted(skills_root.rglob("SKILL.md"))
+    expected, _reports = generate(root)
+    actual = {path.relative_to(root): path for path in (root / "skills").rglob("*") if path.is_file() or path.is_symlink()}
+    for path in sorted(set(expected) | set(actual)):
+        if path not in expected:
+            errors.append(f"unexpected installable file: {path}")
+        elif path not in actual:
+            errors.append(f"missing generated file: {path}")
+        elif actual[path].is_symlink() or actual[path].read_bytes() != expected[path]:
+            errors.append(f"generated content differs: {path}; regenerate from sources")
+    skill_paths = sorted((root / "skills").glob("*/SKILL.md"))
     if not skill_paths:
-        errors.append("no skills/*/SKILL.md files found")
+        errors.append("no standalone skill entrypoints")
     for path in skill_paths:
-        if path.parent.parent != skills_root:
-            errors.append(f"{path.relative_to(root)}: place the entrypoint at skills/<name>/SKILL.md")
-        source = path.read_text(encoding="utf-8")
-        try:
-            fields = frontmatter(source)
-            name = fields.get("name", "")
-            if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name) or len(name) > 64 or name != path.parent.name:
-                errors.append(f"{path.relative_to(root)}: name must match its lowercase hyphenated folder (maximum 64 characters)")
-            if not 30 <= len(fields.get("description", "")) <= 600:
-                errors.append(f"{path.relative_to(root)}: description must be a discriminating 30–600 character string")
-        except (ValueError, json.JSONDecodeError) as error:
-            errors.append(f"{path.relative_to(root)}: {error}")
-        if len(source.split()) > SKILL_WORD_LIMIT:
-            errors.append(f"{path.relative_to(root)}: exceeds {SKILL_WORD_LIMIT} words")
-    references = sorted(path for path in skills_root.rglob("*.md") if path.name != "SKILL.md")
-    total = 0
-    for path in references:
-        words = len(path.read_text(encoding="utf-8").split())
-        total += words
-        if words > REFERENCE_WORD_LIMIT:
-            errors.append(f"{path.relative_to(root)}: exceeds {REFERENCE_WORD_LIMIT} reference words")
-    if total > REFERENCE_TOTAL_LIMIT:
-        errors.append(f"skill references exceed {REFERENCE_TOTAL_LIMIT} total words")
-    documents = sorted(skills_root.rglob("*.md"))
-    for relative in ("docs/SKILLS.md", "docs/SKILL-AUTHORING.md"):
+        errors.extend(f"{path.parent.name}: {error}" for error in check_package(path.parent))
+    documents = list((root / "skill-src").rglob("*.md"))
+    for path in documents:
+        errors.extend(check_links(root, path))
+        if len(path.read_text(encoding="utf-8").split()) > REFERENCE_WORD_LIMIT:
+            errors.append(f"{path.relative_to(root)} exceeds authored context budget")
+    for relative in ("docs/SKILLS.md", "docs/SKILL-AUTHORING.md", "README.md", "docs/ru/README.md"):
         path = root / relative
         if path.is_file():
-            documents.append(path)
+            errors.extend(check_links(root, path))
         else:
-            errors.append(f"missing public skill document: {relative}")
-    original_prose: set[str] = set()
-    for path in sorted((root / "spec").rglob("*.md")) + [root / "docs/agents/AGENT-CONTRACT.md"]:
-        if path.is_file():
-            original_prose.update(long_paragraphs(path.read_text(encoding="utf-8")))
-    for path in documents:
-        source = path.read_text(encoding="utf-8")
-        errors.extend(check_links(root, path))
-        if path.is_relative_to(skills_root):
-            if long_paragraphs(source) & original_prose:
-                errors.append(f"{path.relative_to(root)}: copied source paragraph (40+ words); link to the original section")
-            if re.search(r"<!--\s*pkb:(?:pba-source|term|generated):", source):
-                errors.append(f"{path.relative_to(root)}: copied normative/generated source record; link to its owner")
-            if re.search(r"^(?:\|\s*`?PKB-AR-[A-Z]+-\d+`?\s*\||#{1,6}\s+.*PKB-AR-[A-Z]+-\d+)", source, re.M):
-                errors.append(f"{path.relative_to(root)}: PKB-AR definition row/heading outside AGENT-CONTRACT.md")
-    return errors, {"skills": len(skill_paths), "documents": len(documents), "reference_words": total}
+            errors.append(f"missing public document: {relative}")
+    return errors, {"skills": len(skill_paths), "files": len(expected), "templates": len(documents)}
 
 
 def main() -> int:
@@ -212,7 +225,7 @@ def main() -> int:
         print(f"ERROR: {error}", file=sys.stderr)
     if errors:
         return 1
-    print(f"Skill checks passed: {counts['skills']} skills, {counts['documents']} linked documents, {counts['reference_words']} reference words; Core/Agent Pack integrity matches BASELINE.md.")
+    print(f"Skill checks passed: {counts['skills']} standalone skills, {counts['files']} generated files, {counts['templates']} authoring templates; source integrity matches BASELINE.md.")
     print("Mechanical checks only; semantic fidelity and agent behavior require scoped review.")
     return 0
 

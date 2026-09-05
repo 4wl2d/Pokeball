@@ -14,23 +14,31 @@ The skills are derived guidance. The [ordered Core set](../spec/pokeball-archite
 | [`pokeball-binding`](../skills/pokeball-binding/SKILL.md) | Implementing or changing the shared writer, acceptance, dispatch, execution, durability, security, and bounds mechanisms. |
 | [`pokeball-review`](../skills/pokeball-review/SKILL.md) | Reviewing a specified implementation or change against the applicable Pokeball sources and evidence. |
 
-These are independently selectable workflows sharing one source checkout. A skill reads its short entrypoint and shared working contract, then follows only the routes activated by the task. Files stored on disk do not all enter the agent's context.
+Each skill is a self-contained directory with its own entrypoint, task references, selected source sections, and licensing notices. Install any one by itself. At task time it needs no Pokeball checkout, sibling skill, generator, repository reader, or network access. The agent loads only the local references activated by the task; bundled files do not all enter its context.
 
 ## Download once
 
-Choose an absolute source directory separate from the application you are developing. The following POSIX-shell commands use an example location; change it before running them. Keep this directory for as long as your installed links use it.
+Download the complete directory of each selected skill from [GitHub](https://github.com/4wl2d/Pokeball/tree/master/skills), including its `references/` and notices. A GitHub skill installer that preserves the whole selected directory is supported. For example, ask your agent:
+
+```text
+Install skills/pokeball from https://github.com/4wl2d/Pokeball at master.
+Keep the entire skill directory and its supporting files. Report the installed
+path and source commit. Preserve any existing installation or local changes.
+```
+
+For manual installation, clone once into a new staging directory, then copy only the skills you want. The following POSIX-shell commands use an example staging location; choose an absent destination before running them:
 
 ```sh
-pokeball_source="$HOME/.local/share/pokeball"
+pokeball_source="$HOME/Downloads/pokeball-skills-source"
 mkdir -p "$(dirname "$pokeball_source")"
 git clone --branch master --single-branch \
   https://github.com/4wl2d/Pokeball.git "$pokeball_source"
 git -C "$pokeball_source" rev-parse HEAD
 ```
 
-Use a new destination. If it already contains files, inspect it and choose another location rather than replacing it. Record the displayed commit SHA with your installation notes; it identifies the exact GitHub snapshot you downloaded. The official published branch is [`master`](https://github.com/4wl2d/Pokeball/tree/master).
+If the destination already contains files, inspect it and choose another location rather than replacing it. Record the displayed commit SHA with your installation notes; it identifies the exact GitHub snapshot you downloaded. The official published branch is [`master`](https://github.com/4wl2d/Pokeball/tree/master).
 
-Keep the complete checkout. Skills refer to shared files under `skills/references/`, the original Core under `spec/`, and relevant Agent Pack sources under `docs/agents/`. **Copying an individual skill folder or using a generic single-folder skill installer is unsupported:** those methods omit its repository-relative dependencies.
+The staging checkout is only a download source. Installed copies continue to work after it is moved or removed. Do not copy `SKILL.md` alone: copy its complete containing directory.
 
 ## Make selected skills discoverable
 
@@ -43,12 +51,12 @@ Choose one scope and set `pokeball_skills` in the same shell as above. For proje
 | Claude Code, all your projects | `pokeball_skills="$HOME/.claude/skills"` |
 | Claude Code, this project | `pokeball_skills="$PWD/.claude/skills"` |
 
-Both [Codex](https://developers.openai.com/codex/skills) and [Claude Code](https://code.claude.com/docs/en/skills#where-skills-live) support symlinked local skill directories. Other Agent Skills hosts may use different discovery locations; check that host's documentation. The [Agent Skills format](https://agentskills.io/specification) does not mandate a universal installation directory. Documentation checked on 2026-09-05.
+These local discovery locations are documented by [Codex](https://developers.openai.com/codex/skills) and [Claude Code](https://code.claude.com/docs/en/skills#where-skills-live). Other Agent Skills hosts may use different locations; check that host's documentation. The [Agent Skills format](https://agentskills.io/specification) does not mandate a universal installation directory. Documentation checked on 2026-09-05.
 
-The example installs only `pokeball`. Add other names from the table to the `for` line when you want those workflows. It refuses an existing destination, including a dangling link.
+The example installs only `pokeball`. Add other names from the table to the `for` line when you want those workflows. It refuses an existing destination, including a dangling link, and creates ordinary directories.
 
 ```sh
-: "${pokeball_source:?Set the absolute source checkout path first}"
+: "${pokeball_source:?Set the staging checkout path first}"
 : "${pokeball_skills:?Choose a discovery destination from the table first}"
 mkdir -p "$pokeball_skills"
 for pokeball_skill in pokeball; do
@@ -61,19 +69,19 @@ for pokeball_skill in pokeball; do
     printf 'Skill source missing: %s\n' "$pokeball_skill" >&2
     break
   fi
-  ln -s "$pokeball_source/skills/$pokeball_skill" "$pokeball_target"
+  cp -R "$pokeball_source/skills/$pokeball_skill" "$pokeball_target"
 done
 ```
 
-Keep project-specific links local unless your team intentionally shares that exact source layout: an absolute path on your computer will not work on someone else's. Teammates can repeat the installation with their own checkout location.
+For project scope, teams can version the installed directories with their application so each checkout receives the same skill files. For personal scope, each developer installs their preferred selection. Keep the bundled notices with the files.
 
-Check your agent's skill selector and open a selected skill to confirm that its shared references are accessible. If discovery has not refreshed, start a new session. Codex supports explicit `$skill-name` invocation; Claude Code uses `/skill-name`. Automatic selection depends on the host and each skill's description.
+Check your agent's skill selector and open a selected skill to confirm that its local references are accessible. If discovery has not refreshed, start a new session. Codex supports explicit `$skill-name` invocation; Claude Code uses `/skill-name`. Automatic selection depends on the host and each skill's description.
 
-The commands above are for POSIX shells. On Windows, directory symlinks depend on the host's support and your system's permissions. If you cannot create them, keep the complete checkout and explicitly give your agent the absolute path to the chosen `SKILL.md`; that is manual file-based use, not automatic discovery. Windows host execution is not verified here.
+The commands above are for POSIX shells. On Windows, copy the entire selected directory with your file manager or the host's installer into its documented discovery location; symlink privileges are unnecessary. Windows host execution is not verified here.
 
 ## Use it in your application
 
-Keep the agent's working directory in your application. Skill links lead to the source checkout; they do not make that checkout the project to edit.
+Keep the agent's working directory in your application. It reads the installed skill's local references while editing your application files.
 
 For example, in Codex:
 
@@ -100,9 +108,9 @@ If the application already uses an installed [Agent Pack](agents/README.md), ret
 
 ## Update when requested
 
-GitHub is the distribution source. There is no background updater, package registry, or separately released Pokeball command-line tool. Source and workflow changes are maintained together in this repository; local installations change when you update their checkout.
+GitHub is the distribution source. There is no background updater, package registry, or separately released Pokeball command-line tool. Source and workflow changes are maintained together in this repository. Installed directories are snapshots; downloading a newer checkout does not change them.
 
-First inspect your installation from any working directory:
+Download a new snapshot into a fresh staging directory using the clone instructions above. If you kept the previous staging checkout, first inspect it:
 
 ```sh
 git -C "$pokeball_source" status --short --branch
@@ -110,7 +118,7 @@ git -C "$pokeball_source" remote get-url origin
 git -C "$pokeball_source" rev-parse HEAD
 ```
 
-Proceed only for the intended official checkout on `master`, with no local modifications or local commits to preserve. Record the previous SHA, then:
+For the intended official staging checkout on `master`, with no local modifications or local commits to preserve, record the previous SHA and update it:
 
 ```sh
 git -C "$pokeball_source" pull --ff-only origin master
@@ -119,15 +127,27 @@ git -C "$pokeball_source" rev-parse HEAD
 
 [`--ff-only`](https://git-scm.com/docs/git-pull) refuses divergent history. If the checkout is modified, on another branch, or divergent, inspect the difference before deciding how to preserve it. Do not reset, clean, overwrite, or force-update it as an installation step.
 
-Record the new SHA with your installation notes. Existing links now point to the updated files. Start a new agent session before the next task so it uses the new instructions. An existing application's pinned contract still requires its own explicit migration decision.
+Replace selected installed skills as complete directories:
+
+1. Record the new source SHA and the exact skills you intend to replace. Compare each current directory with its recorded source snapshot and inspect any local customizations.
+2. Copy each complete new skill into a temporary location outside the agent's discovery directories. Check that its entrypoint, local references, and notices are present.
+3. Choose a uniquely named backup destination outside discovery and verify that it does not exist. Decide explicitly which customizations to reapply to the new copy; retain the originals in the backup.
+4. Between agent sessions, move the old directory to its backup location, then place the prepared new directory at the original installed path. If replacement fails, restore the backup before using the skill. Replace whole directories rather than overlaying files, which can retain removed references.
+5. Record the new SHA and any reapplied local changes. Start a new session and confirm discovery and local reference access.
+
+For an earlier symlink installation, first preserve any customized source files as ordinary backup files. Replace the link itself with a complete copied skill directory; do not write through it or alter its shared source. The resulting installation has no dependency on that checkout.
+
+An application's pinned Pokeball contract requires its own explicit migration decision. Updating a coding skill does not change that contract.
 
 You can delegate this maintenance separately:
 
 ```text
-Update my official Pokeball skill checkout at <absolute source directory>
-from GitHub master. Verify the remote, branch, and local changes first.
-Preserve local work; use only a fast-forward update. Report the old and new
-commit SHAs. Keep my application's accepted Pokeball contract unchanged.
+Update only <selected skill names> installed at <absolute skills directory>
+from https://github.com/4wl2d/Pokeball master. Stage one exact Git snapshot,
+inspect local customizations, and back up each existing installation outside
+skill discovery before replacing its complete directory. Preserve customized
+files and report source commits and any local changes reapplied. Keep my
+application's accepted Pokeball contract unchanged.
 ```
 
 Installation and maintenance instructions live on this page. The skills themselves contain only workflows for implementing and reviewing Pokeball-based code. For contributing those workflows, see [skill authoring](SKILL-AUTHORING.md).

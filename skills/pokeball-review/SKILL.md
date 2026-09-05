@@ -5,7 +5,7 @@ description: Review Pokeball implementation code or a supplied diff for architec
 
 # Pokeball implementation review
 
-Resolve this file's physical directory through any installation symlink before following links. Review the consuming project. Read [working contract](../references/working-contract.md) once and select [review routes](../references/review.md).
+Review the consuming project. Resolve supporting references within this skill's directory. Read [working contract](references/working-contract.md) once and select [review routes](references/review.md).
 
 ## Review the supplied scope
 

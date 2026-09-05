@@ -5,7 +5,7 @@ description: Implement or debug Pokeball asynchronous effects, late results, com
 
 # Pokeball asynchronous behavior
 
-Resolve this file's physical directory through any installation symlink before following links. Operate on the consuming project. Read [working contract](../references/working-contract.md) once per task and select the relevant [async routes](../references/async.md).
+Operate on the consuming project. Resolve supporting references within this skill's directory. Read [working contract](references/working-contract.md) once per task and select the relevant [async routes](references/async.md).
 
 ## Trace the operation
 
@@ -16,4 +16,4 @@ Resolve this file's physical directory through any installation symlink before f
 5. Implement the business response to timeout, cancellation and retries from the selected routes. A timeout after a possible external action can mean `OutcomeUnknown`; cancellation is not proof that the action never ran. Keep one primary retry owner and preserve required operation/idempotency identity across attempts.
 6. Test the traces this change can affect: A then B then late A; duplicate result; wrong correlation; cancellation racing completion; timeout after possible success; exhausted capacity or retry budget. Select relevant cases, not a universal fixture suite.
 
-Return the code/test delta and what the observed trace now does. State any unresolved external-outcome or binding assumption. Detached execution alone does not select durable storage; crash survival additionally needs the actual [binding workflow](../pokeball-binding/SKILL.md).
+Return the code/test delta and what the observed trace now does. State any unresolved external-outcome or binding assumption. Detached execution alone does not select durable storage; crash survival additionally needs the actual [binding workflow](references/workflows/pokeball-binding.md).

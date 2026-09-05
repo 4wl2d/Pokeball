@@ -13,7 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Test selective reading and validation
+      - name: Test source reading and standalone packages
         run: python3 -m unittest discover -s tests -p 'test_skill_tools.py' -v
-      - name: Check skills and source integrity
+      - name: Check reproducible skill generation
+        run: python3 scripts/build_skills.py --check
+      - name: Check standalone skills and source integrity
         run: python3 scripts/check_skills.py

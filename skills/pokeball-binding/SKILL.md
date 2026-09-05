@@ -5,7 +5,7 @@ description: "Implement or debug a Pokeball execution binding: single-writer acc
 
 # Pokeball binding implementation
 
-Resolve this file's physical directory through any installation symlink before following links. Work in the consuming project. Read [working contract](../references/working-contract.md) once, then use [binding routes](../references/binding.md) for the mechanism being changed.
+Work in the consuming project. Resolve supporting references within this skill's directory. Read [working contract](references/working-contract.md) once, then use [binding routes](references/binding.md) for the mechanism being changed.
 
 ## Make the mechanism testable
 

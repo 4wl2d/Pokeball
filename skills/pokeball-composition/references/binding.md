@@ -1,0 +1,21 @@
+# Binding source routes
+
+For a mechanism not listed here, use [§8.12 runtime concern index](core/8.12.md#812-principal-runtime-concern-index) to locate its owner. Read the selected row's full source rather than every runtime concern.
+
+| Mechanism being implemented or changed | Sources |
+|---|---|
+| Cause/context or identity mapping | [§3.4 cause, decision and consequence](core/3.4.md#34-cause-decision-and-consequence), [§3.6 identity hierarchy](core/3.6.md#36-identity-hierarchy), and [§8.1 current context](core/8.1.md#81-decisioncontext). |
+| Writer and acceptance/publication | [§7.6 writer](core/7.6.md#76-single-writer), [§8.4 run-to-completion](core/8.4.md#84-run-to-completion), [§8.5 atomic frame](core/8.5.md#85-atomic-decision-acceptance), [§8.6 dispatch order](core/8.6.md#86-commit-before-dispatch), [§8.8 fault atomicity](core/8.8.md#88-fault-atomicity). |
+| Snapshot versus EventJournal acceptance | [§3.3 forms](core/3.3.md#33-canonical-mutation-and-read-forms), [§8.9 modes](core/8.9.md#89-snapshot-and-event-modes). |
+| Admission, backpressure or numeric bound | [§8.7 preflight/admission](core/8.7.md#87-preflight-and-admission), [§8.3 bounds and measurements](core/8.3.md#83-bounded-decision), [§13.1 classes](core/13.1.md#131-three-classes-of-limits), [§13.2 backpressure](core/13.2.md#132-backpressure). Never pass runtime availability into the semantic decision. |
+| Inline scheduling | [§12.1 common semantics](core/12.1.md#121-semantics-common-to-all-profiles), [§12.2 Inline](core/12.2.md#122-inline), plus §8.4 when causal reservation changes. |
+| Detached scheduling | [§12.3 BoundedConcurrent](core/12.3.md#123-boundedconcurrent), [§9.11 status](core/9.11.md#911-operation-status), then affected [async paths](async.md). |
+| Storage and recovery | Read exactly the selected [§12.4 Transient](core/12.4.md#124-transient-state), [§12.5 SnapshotOutbox](core/12.5.md#125-snapshotoutbox), or [§12.6 EventJournal](core/12.6.md#126-eventjournal); additionally [§9.13 output durability](core/9.13.md#913-live-and-durable-outputs) and [§9.5 unknown outcomes](core/9.5.md#95-outcomeunknown) for external work. |
+| Persisted schema or protocol migration | [§10.11 compatibility](core/10.11.md#1011-versioning-and-compatibility) and the selected durable profile. Newly required semantic fields need authoritative upcast or quarantine, not invented defaults. |
+| Drain/stop, callbacks or reads during lifecycle changes | [§8.11 lifecycle](core/8.11.md#811-minimal-lifecycle), [§8.10 reads](core/8.10.md#810-local-read), affected async completion rules. |
+| Trusted input or external execution edge | [§11.1 quarantine](core/11.1.md#111-double-quarantine), [§11.2 actor](core/11.2.md#112-actor-context), [§11.3 gates](core/11.3.md#113-policy-gate-and-execution-gate), [§11.4 capability](core/11.4.md#114-capability), [§11.5 authority](core/11.5.md#115-no-ambient-authority); add [§11.6 sinks](core/11.6.md#116-safe-sinks), [§11.7 grants](core/11.7.md#117-authorization-grant) or [§11.9 secrets](core/11.9.md#119-secrets) only where present. |
+| Signal publication or observation | [§6.10 Signal](core/6.10.md#610-signal), [§10.7 Assembly](core/10.7.md#107-assembly) and the present branch bounds in [§10.9](core/10.9.md#109-bounded-composition). |
+| Deliberate raw-authority or unsafe escape | [§11.10 unsafe path](core/11.10.md#1110-unsafe-escape-hatch) and [§17.8 security evidence](core/17.8.md#178-security-tests). |
+| Isolation/security profile selection | [§12.10 selection](core/12.10.md#1210-profile-selection), then the selected [§12.7 InProcess](core/12.7.md#127-inprocess), [§12.8 Isolated](core/12.8.md#128-isolated) or [§12.9 Hardened](core/12.9.md#129-hardened) section. Resolve [§11.8 in-process limits](core/11.8.md#118-in-process-limitations) and [§21.5 isolation trigger](core/21.5.md#215-when-to-add-isolation) when selecting containment. |
+
+Verification follows the changed mechanism: [§17.3 Resource](core/17.3.md#173-resource-contract-tests), [§17.4 Interaction](core/17.4.md#174-interaction-tests), [§17.6 concurrent](core/17.6.md#176-concurrent-profile-tests), [§17.7 durable](core/17.7.md#177-durable-state-profile-tests) or [§17.8 security](core/17.8.md#178-security-tests). Only an explicit guarantee assessment adds [§13.4 claim evidence](core/13.4.md#134-claim-contract).

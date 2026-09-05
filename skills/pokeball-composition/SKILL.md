@@ -5,7 +5,7 @@ description: Design or change Pokeball ownership boundaries, inter-Ball reads, c
 
 # Pokeball composition
 
-Resolve this file's physical directory through any installation symlink before following links. Work on the consuming project. Read [working contract](../references/working-contract.md) once and select the applicable [composition routes](../references/composition.md).
+Work on the consuming project. Resolve supporting references within this skill's directory. Read [working contract](references/working-contract.md) once and select the applicable [composition routes](references/composition.md).
 
 ## Resolve ownership before wiring
 
@@ -16,4 +16,4 @@ Resolve this file's physical directory through any installation symlink before f
 5. When an edge changes, check both compile-time imports and Direct Control Dependencies. Async handoff can remove synchronous-invocation coupling while an independently present import still contributes its dependency. Resolve only present dependency, route and fan-out bounds using their source counting rules.
 6. Implement the source/wiring change and relevant positive/negative contract tests. For shared helpers, distinguish one Ball/role's utility, shared mechanical Foundation, and business policy requiring explicit ownership; do not hide domain communication in a utility package.
 
-Report the ownership decision, changed contracts/edges and evidence. Add a diagram only when it clarifies the changed graph; source may already carry the map. Command execution details use [async](../pokeball-async/SKILL.md); changing the enforcement machinery uses [binding](../pokeball-binding/SKILL.md).
+Report the ownership decision, changed contracts/edges and evidence. Add a diagram only when it clarifies the changed graph; source may already carry the map. Command execution details use [async](references/workflows/pokeball-async.md); changing the enforcement machinery uses [binding](references/workflows/pokeball-binding.md).

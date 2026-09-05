@@ -1,0 +1,16 @@
+# Asynchronous source routes
+
+Start with the actual trace's row; combine rows only when their paths are present.
+
+| Path | Complete source sections |
+|---|---|
+| Effect and external result | [§6.4 Effect](../../spec/core/06-protocol-algebra.md#64-effect), [§6.5 Fact](../../spec/core/06-protocol-algebra.md#65-fact), [§9.1 identity](../../spec/core/09-asynchrony-and-delivery.md#91-causal-identity), [§9.2 revisioned causality](../../spec/core/09-asynchrony-and-delivery.md#92-revisioned-causality). |
+| Work outlives initiating call | [§9.11 operation status](../../spec/core/09-asynchrony-and-delivery.md#911-operation-status), [§9.3 independent facets](../../spec/core/09-asynchrony-and-delivery.md#93-independent-dimensions-of-operation-state), [§9.13 live/durable outputs](../../spec/core/09-asynchrony-and-delivery.md#913-live-and-durable-outputs), [§12.3 detached execution](../../spec/core/12-profiles-and-limits.md#123-boundedconcurrent). |
+| Inter-Ball command/result | [§6.7 boundary/reply](../../spec/core/06-protocol-algebra.md#67-boundaryresponse-and-reply), [§10.7 Assembly](../../spec/core/10-system-composition.md#107-assembly), [§6.8 command](../../spec/core/06-protocol-algebra.md#68-modulecommand), [§6.9 result](../../spec/core/06-protocol-algebra.md#69-moduleresult), [§6.11 Pulse bridges](../../spec/core/06-protocol-algebra.md#611-pulse), [§6.12 outputs](../../spec/core/06-protocol-algebra.md#612-semanticoutput), [§9.4 ACK/result/carrier](../../spec/core/09-asynchrony-and-delivery.md#94-ack-and-business-result), [§8.4 reservation](../../spec/core/08-decision-and-acceptance.md#84-run-to-completion). This is a larger coherent protocol; retain its refusal and alternative-completion branches. |
+| Timeout after a possible external action | [§9.5 OutcomeUnknown](../../spec/core/09-asynchrony-and-delivery.md#95-outcomeunknown), [§9.8 deadlines](../../spec/core/09-asynchrony-and-delivery.md#98-deadlines-and-timeout). |
+| Duplicates or retry | [§9.6 idempotency](../../spec/core/09-asynchrony-and-delivery.md#96-idempotency), [§9.9 retry owner](../../spec/core/09-asynchrony-and-delivery.md#99-retry-ownership). Distinguish replay, pending and fingerprint conflict; do not create a new semantic operation for a transport retry. |
+| Cancellation or timer | [§9.7 cancellation](../../spec/core/09-asynchrony-and-delivery.md#97-cancellation), [§9.10 timers](../../spec/core/09-asynchrony-and-delivery.md#910-timers), plus status when the work outlives its call. |
+| Reordering or loss of correlated observations | [§9.12 ordering](../../spec/core/09-asynchrony-and-delivery.md#912-ordering), [§9.11 status](../../spec/core/09-asynchrony-and-delivery.md#911-operation-status). |
+| Result ingress or execution authorization changes | [§11.1 verified boundaries](../../spec/core/11-security-and-privacy.md#111-double-quarantine), [§11.3 gates](../../spec/core/11-security-and-privacy.md#113-policy-gate-and-execution-gate), [§11.7 grants](../../spec/core/11-security-and-privacy.md#117-authorization-grant) when required. |
+
+Select the applicable checks from [§17.3 Resource contracts](../../spec/core/verification/17-02-boundary-and-architecture-tests.md#173-resource-contract-tests) and [§17.6 concurrency](../../spec/core/verification/17-03-profile-security-and-claim-tests.md#176-concurrent-profile-tests).

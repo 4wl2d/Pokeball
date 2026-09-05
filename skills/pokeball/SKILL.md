@@ -5,9 +5,9 @@ description: Implement and refactor stateful features with Pokeball Architecture
 
 # Pokeball feature development
 
-Work in the consuming project's language, layout and existing binding. Resolve this file's physical directory through any installation symlink before following relative links; keep the consuming project as the working directory.
+Work in the consuming project's language, layout and existing binding. All supporting references are bundled with this skill; read them from its directory while editing the consuming project.
 
-Read [working contract](../references/working-contract.md) once for this task. Use [feature routes](../references/feature.md) to read only the source sections needed for the change.
+Read [working contract](references/working-contract.md) once for this task. Use [feature routes](references/feature.md) to read only the source sections needed for the change.
 
 ## Make the change
 
@@ -21,9 +21,8 @@ Read [working contract](../references/working-contract.md) once for this task. U
 
 | Changed work | Workflow |
 |---|---|
-| Detached effects, result ordering, retry, cancellation or operation status | [Async](../pokeball-async/SKILL.md) |
-| Ownership split, cross-authority read/command/signal or workflow coordination | [Composition](../pokeball-composition/SKILL.md) |
-| Writer, acceptance, scheduling, admission, trust-boundary or recovery mechanics | [Binding](../pokeball-binding/SKILL.md) |
-| A requested implementation review or explicit guarantee assessment | [Review](../pokeball-review/SKILL.md) |
+| Detached effects, result ordering, retry, cancellation or operation status | [Async](references/workflows/pokeball-async.md) |
+| Ownership split, cross-authority read/command/signal or workflow coordination | [Composition](references/workflows/pokeball-composition.md) |
+| Writer, acceptance, scheduling, admission, trust-boundary or recovery mechanics | [Binding](references/workflows/pokeball-binding.md) |
 
-Use the focused workflow for that portion, then finish the original task. Reading it does not authorize a broader redesign, audit, or deployment.
+Use the bundled focused workflow for that portion, then finish the original task. It does not require another installed skill. Reading it does not authorize a broader redesign, audit, or deployment.
