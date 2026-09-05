@@ -1,28 +1,39 @@
 ---
 name: pokeball
-description: Implement and refactor stateful features with Pokeball Architecture. Use for ordinary feature code, business rules, local state and reads in a project using or explicitly adopting Pokeball.
+description: Implement or change local Pokeball features, owned State, business decisions and pure reads. Use for ordinary feature work in an existing binding or a small first feature.
 ---
 
 # Pokeball feature development
 
-Work in the consuming project's language, layout and existing binding. All supporting references are bundled with this skill; read them from its directory while editing the consuming project.
+## Locate the change
 
-Read [working contract](references/working-contract.md) once for this task. Use [feature routes](references/feature.md) to read only the source sections needed for the change.
+Work in the application's language and layout. Find the mutable fact's owner, decision/read function, typed input, accepted-write site and nearest tests. Reuse the existing binding and accepted project policies. Limit changes to the requested behavior.
 
-## Make the change
+For a first feature, choose one owned fact and invariant, define closed input types, implement a pure decision and one serialized acceptance site, then add behavior tests. Keep these in one file when practical. Add a Resource adapter only for actual external work. Keep a stateless formatter or mechanical helper as an ordinary utility.
 
-1. Find the mutable fact's owner, decision or read function, input types, accepted-write site and nearest behavior tests. Identify the requested behavior change and the binding/policy already covering it. For a new feature, start from one real invariant and inspect an adjacent implementation before introducing abstractions.
-2. Keep the business choice in the owner's pure decision/read. Use explicit current input and only decision-relevant trusted context. Preserve the selected Snapshot or Event mutation form and the binding's single writer and atomic acceptance. Ordinary feature work reuses that binding.
-3. Implement the smallest source and test delta. A quantity-limit change usually changes a decision and boundary-value tests. A stateless formatter remains a utility; logical roles do not mandate folders, interfaces, manifests or a new Ball.
-4. Check the actual changed paths: external action, detached execution, foreign authority, durable state, trust, variable bound, or guarantee claim. Open the matching route below only when it exists or changes. Do not treat a newly activated obligation as covered by an unrelated existing test.
-5. Run the affected behavioral checks. Report the owner and behavior changed, tests/results, any changed trigger, and an unresolved decision only if it prevents this implementation.
+## Implement the owned behavior
 
-## Continue only for the affected work
+- Give every mutable semantic fact one authority and logical writer. Read foreign facts only through the owner's public Query or verified input; never access another feature's mutable State.
+- Keep business choices in the Nucleus. Interaction validates representation and adapts inputs; Resources execute accepted requested work. Make role boundaries visible in types, calls and write sites. Do not create folders or interfaces merely to name the roles.
+- Make the decision pure and terminating: explicit State, one current typed Pulse and minimal trusted context in; candidate change and outputs out. Supply decision-relevant time, actor, configuration and reserved semantic IDs as verified values. No clocks, randomness, globals, services or mutable closures inside the decision.
+- Retain a value needed by a later decision in owned State with its required correlation/version lineage. UI or transport values affecting business choices must be committed State or explicit current input/context.
+- Preserve the selected mutation form. Snapshot proposes complete next State and ordered outputs. EventJournal proposes ordered domain events and outputs; reconstruct State through `evolve`. Do not choose an independent Event `nextState` or require both forms.
+- Let the binding accept State and all present outputs atomically, then dispatch. No dispatch from the decision or State writes from callbacks. Preserve one writer and prevent reentrant decisions. Rejection or pre-acceptance faults publish no partial State, revision or output.
 
-| Changed work | Workflow |
-|---|---|
-| Detached effects, result ordering, retry, cancellation or operation status | [Async](references/workflows/pokeball-async.md) |
-| Ownership split, cross-authority read/command/signal or workflow coordination | [Composition](references/workflows/pokeball-composition.md) |
-| Writer, acceptance, scheduling, admission, trust-boundary or recovery mechanics | [Binding](references/workflows/pokeball-binding.md) |
+## Place validation and reads
 
-Use the bundled focused workflow for that portion, then finish the original task. It does not require another installed skill. Reading it does not authorize a broader redesign, audit, or deployment.
+Reject malformed or invalid closed-type inputs at ingress. Evaluate State-dependent limits, permissions and business policy in the decision. Preserve the distinction between boundary failure, business rejection, admission failure and later execution failure. Do not move a business restriction into the input type as an incidental refactor.
+
+Implement reads as pure mappings from owned State, typed Query and required trusted read context to the target-owned closed result. Include declared denial/redaction outcomes where relevant. A Query starts no decision, advances no State/revision and creates no acceptance record or output.
+
+## Keep the implementation proportional
+
+- Bound each present variable input, State, output collection and decision path by construction or one effective scoped limit. Reject overflow at its required stage before acceptance; never truncate a candidate or accept an output subset.
+- Reuse inspectable source contracts and still-valid shared binding evidence. Add only actual policy selections or allowed deltas. Omit empty overlays, unused protocol categories, placeholder manifests and routine absence-proof paperwork.
+- For a new external action, detached completion, foreign authority, persistent field or trust boundary, resolve its concrete protocol and binding behavior before using that path. Keep operation identity across retries, verify result provenance, retain required detached-operation status and preserve unknown external outcomes. Do not silently choose a new project policy or guarantee.
+
+## Verify and finish
+
+Test the changed transition, allowed boundary value, first rejected value, rejection preserving State, determinism and affected read behavior. Add ordering/failure cases only for changed paths. Reuse unaffected binding tests.
+
+Report the changed behavior and owner, code/tests touched, checks actually run and any unresolved decision blocking the requested path. Do not infer production or conformance guarantees from local tests.

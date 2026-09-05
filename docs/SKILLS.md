@@ -1,6 +1,6 @@
 # Pokeball skills
 
-Install the official Pokeball skills to give a coding agent a practical workflow for your project. Each skill selects the relevant source sections, applies them to the affected code, and checks the resulting behavior. You can install only the workflows you need.
+Install the official Pokeball skills to give a coding agent practical instructions for your project. Each skill contains direct implementation or review steps and task-specific checks. You can install only the workflows you need.
 
 The skills are derived guidance. The [ordered Core set](../spec/pokeball-architecture-core.md) remains authoritative. Installation supplies neither a runtime nor evidence that your application conforms to Pokeball.
 
@@ -12,17 +12,17 @@ The skills are derived guidance. The [ordered Core set](../spec/pokeball-archite
 | [`pokeball-async`](../skills/pokeball-async/SKILL.md) | Detached work, result correlation, retries, cancellation, unknown outcomes, and operation status. |
 | [`pokeball-composition`](../skills/pokeball-composition/SKILL.md) | Boundaries between authorities, dependencies, reads, Application Surfaces, Assembly, and Flow ownership. |
 | [`pokeball-binding`](../skills/pokeball-binding/SKILL.md) | Implementing or changing the shared writer, acceptance, dispatch, execution, durability, security, and bounds mechanisms. |
-| [`pokeball-review`](../skills/pokeball-review/SKILL.md) | Reviewing a specified implementation or change against the applicable Pokeball sources and evidence. |
+| [`pokeball-review`](../skills/pokeball-review/SKILL.md) | Reviewing a specified implementation or change for state ownership, acceptance, boundary, asynchronous, and testing regressions. |
 
-Each skill is a self-contained directory with its own entrypoint, task references, selected source sections, and licensing notices. Install any one by itself. At task time it needs no Pokeball checkout, sibling skill, generator, repository reader, or network access. The agent loads only the local references activated by the task; bundled files do not all enter its context.
+Each skill contains one concise `SKILL.md` with the complete work instructions, plus `LICENSE` and `NOTICE.md`. The notices are legal material, not task context. Install any skill by itself: using it requires no Pokeball checkout, sibling skill, documentation-reading step, or network access.
 
 ## Download once
 
-Download the complete directory of each selected skill from [GitHub](https://github.com/4wl2d/Pokeball/tree/master/skills), including its `references/` and notices. A GitHub skill installer that preserves the whole selected directory is supported. For example, ask your agent:
+Download the complete directory of each selected skill from [GitHub](https://github.com/4wl2d/Pokeball/tree/master/skills), including its `SKILL.md` and notices. A GitHub skill installer that preserves the whole selected directory is supported. For example, ask your agent:
 
 ```text
 Install skills/pokeball from https://github.com/4wl2d/Pokeball at master.
-Keep the entire skill directory and its supporting files. Report the installed
+Keep the entire skill directory and its legal notices. Report the installed
 path and source commit. Preserve any existing installation or local changes.
 ```
 
@@ -75,13 +75,13 @@ done
 
 For project scope, teams can version the installed directories with their application so each checkout receives the same skill files. For personal scope, each developer installs their preferred selection. Keep the bundled notices with the files.
 
-Check your agent's skill selector and open a selected skill to confirm that its local references are accessible. If discovery has not refreshed, start a new session. Codex supports explicit `$skill-name` invocation; Claude Code uses `/skill-name`. Automatic selection depends on the host and each skill's description.
+Check your agent's skill selector and open a selected skill to confirm that its instructions are available. If discovery has not refreshed, start a new session. Codex supports explicit `$skill-name` invocation; Claude Code uses `/skill-name`. Automatic selection depends on the host and each skill's description.
 
 The commands above are for POSIX shells. On Windows, copy the entire selected directory with your file manager or the host's installer into its documented discovery location; symlink privileges are unnecessary. Windows host execution is not verified here.
 
 ## Use it in your application
 
-Keep the agent's working directory in your application. It reads the installed skill's local references while editing your application files.
+Keep the agent's working directory in your application. It applies the installed instructions to your source code, accepted project contracts, and tests.
 
 For example, in Codex:
 
@@ -99,7 +99,7 @@ Use $pokeball-binding to implement the acceptance boundary for this binding.
 The application's accepted profile and guarantee requirements are in ./docs/binding.md.
 
 Use $pokeball-review to review this diff for Pokeball regressions.
-Report the concrete failure traces and relevant source clauses.
+Report concrete failure traces and the affected implementation rules.
 ```
 
 For Claude Code, replace `$pokeball…` with the corresponding `/pokeball…` command. With manual file-based use, provide the complete skill path and the same task.
@@ -130,10 +130,10 @@ git -C "$pokeball_source" rev-parse HEAD
 Replace selected installed skills as complete directories:
 
 1. Record the new source SHA and the exact skills you intend to replace. Compare each current directory with its recorded source snapshot and inspect any local customizations.
-2. Copy each complete new skill into a temporary location outside the agent's discovery directories. Check that its entrypoint, local references, and notices are present.
+2. Copy each complete new skill into a temporary location outside the agent's discovery directories. Check that `SKILL.md`, `LICENSE`, and `NOTICE.md` are present.
 3. Choose a uniquely named backup destination outside discovery and verify that it does not exist. Decide explicitly which customizations to reapply to the new copy; retain the originals in the backup.
-4. Between agent sessions, move the old directory to its backup location, then place the prepared new directory at the original installed path. If replacement fails, restore the backup before using the skill. Replace whole directories rather than overlaying files, which can retain removed references.
-5. Record the new SHA and any reapplied local changes. Start a new session and confirm discovery and local reference access.
+4. Between agent sessions, move the old directory to its backup location, then place the prepared new directory at the original installed path. If replacement fails, restore the backup before using the skill. Replace whole directories rather than overlaying files, which can retain obsolete files.
+5. Record the new SHA and any reapplied local changes. Start a new session and confirm that the installed instructions are available.
 
 For an earlier symlink installation, first preserve any customized source files as ordinary backup files. Replace the link itself with a complete copied skill directory; do not write through it or alter its shared source. The resulting installation has no dependency on that checkout.
 
