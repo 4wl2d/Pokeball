@@ -1,0 +1,179 @@
+<!-- pkb:translation source="spec/core/verification/17-01-transition-and-property-tests.md" -->
+
+[Документация на русском](../../../README.md) · [Содержание Core](../../pokeball-architecture-core.md) · [Оригинал на английском](../../../../../spec/core/verification/17-01-transition-and-property-tests.md)
+
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../../../spec/pokeball-architecture-core.md).
+
+<a id="core-part--verification-transition-and-property-tests"></a>
+
+# Часть Core — Проверка: тесты переходов и свойств
+
+[Содержание Core](../../pokeball-architecture-core.md) · [← Checkout Flow: восстановление и статус](../examples/16-03-checkout-recovery-and-status.md) · [Проверка: тесты границ и архитектуры →](17-02-boundary-and-architecture-tests.md)
+
+> Перевод канонической части 15 из 24. [Входной документ Core](../../pokeball-architecture-core.md) задаёт версию, статус, полный состав файлов и порядок чтения.
+
+---
+
+<a id="17-testing-review-and-operational-verification"></a>
+
+## 17. Тестирование, ревью и эксплуатационная проверка
+
+Проект не копирует каждый набор тестов этого раздела в каждый Ball. Его план тестов выводится так:
+
+```text
+always-applicable invariant tests
++ tests for reachable path/risk triggers
++ local policy-delta tests
++ evidence suites for claims actually made
+```
+
+Точный общий парсер, примитив принятия, привязку профиля, политику ограничений, адаптер возможностей или правило foundation можно тестировать один раз в объявленной области. Ball тестирует свои семантические связи и локальные отличия. Ревью соответствия разрешает все ссылки и один раз доказывает отсутствие условий по закрытому перечню; обычная работа над реализацией не требует повторной матрицы свидетельств или строк `N/A`.
+
+<a id="171-transition-tests"></a>
+
+### 17.1. Тесты переходов
+
+Nucleus тестируется без имитаций внешних объектов фреймворка:
+
+```text
+Given committed State
+And Pulse
+And DecisionContext
+Expect Accepted(mode-specific Decision) or Rejected(BusinessRejection)
+Expect next State for SnapshotDecision or events/NoDomainChange for EventDecision
+Expect ordered SemanticOutputs
+```
+
+Базовые тесты переходов покрывают:
+
+- каждый вариант протокола;
+- инварианты состояния;
+- одинаковые явные входы дают тот же семантический результат;
+- равные зафиксированные State, текущий Pulse, действительный Context для данного Pulse и артефакт переходов дают тот же кандидат Decision при разных остатках причинного бюджета среды исполнения или квантах исполнения; различаться могут только резервирование, допуск или продолжение;
+- каждый элемент двусторонней очереди или продолжения Inline сохраняет собственную связь Pulse и Context при упорядочении, приостановке и возобновлении; позднейший `Fact` или `ControlPulse` получает `Unit`, когда ни одно поле контекста не требуется, и никогда не наследует корневого субъекта, разрешение, зарезервированный ID, время или поле действительности из-за повторного использования переменной;
+- отклонённый вход не меняет состояние;
+- выбранный профиль состояния раскрывает ровно свою функцию изменения и принятый кадр из §3.3: Snapshot отклоняет решение Event, EventJournal отклоняет независимый `nextState`, и оба сохраняют то же различие `Accepted | Rejected(BusinessRejection)` без обязательного объединённого типа во время исполнения;
+- неверная форма представления или нарушение объявленного инварианта закрытого протокола или типа возвращает `ValidationFailure` до создания `Intent` и не вызывает `decide`; значение, которое удовлетворяет этому типу, но нарушает правило State или семантического Context, достигает Nucleus и возвращает `Rejected(BusinessRejection)` без принятого кадра;
+- если фиксированное бизнес-ограничение намеренно перенесено в инвариант закрытого протокола или типа, изменённая стадия входит в новую версионированную идентичность протокола; переключение одной версии протокола между `ValidationFailure` и `BusinessRejection` не проходит проверку свидетельств совместимости;
+- превышение применимого действующего ограничения отклоняет весь Decision;
+- когда выбрано числовое измерение переходов: равные канонические State, Pulse, действительный Context, версия артефакта переходов, привязка, идентичность и версия измерителя дают тот же счётчик; один `decide` начинает с нуля, монотонно начисляет неотрицательные целые единицы без сброса, проходит при точном `N` и не принимает кадр, State, ревизию, выход или отправку на единице `N+1`; позднейший `decide` начинает новую область, а разные кортежи идентичности и версии измерителя, версии артефакта переходов или определения единицы не сравниваются;
+- когда числовые `maxInputBytes`, `maxStateBytes` или `maxOutputBytesPerDecision` выбраны без статического доказательства: один неизменный кортеж `BoundedByteMeasure` разрешает измерение, идентичность, версию, точное представление, имя ограничения и максимум; равные канонические значения в одном кортеже считаются одинаково, альтернативные представления отображаются детерминированно, устранение представления сохраняет счётчик, а разные кортежи несравнимы;
+- тестовые примеры байтов входа выбирают сырую или нормализованную стадию и точное включение метаданных и Context, проходят при точном `N` и отклоняются до доверенного семантического принятия или `decide` при `N+1`; примеры байтов State считают весь кандидат следующего State с явными семантическими метаданными без механики кучи, хранилища или транспорта, проходят при `N` и отклоняют весь Decision до принятия State, ревизии и выходов при `N+1`; примеры выходов сохраняют полные правила включения и исключения упорядоченной последовательности и границу всего Decision;
+- ни один выход не виден до принятия;
+- недопустимые присутствующие поля `DecisionContext`;
+- существующие конечные состояния.
+
+Условные тесты добавляются только для достижимых путей: устаревшие или поздние результаты, повторный вход, отмена, срок, идентичность отделённого выхода, синхронное причинное завершение, наблюдения доставки, статус, разрешения и значения, сохраняемые между переходами. Для примеров Catalog и Checkout из §§15–16 эти условия дают следующие расширенные тестовые примеры:
+
+- устаревшие результаты;
+- повторные входы;
+- примеры идемпотентности корня сохраняют исходный принятый кадр ответа на допустимый срок повторов: тот же ключ и отпечаток повторно доставляют его точные `BallInstanceId`, ревизию, дескриптор, порядковый номер, `RequestAccepted(operationId)`, отпечаток и цепочку происхождения артефакта, меняя только `AttemptId` и не создавая `decide`, ревизию или выход; тот же ключ с другим отпечатком возвращает `BoundaryResponse(ValidationFailure(IdempotencyConflict))` до Intent, ничего не меняет и оставляет прежнюю операцию нетронутой; конкурентное первое принятие, авария после принятия до доставки ответа, повтор на границе хранения или после неё и гонки одного ключа используют эту одну алгебру;
+- `ProductSelected` Catalog из каждого `Idle`, `Searching`, `Ready`, `Failed`, `OutcomeUnknown` и `Cancelled`: каждое поле и аспект, свойственные состоянию, сохраняются, растёт только принятая ревизия, и ровно один `SignalPublication` с `ProductSelectionConfirmed(productId)` появляется при `sourceOrdinal = 0` без второго выхода;
+- шесть явных случаев `CatalogState -> CatalogView` без резервной ветви: `Idle -> CatalogIdle` и каждое из пяти состояний поиска -> один составной `CatalogSearchStatus`, сохраняющий жизненный цикл и результат, отмену и любую причину отказа;
+- каждый исход отмены и применимый порядок наблюдений: `AcceptedInProgress -> ProductsFound|ProductSearchFailed` и `ProductsFound|ProductSearchFailed -> AcceptedInProgress` сходятся к одному `Ready|Failed(AcceptedInProgress)`; отказ, слишком поздняя отмена или неизвестный исход отмены до либо после результата сходятся без потери результата, аспекта или причины отказа; `AcceptedInProgress -> ProductSearchCancelled` и `ProductSearchCancelled -> late AcceptedInProgress` сходятся к `Cancelled(AcceptedInProgress)` без повторного выхода; взаимоисключающие конечные доказательства результата и отмены в обоих порядках сохраняют первый кадр, а второе доказательство не принимает Decision, состояние или выход и следует политике нарушения инварианта или происхождения;
+- допуск устаревшей отмены Catalog: после замены A на B `SearchCancelled(A)` против State и ожидающего дескриптора B возвращает ограниченный `Rejected(BusinessRejection.StaleSearchOperation(B,A))` и не принимает Decision, ревизию, дескриптор, Projection или Effect; точный B совпадает и следует существующей матрице отмены; дубликат, авария и восстановление и каждый случай доказывают, что устаревший A никогда не адресует B;
+- уточнение `Searching -> OutcomeUnknown -> Ready|Failed` сохраняет отмену; более слабое или повторное наблюдение неизвестности поиска после `Ready`, `Failed` или доказанного `Cancelled` ничего не меняет и не может ослабить доказательство;
+- переходы по сроку;
+- превышение ограничения выходов;
+- полные примеры байтовых мер используют тот же кортеж измерения, идентичности, версии, представления и предела: сырой и нормализованный вход, а также сохраняемый State в UTF-8 и представлении наподобие UTF-16 нельзя сравнивать, пока каждый не отображён в выбранную меру; точный вход `N` достигает доверенного семантического создания, а `N+1` не вызывает `decide`; точное полное следующее State `N` может быть принято, а `N+1` не принимает State, ревизию или выход; один выход и агрегация двух выходов проходят при точном `maxOutputBytesPerDecision = N`, а добавление одного измеряемого байта, обязательного поля конверта или второго выхода при `N+1` отклоняет весь Decision без частичной отправки; сжатие транспорта и хранилища, шифрование, заголовки повторов, раскладка распределителя памяти и действительные статические доказательства следуют §8.3;
+- точная трасса синхронного завершения `N+1` при исчерпании причинного бюджета, без отброшенного Fact или скрытого продолжения;
+- примеры совокупного разветвления в одной корневой области: двухуровневое дерево суммирует каждый принятый проход от выхода к маршруту или потребителю, включая конечные листья; ромб считает два сходящихся прохода маршрутов, а не одного уникального владельца полномочий; смешанные виды выходов используют ту же единицу ветви; совместно достижимые ветви суммируются, а взаимоисключающие альтернативы делят максимальный резерв; эквивалентный повтор или повторная доставка не добавляют единицу, новый принятый кортеж источника добавляет; асинхронная передача сохраняет оставшиеся область и бюджет, и только объявленный причинно независимый корень начинает заново; точный `N` проходит, а первая ветвь `N+1` отклоняет весь Decision с `AdmissionFailure(CausalBudgetExceeded)` без частичной отправки;
+- полные инварианты аспектов операции, включая переход по доказательству результата в `Accepted`;
+- успешная команда через маршрут и команда в том же стеке с устранённым представлением сохраняют идентичные принятый `commandSource` источника, `resultSource` цели, эффективную идентичность протокола, принадлежащее цели содержимое и происхождение издателя; только граница цели создаёт `ModuleCommandPulse`, `decide` цели — единственная точка принятия, и только принятый кадр цели может создать `ModuleResultPulse`;
+- синтетические или изменённые токены источника и цели, неверная идентичность протокола, неверное принадлежащее цели содержимое и поддельное, изменённое, отсутствующее или неверное происхождение издателя не создают доверенный Pulse или Decision цели либо источника;
+- каждый `ValidationFailure`, `AdmissionFailure` и `DecisionRejected(BusinessRejection)` проходит через проверенный носитель отказа до принятия; недопустимое происхождение носителя не создаёт `ControlPulse` источника, аспект отказа или компенсацию;
+- принятый отказ цели со снимком и прежним состоянием увеличивает ревизию и выпускает `ModuleResultOutput(Rejected(...))`; `EventJournal` использует принятый `NoDomainChange`; повторная доставка той же идентичности команды в пределах её срока возвращает прежний принятый результат без ещё одного Decision, ревизии или действия Resource;
+- носитель `DecisionRejected(BusinessRejection)` проецирует `RejectedBeforeAcceptance + NotExpected`, а принятый `Rejected(...)` цели проецирует `Accepted + Rejected`; конфликт носителя и результата при любом порядке поступления приводит к отказу по умолчанию;
+- каждый отказ принимается только по статически объявленному пути; переклассификация при старой паре протокола и версии отклоняется, а новая версия протокола цели и пара Assembly могут объявить изменённый путь;
+- ACK до результата, результат до ACK, повторный результат, поздний результат, результат с неверным происхождением и коллизия семантического дескриптора сохраняют разделение ACK и результата и никогда не выбирают истину по порядку поступления;
+- время дубликата команды цели покрывает конкурентный дубликат и аварию после принятия кадра команды, но до создания результата: те же идентичность и отпечаток возвращают только проверенное ACK-доказательство этого принятого кадра и ожидающего результата без ожидания, Decision, ревизии, результата, Effect или второго действия Resource; авария до отправки результата сохраняет точный принятый кадр результата, чья повторная доставка сохраняет `commandSource`, `resultSource`, эффективную идентичность протокола, ревизию цели, дескриптор, порядковый номер и содержимое, меняя только `AttemptId`; разные отпечатки или противоречащие свидетельства ACK и результата приводят к отказу по умолчанию;
+- ограничения числа и байтов выходов результата цели и условные ограничения слотов остановки проходят при `N` и отклоняют Decision цели при `N+1`; авария после принятия целью сохраняет результат по выбранному профилю, а исчерпание маршрута результата записывает `DispatchStopped` цели по `(effectiveProtocolIdentity, commandSource, resultSource)`, не меняя аспекты источника;
+- каждое пространство имён статуса, для которого сработало условие, имеет одного зафиксированного версионируемого владельца полномочий с одним писателем; физическая таблица, процесс и совместное размещение могут меняться без изменения той же причинной семантики материализатора;
+- отказ корневой валидации, допуска или Decision после резервирования кандидата `OperationId` возвращает только свой типизированный `BoundaryResponse` и не создаёт операцию, известную запись статуса, маркер хранения, дескриптор, выход или ответ о принятии; покрытый позднейший поиск значения кандидата возвращает `NotFound`, повтор не выдумывает корневую операцию, а `CommandRejectedBeforeAcceptance` участника по-прежнему меняет только соответствующий аспект Step уже принятой операции источника;
+- наблюдение жизненного цикла, отмены, принятого результата или остановки доставки, пришедшее до причинной записи операции или источника, входит в ограниченное ожидание, а не становится `NotFound`, частичной записью или отброшенным фактом; поступление источника применяет все готовые ожидающие свидетельства в одной зафиксированной ревизии;
+- эквивалентные свидетельства статуса идемпотентны, совместимые аспекты сливаются без потерь, более слабые свидетельства не могут ослабить доказательство, а неэквивалентные свидетельства одного причинного ключа приводят к отказу по умолчанию без перезаписи по порядку поступления;
+- ёмкость операций, ожидания, аспектов, маркеров и остановок статуса проходит при `N` и не допускает принятия источника при `N+1`; после принятия давление на материализатор никогда не вытесняет, не обрезает и не отбрасывает принятый факт;
+- тесты маркеров хранения покрывают каждую объявленную позицию и срок источника вместе с пустым ожиданием, фиксацию маркера до отсутствия записи, порядки «наблюдение до маркера» и «маркер до наблюдения», истечение срока маркера, покрытый поздний дубликат и отсутствие воскрешения;
+- примеры команд в том же стеке покрывают: недоступный уровень 1 не допускает принятия источника и отправки; доступный уровень 1 при недоступном уровне 2 возвращает каждый применимый вариант носителя `ValidationFailure`, `AdmissionFailure` и `DecisionRejected(BusinessRejection)` без принятого кадра или уровня цели, атомарно передаёт слот альтернативного завершения уровня 1 и фиксирует аспект источника `RejectedBeforeAcceptance + NotExpected`; успех расходует уровни источника, цели и результата источника `0/1/2` с одним вкладом синхронного вызова `source -> target` и отдельным резервом результата уровня 2; ветви цели и носителя никогда не расходуют уровень 1 обе; обработка носителя не отбрасывает свидетельства, не сбрасывает и не превышает бюджет и не создаёт необъявленную отсрочку; Decision носителя с дальнейшими синхронными выходами резервирует их позднейшие завершения обычным образом; асинхронная передача убирает только этот вклад синхронного вызова, сохраняет любое отдельно присутствующее ребро импорта при компиляции, сохраняет причинные область, глубину и бюджет и не выводит передачу того же стека;
+- все девять строк команд Checkout из §16.1 проверяют свои принятые результаты обычного бизнес-отказа, включая `InventoryReservationRejected`, который не является носителем, смысл исходного Capture у `DefinitelyNotCaptured(RejectedBeforeAcceptance, ...)`, принятый отказ Order после проведения платежа и отличие принадлежащего Flow `RejectedBeforeExternalCommitment`;
+- единственный слот сверки Checkout `payment-status` потребляет принятый `StillUnknown` в `NeedsManualReconciliation`, сохраняя исходные аспекты проведения платежа и свидетельства статуса при пустой последовательности выходов; точная повторная доставка не создаёт Decision, ревизию или дескриптор, авария и восстановление приходят к тому же конечному кадру, нет автоматического второго статуса, Effect или компенсации, а позднейшие свидетельства отклоняются, если ими не владеет отдельно объявленный артефакт ручной обработки или восстановления;
+- трасса Payment создаёт проверенные `ModuleCommandPulse` и `DecisionContext` с минимальным набором полей только на доверенной границе цели, оставляет бизнес-разрешение за Policy Gate Nucleus Payment и принимает принадлежащие цели операцию и результат через канонические Decision;
+- отказ валидации, допуска или происхождения Payment до `decide` использует только объявленный носитель; принятый бизнес-отказ Nucleus выпускает принятый `ModuleResultOutput(Rejected(...))`; сбой Execution Gate или провайдера после принятия возвращается через привязанный `Fact` и принятый результат цели и никогда не откатывает и не ослабляет принятие целью;
+- каждый объявленный `ControlPulse` доставки после фиксации: точные зафиксированный кортеж источника и происхождение, отправка, ACK принятия или отказа, неоднозначность и конечная остановка; точный дубликат идемпотентен, устаревшее или более слабое наблюдение не ослабляет доказательство, а противоречащие свидетельства не перезаписываются по порядку поступления;
+- для каждого поля исходящего содержимого — точный вывод из зафиксированного State, текущего Pulse или объявленного версионированного `DecisionContext`; прежний Intent или результат, исходящая очередь, реестр участника или среды исполнения и неявная память не читаются;
+- начальное принятие Checkout: сохранённый `ingressFingerprint` точно равен атомарной записи Interaction; текущий Context явно передаёт проверенную версию артефакта отпечатка Interaction `IV`, сохранённая `interactionArtifactVersion` равна `IV`, а `IV` остаётся отличной от `transitionArtifactVersion`; один и тот же типизированный `CheckoutStarted` для двух стабильных субъектов или двух областей издателя и realm даёт разные отпечатки, а изменение только `idempotencyKey`, RequestId, trace или метаданных ответа сохраняет отпечаток;
+- примеры версии Interaction Checkout запускают равные значения Pulse и субъекта с `IV1` и `IV2`, отклоняют отсутствующий, несовпадающий, устаревший или недоверенный `IV` до принятия, сохраняют исходно принятый `IV` при повторе и выбирают восстановление, миграцию или карантин по этой сохранённой версии без неявного поиска артефакта;
+- переходы Checkout M→S→I→P: исходные M и привязка субъекта, S корзины, I и прямой или полученный при сверке P сохраняются с точными корреляцией, дескрипторами авторитетного действия и наблюдения, версиями и происхождением в том же Decision, который создаёт зависимый выход; тот же P через второй допустимый маршрут служит подтверждением без второго выхода Order, а противоречащие P или исходное доказательство приводят к отказу по умолчанию;
+- недопустимый непустой DecisionContext.
+
+Тесты локального чтения добавляются при наличии `Query`. Когда применяется условие чтения с меткой, они проверяют единственное объявленное содержимое результата, точное соответствие `ConsistencyStamp` исходному `CommittedStateSnapshot`, детерминированный результат для одинаковых снимка, запроса и контекста и отсутствие `Decision`, изменения, новой ревизии, отделённого дескриптора или семантического выхода. Зависимое от субъекта чтение Query или статуса тестирует действительный контекст утверждённого издателя, поддельные, изменённые, отсутствующие или устаревшие свидетельства, неверного издателя или realm, типизированное создание между Ball и чистую семантическую авторизацию и выбор результата самим Ball; каждый достижимый исход разрешения, отказа, скрытия закрытых данных и намеренного нераскрытия — принадлежащий цели вариант содержимого, а удаление одного нарушает исчерпываемость. Фиксированная доверенная область в том же стеке может доказывать издателя и realm без полей во время исполнения. Чтение, не зависящее от субъекта, не материализует контекст субъекта, издателя, аутентификацию, артефакт свидетельств субъекта или недостижимую заглушку отказа. Геттер в том же стеке без условия чтения с меткой тестирует ту же чистоту относительно своего снимка области вызова без материализации обёрток. Примеры статуса операции применяются только при наличии этого пути и проверяют канонические случаи материализатора §9.11 выше по каждому достижимому аспекту жизненного цикла, отмены, результата и остановки. Проекция Checkout дополнительно сохраняет исчерпывающие случаи `NotFound`, известного статуса, истечения хранения, неизвестного исхода и остановленного дескриптора, порядок десяти слотов и ёмкость `10/11`, заданные в §§16.13 и 17.7.
+
+Присутствующая `ReadDependency` дополнительно тестирует разрешение ровно одной вызывающей стороны, владельца полномочий цели, принадлежащего цели `Query -> ResultPayload`, эффективной идентичности протокола, владельца полномочий чтения или статуса цели, требований свежести и согласованности вызывающей стороны и маршрута или привязки Assembly. Неверные версия, владелец полномочий цели или чтения, отображение либо выдуманная или несовпадающая метка отклоняются до семантического чтения и никогда не превращаются в `NotFound`. Валидация и допуск до чтения используют только существующий `BoundaryResponse`; допущенное исполнение возвращает только объявленный успешно вычисленный `ReadResult` и не создаёт маркер принятия, Decision, ревизию, дескриптор или выход. Когда политика может отказать или скрыть закрытые данные, случаи разрешения, отказа при действительном контексте, скрытия закрытых данных и намеренного нераскрытия разрешаются каждый в один объявленный принадлежащий цели вариант содержимого; случай неверного происхождения остаётся сбоем границы, необъявленные `NotFound`, исключение или `BusinessRejection` не проходят проверку, как и синтез вызывающей стороной или Assembly. Зависящие и не зависящие от субъекта маршруты, сгенерированное устранение в том же стеке и независимые чтения нескольких источников сохраняют ту же разреженную семантику, принадлежащую цели; не зависящее от субъекта или безусловно разрешённое чтение не имеет недостижимой заглушки отказа. Пример подмены команды и чтения сохраняет `Payment.GetOperationStatus` на пути принятой команды и использует `ReadDependency` только для обычного поиска без записи.
+
+Примеры границ и внедрения выполняют каждый выбор и опровергающую проверку §4.4: объединить или разделить, локальная утилита Ball, общий механический Foundation, Feature, Flow и Read Model. Локальный вспомогательный код, принадлежащий одной роли, и общий механический примитив проходят проверку; общая доменная или бизнес-утилита без владельца — нет; явные локальные копии Ball и один принадлежащий Ball семантический контракт, раскрытый через его Application Surface, проходят. Каждый физический импорт остаётся в ациклическом графе компиляции, а `Direct Control Dependency` не возникает без Application Surface другого Ball или синхронного пересечения полномочий. Как минимум две разные допустимые декомпозиции одной учебной предметной области доказывают, что Core ограничивает графы полномочий, а не выбирает один уникальный граф. Случаи UI и транспорта различают механику фокуса, прокрутки, анимации и парсера и значение, меняющее Decision; последнее принимается только как зафиксированный State или явный доверенный текущий `Pulse` либо `DecisionContext`. Тесты Flow активируются каждым отдельным существенным свойством координации и отвергают псевдо-Flow, основанные лишь на числе вызовов или одном переходе. Пример внедрения или пилота рассматривает рабочий лист как проектную рекомендацию `SHOULD`, записывает выбранную нагрузку, метод измерения, базовый вариант и пороги продолжения, пересмотра или остановки для применимых мер §4.5/§13.5, не вводит универсальное число и не требует рабочего листа вне этой работы; случаи отказа от внедрения остаются обычными утилитами или адаптерами, а не пустыми Ball.
+
+Примеры жизненного цикла и чтения доказывают, что `Draining` отклоняет новое логическое изменение, продолжает уже принятые входы завершения, отмены и статуса и обслуживает каждый доступный объявленный Query или Query статуса из своего зафиксированного владельца полномочий. Недоступное чтение возвращает только свой объявленный ответ валидации или допуска до чтения; допущенное чтение возвращает только успешно вычисленный `ReadResult`, чьё принадлежащее цели содержимое замыкает каждый достижимый исход политики, и не создаёт Decision. Варианты статуса тестируют и совместно размещённого, и отдельного владельца полномочий чтения, ровно одного писателя запросов при любом размещении, честное поведение отставания и метки и отсутствие передачи полномочий команд или бизнес-фактов.
+
+Примеры ошибок покрывают каждую строку §6.13 и отклоняют каждое переписывание между стадиями: валидация, допуск, отказ Decision до принятия, принятый результат цели, сбой, тайм-аут или неизвестный исход Resource после принятия, остановка доставки и программная ошибка. Позднейший сбой сохраняет прежнее принятие или результат. Каждый конкретный профиль или привязка к среде исполнения принимает каждый элемент своего конечного закрытого объединения `AdmissionFailure.reason` и отклоняет неизвестный дискриминатор или открытую строку до создания доверенного `AdmissionFailure`; профиль Inline с безотказным допуском не имеет пустого объединения.
+
+<a id="172-property-based-tests"></a>
+
+### 17.2. Тесты свойств
+
+Полезные свойства выбираются из активных условий применения; свойства Catalog и Checkout ниже не копируются в посторонний Ball:
+
+```text
+state invariant preserved after every Accepted Decision
+outputs and every present dimension <= effective bounds
+forbidden actor produces no privileged output
+stale generation cannot replace current generation
+same state+pulse+context+artifact gives same Decision
+same state+pulse+valid per-Pulse context+artifact gives the same candidate Decision under different remaining runtime causal budgets; only admission/continuation may differ
+Inline deque/continuation preserves each Pulse-to-Context association; later causes do not inherit root context fields
+same state+pulse+valid context+transition artifact version+binding+meter identity/version gives the same transition-step count
+one decide meter scope is monotonic and cannot reset; exact N may complete and first-unit N+1 accepts no frame/state/revision/output/dispatch
+different meter identities or transition artifact versions are not numerically comparable
+every active numeric maxInputBytes | maxStateBytes | maxOutputBytesPerDecision resolves one BoundedByteMeasure dimension/identity/version/representation/limit tuple; equal canonical values under one tuple count equally, alternate representations map exactly, erasure preserves the count, different tuples are incomparable, and stage-specific N+1 accepts no forbidden semantic artifact
+maxCumulativeFanout counts each distinct accepted source-output-to-effective-route/consumer branch once across one causal scope; terminal and converging traversals count, duplicate/redelivery does not, async handoff preserves scope, and N+1 accepts no partial Decision
+maxDeclaredDependenciesPerBall counts each distinct owner-declared read/command/signal/participation row once; references do not erase either row and duplicate/alias identities are invalid
+maxRoutesPerFlow counts each distinct effective command/result round-trip mapping once; ingress/return legs and FlowParticipation references add no unit, exact N resolves, and N+1 rejects the graph
+rejected input does not change state
+fault does not publish partial output
+compensation never reuses original action identity
+every example output maps to one canonical SemanticOutput envelope and full SemanticHandle
+every outgoing payload field has one explicit State | current Pulse | declared DecisionContext lineage
+CheckoutStartFingerprintV1(P, A1) != CheckoutStartFingerprintV1(P, A2) for different stable subject/issuer/realm scope
+CheckoutStartFingerprintV1(P with key/transport metadata X, A) = CheckoutStartFingerprintV1(P with key/transport metadata Y, A)
+retained Checkout ingress fingerprint = atomically accepted Interaction idempotency-record fingerprint
+retained Checkout interactionArtifactVersion = verified current Context artifactVersion IV != transitionArtifactVersion identity; retry never replaces the accepted IV
+same root key+fingerprint within horizon redelivers the exact original accepted ReplyOutput frame with only a new AttemptId and no Decision/revision/output; different fingerprint returns pre-Intent ValidationFailure(IdempotencyConflict) and changes nothing
+retained workflow value is not cleared while a dependent transition remains reachable
+same authority action cannot bind different retained value/authority version/conflicting proof; alternate valid observation of the same value only corroborates
+Catalog ProductSelected source-state set = {Idle, Searching, Ready, Failed, OutcomeUnknown, Cancelled}
+every Catalog ProductSelected Decision has outputs = [SignalPublication(ProductSelectionConfirmed(productId), sourceOrdinal = 0)]
+CatalogState-to-CatalogView source-state set = {Idle, Searching, Ready, Failed, OutcomeUnknown, Cancelled}, with one case per state and no fallback
+CatalogView preserves lifecycle/result + cancellation + CancellationRejected(reason) for every reachable state
+ProductSearchOutcomeUnknown cannot regress Ready, Failed, or proven Cancelled; a later proven result may refine OutcomeUnknown
+nonterminal cancellation acceptance commutes with a legitimate matching result and preserves its lifecycle in both observation orders
+too-late, rejected(reason), and cancellation-unknown commute with legitimate result without information loss
+terminal cancellation proof subsumes a delayed accepted-in-progress observation; a later weaker proof does not change terminal state or publish duplicate output
+mutually exclusive terminal result/cancellation proofs never overwrite an accepted terminal frame in either arrival order
+stale SearchCancelled(A) against current operation B accepts no Decision/revision/handle/output/Effect and can never target B; exact B follows the cancellation matrix
+ModuleCommandPulse commandSource always resolves to its accepted source ModuleCommandRequest frame
+ModuleResultPulse preserves accepted commandSource + target-derived resultSource + effectiveProtocolIdentity
+ModuleResultOutput semanticHandle = commandSource.semanticHandle without changing target payload ownership
+verified pre-acceptance carrier implies RejectedBeforeAcceptance + NotExpected
+root pre-acceptance rejection implies no authoritative OperationId/status row/handle/output; participant carrier remains a facet of an already accepted source operation
+same-stack pre-acceptance carrier implies no accepted target level + exactly one transferred level-1 alternative consumed by the source carrier Decision
+same-stack accepted target and source carrier branches never both consume the alternative-completion slot
+accepted target Rejected result implies Accepted + Rejected
+same command identity within idempotency horizon has at most one target Decision/revision and one accepted result frame
+same target command duplicate before result returns only verified accepted-frame ACK/pending proof; after result it redelivers the exact result frame; neither path waits, re-decides, revises, fabricates a result, or repeats Resource work
+accepted Checkout StillUnknown on the sole status slot yields terminal NeedsManualReconciliation with no output or automatic generation; duplicate replay adds no Decision and later proof requires a separately declared recovery artifact
+equivalent status observation redelivery is idempotent
+compatible status evidence order preserves the same lifecycle + cancellation + result + delivery-stop facets
+weaker status evidence cannot regress a proven facet; conflicting same causal key never overwrites by arrival order
+retention marker implies covered source positions/horizons + empty pending and prevents covered late-evidence resurrection
+```
+
+Для машины состояний полезно генерировать последовательности Pulse, а не только отдельные примеры.

@@ -14,7 +14,7 @@
   <a href="docs/QUICKSTART.md">Write your first feature</a> ·
   <a href="docs/EVALUATION.md">Decide whether it pays off</a> ·
   <a href="spec/pokeball-architecture-core.md">Core specification</a> ·
-  <a href="docs/ru/README.md">Russian</a>
+  <a href="docs/ru/README.md">Russian documentation</a>
 </p>
 
 Pokeball is an architecture specification for stateful applications. A feature owns its state, makes decisions in a pure function, and performs external actions only after accepting the decision. It can start as one source file with ordinary types and functions.
@@ -81,7 +81,7 @@ Follow the [project evaluation and production evidence guide](docs/EVALUATION.md
 | Choose boundaries, dependencies, and Flow ownership | [Composition guide](docs/COMPOSITION.md) |
 | Resolve an exact rule or audit the architecture | [Core specification](spec/pokeball-architecture-core.md) |
 | Use an agent in another repository | [Agent Pack](docs/agents/README.md) and [installation](docs/agents/INSTALL.md) |
-| Read the localized overview | [Russian overview](docs/ru/README.md) |
+| Read the complete documentation in Russian | [Russian documentation](docs/ru/README.md) |
 
 The Core entrypoint and its ordered manifest form the canonical specification. Each marked source clause owns its law; guides, examples, law indexes, and the Agent Pack are derived views. If a view conflicts with its source clause, Core controls. Ordinary work follows affected sources and tests; a full audit still covers every unique source.
 
