@@ -1,0 +1,19 @@
+name: Skills
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test compact skill structure
+        run: python3 -m unittest discover -s tests -p 'test_skill_tools.py' -v
+      - name: Check compact skills and source integrity
+        run: python3 scripts/check_skills.py

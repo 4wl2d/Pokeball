@@ -13,6 +13,7 @@
 <p align="center">
   <a href="docs/QUICKSTART.md">Write your first feature</a> ·
   <a href="docs/EVALUATION.md">Decide whether it pays off</a> ·
+  <a href="docs/SKILLS.md">Agent skills</a> ·
   <a href="spec/pokeball-architecture-core.md">Core specification</a> ·
   <a href="docs/ru/README.md">Russian documentation</a>
 </p>
@@ -70,6 +71,12 @@ Use one real slice to check failure behavior, implementation cost, and a human's
 
 Follow the [project evaluation and production evidence guide](docs/EVALUATION.md). Documentation consistency and agent walkthroughs do not establish human usability or production reliability.
 
+## Agent skills
+
+Give your coding agent practical Pokeball instructions with the [official skills](docs/SKILLS.md). Start with `pokeball` for everyday feature changes; add `pokeball-async`, `pokeball-composition`, `pokeball-binding`, or `pokeball-review` for those tasks. Each independently installable skill contains concise work instructions and task-specific checks in one `SKILL.md`. Agents can apply them directly to project code and tests; the canonical Core remains authoritative.
+
+[Download and install from GitHub](docs/SKILLS.md#download-once), copying only the complete skill directories you want. Installed skills work without a local Pokeball checkout or network access. The same page explains separate updates from GitHub. Skills provide coding workflows; the [Agent Pack](docs/agents/README.md) provides the broader contract, runbooks and review gates. Neither supplies an application runtime or a conformance verdict. Contributors should follow the [skill authoring guide](docs/SKILL-AUTHORING.md) when changing a skill or a source it uses.
+
 ## Documentation
 
 | Start here when you want to… | Document |
@@ -80,7 +87,8 @@ Follow the [project evaluation and production evidence guide](docs/EVALUATION.md
 | Understand decisions and logical roles | [Architecture guide](docs/ARCHITECTURE.md) |
 | Choose boundaries, dependencies, and Flow ownership | [Composition guide](docs/COMPOSITION.md) |
 | Resolve an exact rule or audit the architecture | [Core specification](spec/pokeball-architecture-core.md) |
-| Use an agent in another repository | [Agent Pack](docs/agents/README.md) and [installation](docs/agents/INSTALL.md) |
+| Give an agent focused coding workflows | [Skills, installation and updates](docs/SKILLS.md) |
+| Apply the full agent contract in another repository | [Agent Pack](docs/agents/README.md) and [installation](docs/agents/INSTALL.md) |
 | Read the complete documentation in Russian | [Russian documentation](docs/ru/README.md) |
 
 The Core entrypoint and its ordered manifest form the canonical specification. Each marked source clause owns its law; guides, examples, law indexes, and the Agent Pack are derived views. If a view conflicts with its source clause, Core controls. Ordinary work follows affected sources and tests; a full audit still covers every unique source.
