@@ -144,7 +144,7 @@ ProductSearchFailed(handle, reason)
 CurrentTimeObserved(handle, timestamp)
 ```
 
-A Fact contains a causal reference that matches it to the accepted `EffectRequest`. An immediate synchronous completion may use accepted call-scope position; a completion that can detach, reorder, retry, cross a boundary, recover, or enter status carries the complete stable handle/source identity from §9.1. A push or subscription observation is a `Fact` only when the subscription itself was previously accepted and the observation returns its stable `SemanticHandle`. An unsolicited resource observation must not masquerade as a `Fact`.
+A Fact contains a causal reference that matches it to the accepted `EffectRequest`. An immediate synchronous completion may use accepted call-scope position; a completion that can detach, reorder, retry, recover, or be observed independently carries the complete stable handle/source identity from §9.1. A push or subscription observation is a `Fact` only when the subscription itself was previously accepted and the observation returns its stable `SemanticHandle`. An unsolicited resource observation must not masquerade as a `Fact`.
 
 ### 6.6. Projection
 
@@ -194,18 +194,20 @@ A `Reply` differs from a `Projection`: a reply has requester and correlation sem
 <!-- pkb:term:end -->
 
 ```text
+Counter.increment()
 Inventory.ReserveItems(...)
 Payment.Capture(...)
-Notification.SendReceipt(...)
 ```
 
-A Command is not a private `Effect`. For each command operation, the target owns exactly one closed, versioned `ModuleCommand -> ModuleResult` mapping. The caller imports that mapping through `dependencies.commands`; it neither aliases the command to an external `Intent` nor redeclares either payload as caller-owned.
+A Command is not a private `Effect`. For each command operation, the target owns exactly one closed `ModuleCommand -> ModuleResult` mapping with defined compatibility semantics. The caller imports that mapping through its declared command dependency; it neither aliases the command to an external `Intent` nor redeclares either payload as caller-owned. A same-build interface can define the operation and its reachable return variants without a separate protocol identifier or version field.
 
 <!-- pkb:term:start name="ModuleCommandPulse" -->
-**ModuleCommandPulse** — the canonical verified target input carrying accepted-source `commandSource`, effective protocol identity, target-owned `ModuleCommand`, and issuer provenance; target `decide` is its sole acceptance point.
+**ModuleCommandPulse** — the target's trusted command input from previously accepted source work; an immediate same-build call uses its typed target and call scope, while independently delivered input carries verified accepted-source identity and provenance. Target `decide` is its sole acceptance point.
 <!-- pkb:term:end -->
 
-The trusted target boundary constructs the canonical command ingress only from a verified accepted source frame:
+For an immediate same-build call, the executor of an already accepted source output invokes the typed target interface. The target binding admits that input to its serialized owner, evaluates pure `decide`, and accepts State and present outputs together. The call never occurs inside the source or target's pure `decide`. The selected interface, trusted construction, and actual call path establish the command's target and origin; no source token, issuer field, or materialized `ModuleCommandPulse` wrapper is required. A method call alone is not acceptance: the target owner's acceptance must occur before an accepted result is returned.
+
+When command delivery can detach, reorder, retry, recover, or be independently observed, the trusted boundary instead verifies portable causal evidence from the accepted source frame:
 
 ```text
 ModuleCommandPulse {
@@ -216,27 +218,32 @@ ModuleCommandPulse {
 }
 ```
 
-`commandSource` is derived from the accepted source `ModuleCommandRequest` frame, including its complete semantic handle and source ordinal. `effectiveProtocolIdentity` resolves the target-owned command/result mapping. The target boundary verifies source acceptance, protocol identity, payload ownership, size, provenance, and every triggered authenticity rule before constructing the Pulse. The target's canonical `decide` is the only acceptance point; a transport receive, adapter call, inbox row, ACK, or route invocation is not target acceptance.
+Here `commandSource` derives from the accepted `ModuleCommandRequest` frame, including its stable semantic handle and source ordinal. `effectiveProtocolIdentity` resolves the target-owned command/result mapping. The boundary verifies source acceptance, target, protocol identity, payload ownership, applicable bounds, provenance, and every triggered authenticity rule before constructing trusted input. A transport receive, inbox row, ACK, or route invocation does not replace target acceptance.
 
-Assembly selects the route, effective protocol/version pair, and binding and transports the verified value. It does not synthesize or modify `commandSource`, the command payload, issuer provenance, or other business meaning. A same-stack binding may erase the materialized adapter or envelope only when the exact accepted source tuple and target input remain provably identical.
+Assembly supplies the allowed target interface and connects the binding. It does not select business outcomes or invent accepted work. For portable delivery it transports verified causal values without synthesizing or modifying them. For an immediate call, verification follows actual source acceptance, target ownership, and call/return order; it does not reconstruct absent tuple fields to prove equivalence to a materialized record. Caller names belong in composition unless caller identity changes target business policy, which remains with the target owner.
 
 ### 6.9. ModuleResult
 
 <!-- pkb:term:start name="ModuleResult" -->
-**ModuleResult** — a target-owned business-outcome payload for one target command mapping; it is emitted only through `ModuleResultOutput` and received as the payload of `ModuleResultPulse`.
+**ModuleResult** — a target-owned business-outcome payload for one command mapping, produced by accepted target work and returned to the source's serialized result handler. An immediate typed return represents that result directly; portable delivery uses `ModuleResultOutput` and `ModuleResultPulse` records.
 <!-- pkb:term:end -->
 
 ```text
+Changed(value)
 InventoryReserved(reservationId)
 InventoryReservationRejected(reason)
 PaymentCaptureOutcomeUnknown(reference)
 ```
 
 <!-- pkb:term:start name="ModuleResultOutput" -->
-**ModuleResultOutput** — the canonical target `SemanticOutput` created only inside an accepted target Decision, carrying target-frame `sourceOrdinal`, accepted-source `commandSource`, target-owned `ModuleResult`, and `semanticHandle = commandSource.semanticHandle` as correlation without ownership transfer.
+**ModuleResultOutput** — a target-owned semantic result output created only inside an accepted target Decision. An immediate return uses its accepted position and call scope; portable delivery carries target-frame `sourceOrdinal`, accepted-source `commandSource`, target-owned payload, and `semanticHandle = commandSource.semanticHandle` for correlation without ownership transfer.
 <!-- pkb:term:end -->
 
-A target Nucleus creates a result only inside an accepted target Decision:
+An immediate API such as `CounterCommands.increment(): IncrementResult` may return `Changed(value)` or `NotAccepted(reason)`. `Changed` is returned only after Counter accepts its change and result output; `NotAccepted` describes refusal before target acceptance under §6.13. The executor delivers the return through the source's serialized handler, which makes any source change through ordinary `decide` and acceptance. The return is sufficient correlation with that invocation. No `commandSource`, `resultSource`, result token, protocol identifier, or separate carrier class is required.
+
+A failure after acceptance cannot become `NotAccepted`. A declared executor or Resource failure preserves accepted work and follows the contract's failure path; a programming fault follows the runtime fault policy. If an external action may have happened without a known outcome, `OutcomeUnknown` retains that meaning. Concrete result types distinguish only the stages reachable for that operation; the Core does not require every implementation to use one carrier shape.
+
+For detached, reorderable, retryable, recoverable, or independently observed delivery, a target Nucleus creates the portable result only inside an accepted target Decision:
 
 ```text
 ModuleResultOutput {
@@ -247,13 +254,13 @@ ModuleResultOutput {
 }
 ```
 
-The `sourceOrdinal` is the result output's position in the accepted target frame. Equality of `semanticHandle` with `commandSource.semanticHandle` provides correlation only; it neither transfers target ownership nor re-exports the target payload. The output always counts against the target's `maxOutputsPerDecision` and `maxOutputBytesPerDecision` contracts. When its route is retained, retried, or independently observable, it also occupies one stop-eligible target delivery/status slot and counts against the target's corresponding finite bounds.
+`sourceOrdinal` is the result's position in the accepted target output sequence. The shared handle provides correlation only; it transfers no ownership and does not re-export the payload. Every result counts as present output work under the target's applicable output bounds. A retained, retryable, or independently observed route also occupies its required target delivery/status capacity; it cannot accept a result that its mechanism will then lose through overflow.
 
 <!-- pkb:term:start name="ModuleResultPulse" -->
-**ModuleResultPulse** — the canonical verified source input carrying accepted-source `commandSource`, accepted-target `resultSource`, effective protocol identity, target-owned `ModuleResult`, and issuer provenance.
+**ModuleResultPulse** — the source's trusted input for an accepted target result; immediate delivery uses the typed return and call scope, while portable delivery carries verified `commandSource`, `resultSource`, effective protocol identity, target-owned payload, and issuer provenance.
 <!-- pkb:term:end -->
 
-The verified result route constructs the source input only from that accepted target frame:
+For portable delivery, the verified route constructs the source input from the accepted target frame:
 
 ```text
 ModuleResultPulse {
@@ -265,17 +272,15 @@ ModuleResultPulse {
 }
 ```
 
-`commandSource` remains the accepted source-command token. `resultSource` is derived from the accepted target frame and identifies the target result output at its target `sourceOrdinal`. The route verifies both accepted tuples, the target-owned payload, effective protocol identity, and issuer provenance. Assembly transports those verified values but does not synthesize or modify either token or the result payload. Same-stack representation erasure must prove the same source and target tuples.
+`commandSource` identifies the accepted source command. `resultSource` identifies the accepted target frame and its result output position. The route verifies both accepted tuples, the target-owned payload, effective protocol identity, and issuer provenance. Assembly transports those values without synthesizing or modifying either token or the result payload. The portable result-delivery key is `(effectiveProtocolIdentity, commandSource, resultSource)`; a target-side `DispatchStopped` uses that key without asserting source receipt or a source business outcome. An immediate same-build return needs none of these records or tuple-equivalence checks.
 
-The result-delivery key is exactly the tuple `(effectiveProtocolIdentity, commandSource, resultSource)`; Core introduces no separately named identity type. A target-side `DispatchStopped` for this output uses that complete tuple. It is a target result-delivery fact and does not by itself set a source acceptance, business-outcome, cancellation, or workflow-status facet.
+A transport ACK and a result are different observations: an ACK may prove target acceptance, but not business success. An independently delivered result proves target acceptance through verified accepted-target evidence; an immediate return establishes it through the trusted target binding and actual acceptance-before-return order.
 
-A transport ACK and a `ModuleResultPulse` are different observations. An ACK may prove target acceptance, but not business success. A result Pulse proves target acceptance only through its verified accepted-target provenance.
+For a same-identity/fingerprint target-command redelivery after command acceptance but before a result frame exists, the target returns only verified ACK proof of the original accepted frame and pending-result state. It neither fabricates a provisional result nor repeats semantic/Resource work. After result acceptance, redelivery preserves the existing frame's `commandSource`, `resultSource`, effective protocol identity, target revision, handle/ordinal, and payload; only mechanical attempt metadata changes. Conflicting fingerprint or frame evidence fails closed.
 
-For a same-identity/fingerprint target-command redelivery after the command frame is accepted but before a result frame exists, the target returns only verified ACK proof of that original accepted frame and pending-result state. It does not construct a provisional `ModuleResult`, wait for completion, or repeat target semantic/Resource work. After result acceptance, redelivery uses the exact existing result-frame proof and preserves `commandSource`, `resultSource`, effective protocol identity, target revision, handle/ordinal, and payload; only the mechanical `AttemptId` changes. Conflicting fingerprint or frame evidence fails closed.
+Every target contract fixes each refusal's acceptance meaning: either no target work was accepted, or it is an accepted target outcome. The binding cannot change that meaning according to delivery or runtime conditions. An accepted result is required when the refusal creates target-owned state, an operation/idempotency record, output, Resource action, status/reconciliation visibility, or a durable claim. Pre-acceptance refusal is legal only when none of those facts was accepted. Post-acceptance Execution Gate, Resource, or dispatch failure never downgrades accepted work to a pre-acceptance response. Conflicting refusal and accepted-result evidence for the same call or portable identity fails closed.
 
-Every versioned target contract statically classifies each reachable refusal as either a pre-acceptance boundary response under §6.13 or an accepted `ModuleResultOutput`. A binding, profile, retry, or runtime condition cannot choose the form dynamically. An accepted result is mandatory when the refusal creates any target-owned state or operation record, idempotent replay outcome, output, Resource action, status/reconciliation visibility, durable claim, or other proof of an accepted operation. A pre-acceptance `DecisionRejected(BusinessRejection)` is legal only when none of those target facts was accepted. An Execution Gate or Resource failure after target acceptance therefore remains an accepted target result path; dispatch failure never downgrades an accepted result to a pre-acceptance response. Carrier evidence and accepted-result evidence for the same effective protocol identity and `commandSource` conflict and fail closed.
-
-> A read-like command is legal and deliberately pays target acceptance cost when its caller requires a provenance-bound accepted result, stable command/step identity, idempotent replay, status, or reconciliation semantics. When no accepted target record is required, the correct construction is `ReadDependency`/`Query`, which creates no target Decision, revision, or semantic output.
+> A read-like command pays target acceptance cost when its caller requires an accepted result, idempotent replay, status, or reconciliation. When no accepted target record is required, use `ReadDependency`/`Query`, which creates no target Decision, revision, or semantic output.
 
 ### 6.10. Signal
 
@@ -292,10 +297,10 @@ CatalogIndexUpdated
 A Signal is not a command. The recipient must not interpret a publication as authority to perform a privileged action without a separate grant or command contract.
 
 <!-- pkb:term:start name="ObservedSignal" -->
-**ObservedSignal** — a provenance-checked causal input envelope created from a previously accepted `SignalPublication` over a declared signal route.
+**ObservedSignal** — a trusted causal input from a previously accepted `SignalPublication` over a declared route; immediate delivery may use typed call scope, while independent delivery or observation carries verified portable provenance and causal identity.
 <!-- pkb:term:end -->
 
-The recipient transforms a previously accepted `SignalPublication` into a causal input envelope:
+The recipient accepts only an observation of a previously accepted `SignalPublication`. For independent delivery or observation, its portable causal input is:
 
 ```text
 ObservedSignal {
@@ -308,7 +313,7 @@ ObservedSignal {
 }
 ```
 
-An `ObservedSignal` is accepted only after its provenance and correspondence to a committed `SignalPublication` have been verified. Resource subscription observations use a causally bound `Fact`, not an `ObservedSignal`.
+An `ObservedSignal` is accepted only after its provenance and correspondence to an accepted `SignalPublication` have been established. An immediate same-build typed route may establish these through trusted construction and actual acceptance/call order without materialized identity; independently delivered, reordered, retryable, recovered, or independently observed signals retain the required stable evidence. Resource subscription observations use a causally bound `Fact`, not an `ObservedSignal`.
 
 ### 6.11. Pulse
 
@@ -318,7 +323,7 @@ An `ObservedSignal` is accepted only after its provenance and correspondence to 
 
 
 <!-- pkb:term:start name="ControlPulse" -->
-**ControlPulse** — a declared trusted lifecycle/timer/cancellation/delivery observation from a runtime/resource/route boundary; it is not raw external mutation ingress. If a post-commit mechanical dispatch/ACK or pre-acceptance command-carrier observation changes Sovereign State, it passes as this typed input through single-writer `decide` rather than being written directly by runtime; a business `Fact` or `ModuleResultPulse` is not reclassified. A same-stack carrier-handling Decision consumes the transferred alternative-completion slot and creates no new causal root.
+**ControlPulse** — a declared trusted lifecycle/timer/cancellation/delivery observation from a runtime/resource/route boundary; it is not raw external mutation ingress. If a post-commit mechanical dispatch/ACK or pre-acceptance command-carrier observation changes Sovereign State, it passes as this typed input through single-writer `decide` rather than being written directly by runtime; a business `Fact` or `ModuleResultPulse` is not reclassified. Completion handling preserves any applicable causal-work bound; a statically finite synchronous execution needs no causal token or reservation levels.
 <!-- pkb:term:end -->
 
 
@@ -338,7 +343,7 @@ A `ControlPulse` is created only by a trusted runtime, resource, or route bounda
 
 If a post-commit mechanical runtime or route observation about dispatch or an ACK changes Sovereign State—for example, by moving a stored command step to `Dispatched`, recording acceptance or ambiguity, or recording a terminal delivery stop—the runtime MUST NOT write that state directly. It creates a declared typed `ControlPulse`, after which the ordinary single-writer `decide` applies the observation. An already typed business `Fact` or `ModuleResultPulse` retains its own causal category and is not wrapped in a `ControlPulse`. A verified `CommandRejectedBeforeAcceptance` from §6.13 is carried by such a declared mechanical route observation, not by a result Pulse. A mechanical delivery Pulse cannot exist before source acceptance; the source commit itself does not prove dispatch.
 
-On the same-stack pre-acceptance command branch, the source `decide(ControlPulse)` that applies this carrier consumes the transferred level-1 alternative-completion reservation defined in §8.4. The boundary creates neither a fresh causal root nor an unreserved completion slot.
+An immediate typed pre-acceptance return may represent this declared observation directly. Its source handler remains serialized and changes State only through `decide`. Under §8.4, statically finite synchronous execution needs no reservation levels; when growing or retained work needs capacity accounting, refusal and result handling preserve that bound and cannot lose an accepted completion or create a fresh budget.
 
 ### 6.12. SemanticOutput
 
@@ -363,12 +368,12 @@ On the same-stack pre-acceptance command branch, the source `decide(ControlPulse
 
 
 <!-- pkb:term:start name="ModuleCommandRequest" -->
-**ModuleCommandRequest** — a canonical `SemanticOutput` envelope with a `ModuleCommand` payload and accepted sequence position; its inter-Ball path activates a complete `SemanticHandle` and materialized `sourceOrdinal`.
+**ModuleCommandRequest** — a canonical `SemanticOutput` envelope with a `ModuleCommand` payload and accepted sequence position; a stable `SemanticHandle` and materialized `sourceOrdinal` appear only when the actual lifecycle extends beyond immediate call scope.
 <!-- pkb:term:end -->
 
 
 <!-- pkb:term:start name="SignalPublication" -->
-**SignalPublication** — a canonical routed `SemanticOutput` envelope with a `Signal` payload, complete `SemanticHandle`, and materialized `sourceOrdinal`.
+**SignalPublication** — a routed semantic output with a `Signal` payload and accepted sequence position; a complete `SemanticHandle` and materialized `sourceOrdinal` are required only when its actual lifecycle needs stable identity under §3.5.
 <!-- pkb:term:end -->
 
 
@@ -406,7 +411,7 @@ SignalPublication    = SemanticOutputEnvelope<Signal>
 TimerRequest         = SemanticOutputEnvelope<TimerIntent>
 ```
 
-For `ModuleResultOutput`, the cross-Ball result path always activates a complete materialized handle, and §6.9 fixes it to `commandSource.semanticHandle`; its additional `commandSource` field is not part of the generic envelope. `sourceOrdinal` is the unique zero-based position within ordered `Decision.outputs`: values run from `0..outputs.size-1`. It is materialized and preserved when an output crosses the accepted call scope, is persisted, routed, redelivered, or observed independently. For one immediate local output, list position proves the same fact without a stored field. When `semanticHandle` is required it is complete and stable; omission on a triggered path is invalid. These envelope names and meanings are canonical; representation erasure does not create an alias protocol.
+For portable `ModuleResultOutput` delivery, §6.9 fixes the handle to `commandSource.semanticHandle`; an immediate typed return uses the accepted target output position and call scope without those fields. `sourceOrdinal` is the unique zero-based position within ordered `Decision.outputs`: values run from `0..outputs.size-1`. It is materialized and preserved when an output crosses the accepted call scope, is persisted, independently delivered, redelivered, or observed independently. For immediate output, including a same-build cross-Ball call, list position and call order establish the fact without a stored field. When `semanticHandle` is required it is complete and stable; omission on a triggered path is invalid. These names describe the semantic output family; their record layout is not mandatory for an immediate typed call.
 
 ### 6.13. Error classes
 
@@ -439,25 +444,27 @@ Error meaning is fixed by the stage at which evidence exists:
 
 | Stage | Legal carrier or result | Status/facet effect | Forbidden rewrite |
 |---|---|---|---|
-| validation before semantic input | `BoundaryResponse(ValidationFailure)`, including pre-Intent `IdempotencyConflict`; on a command route, only the verified pre-acceptance carrier | no accepted Decision, revision, operation, output, or business outcome; a conflict leaves the prior accepted operation unchanged | validation is not `BusinessRejection`, Reply, accepted result, or `NotFound` |
-| admission before acceptance | `BoundaryResponse(AdmissionFailure(reason))`; on a command route, only the verified pre-acceptance carrier | no accepted Decision/revision/output; source command facet may become `RejectedBeforeAcceptance + NotExpected` after verified carrier receipt | capacity failure is not business rejection, target acceptance, or delivery stop |
-| target `decide` rejects before acceptance | `BoundaryResponse(DecisionRejected(BusinessRejection))`; on a command route, only the verified pre-acceptance carrier | no accepted target revision/operation/output; source carrier projection remains `RejectedBeforeAcceptance + NotExpected` | informational reason does not become accepted `outcome = Rejected` |
-| target Decision accepts a business outcome | accepted `ModuleResultOutput`, then verified `ModuleResultPulse` | target acceptance/result status is retained; source can project `Accepted` plus the target-owned outcome only after verified result evidence | dispatch or later failure never downgrades the result to a carrier or `BoundaryResponse` |
+| validation before semantic input | `BoundaryResponse(ValidationFailure)`, including pre-Intent `IdempotencyConflict`; on an immediate command call, its typed pre-acceptance return; on independently delivered routes, the verified pre-acceptance carrier | no accepted Decision, revision, operation, output, or business outcome; a conflict leaves the prior accepted operation unchanged | validation is not `BusinessRejection`, Reply, accepted result, or `NotFound` |
+| admission before acceptance | `BoundaryResponse(AdmissionFailure(reason))`; on an immediate command call, its typed pre-acceptance return; on independently delivered routes, the verified pre-acceptance carrier | no accepted Decision/revision/output; source command facet may become `RejectedBeforeAcceptance + NotExpected` after verified carrier receipt | capacity failure is not business rejection, target acceptance, or delivery stop |
+| target `decide` rejects before acceptance | `BoundaryResponse(DecisionRejected(BusinessRejection))`; on an immediate command call, its typed pre-acceptance return; on independently delivered routes, the verified pre-acceptance carrier | no accepted target revision/operation/output; source carrier projection remains `RejectedBeforeAcceptance + NotExpected` | informational reason does not become accepted `outcome = Rejected` |
+| target Decision accepts a business outcome | accepted `ModuleResultOutput`, then verified `ModuleResultPulse` | target acceptance remains; where status exists it is retained; source can project `Accepted` plus the target-owned outcome only after verified result evidence | dispatch or later failure never downgrades the result to a carrier or `BoundaryResponse` |
 | Resource/Execution Gate acts after accepted work | provenance-bound `Fact` and, for a command target, a later accepted `ModuleResultOutput`; reachable result/status variants include `ResourceFailure`, `TimedOut`, or `OutcomeUnknown` | the prior source/target acceptance remains; outcome/status refines only from declared evidence | no rollback, pre-acceptance carrier, or fabricated business rejection |
 | delivery policy exhausts after accepted output | trusted `DispatchStopped` observation | delivery/status facet only, keyed to the accepted output/result route | not business failure, cancellation, target non-execution, or erasure of accepted result |
 | programming fault | runtime fault policy; pre-acceptance publishes nothing, post-acceptance preserves already accepted facts under the selected profile | operational failure/quarantine and only already-declared status evidence | never fabricated as validation, admission, business result, Reply, or delivery success |
 
-A later-stage failure never rewrites an earlier acceptance or accepted result. Each row uses only the closed variants reachable for the concrete protocol/profile.
+A later-stage failure never rewrites an earlier acceptance or accepted result. Each row uses only the closed variants reachable for the concrete protocol/profile. The table fixes stage meaning, not a uniform return-type layout: an immediate call may express pre-acceptance refusal and an accepted result in one closed operation-specific return type while preserving their distinct acceptance semantics.
 
 `ValidationFailure`, `AdmissionFailure`, and `BusinessRejection` may be encoded in a `BoundaryResponse`, but do not become a `SemanticOutput` and receive no commit identity.
 
 For a root request, any semantic ID already reserved when one of those pre-acceptance stages rejects remains a candidate only. The boundary returns the applicable `BoundaryResponse`, does not expose the candidate as an authoritative `OperationId` or status lookup key, and creates no root operation/status source, known status row, retention marker, authoritative `SemanticHandle`, or output. A verified `CommandRejectedBeforeAcceptance` is different only at the already accepted source: it may refine that source operation's matching participant Step through a declared `ControlPulse`, while still creating no accepted target operation.
 
 <!-- pkb:term:start name="CommandRejectedBeforeAcceptance" -->
-**CommandRejectedBeforeAcceptance** — the verified mechanical command-route carrier of `commandSource`, effective protocol identity, exactly one pre-acceptance `BoundaryResponse`, and target-boundary provenance. It is neither Reply nor target result; at a source it projects `RejectedBeforeAcceptance + NotExpected` and creates no trusted Pulse when provenance is invalid. On a same-stack target-not-accepted branch, no accepted target level exists and the source Decision applying the carrier atomically consumes the transferred level-1 alternative-completion slot in the original causal scope.
+**CommandRejectedBeforeAcceptance** — a trusted observation that the target refused before accepting work. An immediate call may represent it as a typed `NotAccepted(reason)` return; independently delivered refusal uses the verified carrier with command identity, closed boundary response, and target provenance. It is not an accepted target result; source state changes only through its serialized declared input handler.
 <!-- pkb:term:end -->
 
-For a command route, the canonical pre-acceptance mechanical carrier is:
+For an immediate same-build call, the typed target and current invocation associate a pre-acceptance refusal with the accepted source output. `NotAccepted(reason)` may encode the reachable validation, admission, or business-rejection reason without a separate carrier class, issuer field, or token. The source applies it as the declared pre-acceptance observation through serialized `decide`; it does not classify it as an accepted target business outcome. No accepted target frame exists on this branch. A post-acceptance failure cannot use this return variant.
+
+When refusal is delivered independently, portable evidence is required:
 
 ```text
 CommandRejectedBeforeAcceptance {
@@ -471,14 +478,12 @@ CommandRejectedBeforeAcceptance {
 }
 ```
 
-- The carrier is constructed only after `commandSource`, effective protocol identity, the closed response, and target-boundary provenance have been verified.
-- It is neither `ReplyOutput` nor `ModuleResult`.
-- It creates no target accepted Decision/revision/output.
-- A same-stack target attempt that produces it consumes no accepted target level; §8.4 atomically transfers the already reserved level-1 alternative-completion slot to the source carrier Decision.
-- It reaches source state only through a declared typed mechanical `ControlPulse` projection.
-- The source does not receive the embedded `BoundaryResponse` as a standalone result.
-- Forged, tampered, missing, stale, or wrong-target provenance creates no trusted source Pulse, refusal facet, or compensation.
-- A target contract's refusal classification is part of its effective protocol identity.
+- The portable carrier is constructed only after command identity, the closed response, and target-boundary provenance have been verified.
+- It is neither `ReplyOutput` nor an accepted `ModuleResult`; it creates no accepted target Decision, revision, or output.
+- It reaches source State only through a declared typed `ControlPulse` observation; the embedded boundary response is not a standalone accepted result.
+- Forged, tampered, missing, stale, or wrong-target required provenance creates no trusted source input, refusal facet, or compensation.
+- The target contract fixes refusal classification and compatibility semantics.
+- Statically finite synchronous execution needs no level-1/level-2 reservations. Where real growing work or retained completion capacity exists, §8.4 requires admission and completion handling that preserve the bound without overflow loss or a fresh causal budget.
 
 For `AdmissionFailure`:
 

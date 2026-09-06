@@ -181,49 +181,36 @@ Source: §8.4.
 - **Rule:**
   One mutating transition runs to acceptance or rejection. Reentrant transitions are prohibited.
 
-  The remainder of this subsection is path-triggered when an accepted output can complete synchronously into another mutating `Pulse`, or when one causal scope spans more than one Decision hop. A Ball with no such path needs no causal-budget field, deque, reservation, or continuation artifact.
+  A synchronous command is executed only from an already accepted source output, after the source transition has ended. The target serializes its own decision and acceptance. Its immediate typed return, including a refusal before target acceptance, reaches the source through the source's serialized handler; it never writes source State directly or re-enters an unfinished transition. A later executor failure cannot be returned as if the target had not accepted.
 
-  The total causal budget is tied to the root operation or another explicit causal scope. It includes at least the remaining `maxCausalDepth` and, when present, the exact `maxCumulativeFanout` branch accounting defined by §10.9/PBA-29. It is not reset by yield, resume, transport retry, redelivery, or a hop between Balls. Static fan-out proof needs no runtime counter; otherwise fan-out capacity is part of this existing reservation/admission state and never a `DecisionContext` field or a new protocol.
+  For a statically finite synchronous workflow, the complete execution structure may establish bounded completion. The proof includes accepted outputs, target work, and every result, refusal, and failure handler, including anything those handlers can issue. For example, a source emits one `Counter.increment`, Counter returns, and the source accepts that result and terminates. No carried `causalScope`, numeric depth, level-1/level-2 reservation, or separate geometric fan-out calculation is required for this closed execution. An import DAG alone is insufficient: a result handler that emits the same command again can create an unbounded chain despite acyclic imports.
 
-  Before accepting a Decision, the runtime reserves depth in the same total causal budget and bounded completion slots for every output that may complete synchronously. If a full reservation is unavailable, the Decision is not accepted and a typed `AdmissionFailure(CausalBudgetExceeded)` is returned; no subset of outputs is dispatched. An already accepted synchronous completion is never dropped because the next execution quantum is exhausted.
+  The structure does not excuse a real capacity risk. Before acceptance, the binding ensures that it can preserve the complete accepted output batch and every completion it is obliged to deliver. Immediate call scope, bounded caller-owned storage, or a reusable serialized binding may supply that mechanism. A queue, continuation, external-request pool, or other storage that can fill has finite capacity and admission checks; work that would be lost after acceptance is not accepted. The required evidence concerns preservation and ordering, not one prescribed slot-transfer scheme.
 
-  For a same-stack command round trip, the source/root Decision, target command Decision, and source result Decision consume causal levels `0`, `1`, and `2`: three total hops including the root. Before source acceptance, the source reserves one level-1 **alternative-completion slot** for each command output that can invoke its target synchronously. Exactly one of two mutually exclusive branches consumes each slot:
+  When the full execution structure does not bound causally growing work, a finite declared causal budget applies to the root operation or another explicit scope under §10.9. Admission checks the complete candidate before acceptance, preserves capacity for already accepted completions and refusal handling, and rejects over-budget new work with typed `AdmissionFailure(CausalBudgetExceeded)`. Accepted causes and outputs are not rolled back or dropped; pending work remains retained or terminal under the declared bounded policy. Yield, resume, retry, redelivery, and a hop between Balls cannot reset the active scope or its remaining budget. Mutually exclusive outcomes need not reserve as though both occur, but the selected outcome must remain deliverable.
 
-  - if the target accepts, its Decision consumes the slot at level 1; before that acceptance the target separately reserves the level-2 source-result completion;
-  - if target validation, admission, or `decide` rejects before acceptance, the target attempt consumes no accepted target level and creates no target frame, revision, or output; the verified boundary atomically transfers the already reserved level-1 slot to the source `decide(ControlPulse)` that applies `CommandRejectedBeforeAcceptance`.
+  The synchronous invocation contributes `source -> target` to the `Direct Control Dependency` graph; its immediate return does not create a reverse edge. An asynchronous handoff removes only that synchronous-invocation contribution; any independently present compile-time-import edge remains. The handoff preserves any active causal bound.
 
-  If the source cannot reserve level 1, its Decision is not accepted and the command is not dispatched. If the target cannot reserve level 2, the target Decision is not accepted and the second branch returns `AdmissionFailure(CausalBudgetExceeded)` through the carrier; no target result output exists. The target and carrier branches cannot both consume the alternative slot. The carrier cannot be dropped, deferred outside a declared `RetainedContinuation` that preserves the same slot and total budget, applied by a direct State write, or moved to a reset or over-budget causal scope. Before accepting a carrier-handling source Decision, the runtime reserves any further synchronous completions emitted by that Decision from the remaining total budget under the ordinary rule above.
-
-  The synchronous invocation contributes `source -> target` to the `Direct Control Dependency` graph; the causally bound result or carrier return does not create a reverse edge. An asynchronous handoff removes only that synchronous-invocation contribution; any independently present compile-time-import edge remains. The handoff preserves the same causal scope, depth, and remaining budget rather than resetting them, and same-stack slot transfer is not inferred merely from asynchronous transport.
-
-  If an Inline executor completes an `EffectRequest` synchronously, the causally bound `Fact` is placed in a pre-reserved bounded local deque only after acceptance of the current Decision. The trusted binding boundary constructs each initial or completion item with the verified, bounded, field-minimized context for that item's own Pulse under §8.1:
+  Each completion uses the trusted context for its own current Pulse under §8.1. A binding can reuse this same sequence for many owners:
 
   ```text
-  InlineWorkItem {
-      pulse
-      decisionContext # trusted for this pulse; Unit when no context field is triggered
-  }
-
-  while deque not empty:
-      if executionQuantum exhausted:
-          return RetainedContinuation(deque, totalCausalBudget)
-      item = pop_front()
-      decision = decide(committedState, item.pulse, item.decisionContext)
-      preflightAndReserve(decision, totalCausalBudget)
-      acceptedFrame = accept(decision)
-      dispatch acceptedFrame.outputs
-      enqueue trusted InlineWorkItem completions into reserved slots
+  handle(owner, pulse, context):
+      candidate = owner.decide(owner.acceptedState, pulse, context)
+      preflight(candidate)                 # only applicable capacity/limit checks
+      accepted = owner.accept(candidate)   # State and complete outputs together
+      dispatch(accepted.outputs)           # transition has ended
+      process completions through their owner's serialized handler
   ```
 
-  `totalCausalBudget`, its remaining depth/completion/fan-out capacity, and `executionQuantum` are runtime reservation state passed only to the loop and `preflightAndReserve`; they are never added to `DecisionContext`. For equal committed State, Pulse, valid per-Pulse Context, and transition artifact version, changing only remaining runtime capacity cannot change the candidate Decision; it can change only whether that complete candidate is admitted.
+  This is ordering pseudocode, not a required dispatcher, queue, library, or recursive implementation. Reentrant transition entry remains prohibited. A yieldable implementation retains unfinished items in a bounded `RetainedContinuation` with one owner and a resume/status policy. A fully immediate finite chain needs no continuation artifact.
 
-  A `RetainedContinuation` has one owner, bounded capacity, and a resume and status policy; resume continues the same total causal budget. It may be caller-owned or use fixed storage and does not impose a mailbox or queue on a Ball that has no synchronous causal chain. When the total limit is reached, previously accepted causes and outputs are not rolled back and the budget is not reset: the current Decision with a new over-budget output is not accepted; the current `Pulse` remains in a retained or terminal state according to the declared policy, and the runtime returns a typed admission or status outcome.
-- **Applicability:** `A`: every mutating transition; `P`: synchronous completion or a causal scope spanning multiple Decisions; a same-stack command adds the exclusive target/carrier alternative completion.
-- **Declaration owner:** Execution binding and route/source reservation contract.
+  Runtime capacity, remaining numeric causal budget, and execution quantum are admission state, never `DecisionContext`. For equal accepted State, Pulse, valid per-Pulse Context, and transition artifact, varying only runtime capacity cannot change the candidate Decision; it can change only whether the whole candidate is admitted.
+- **Applicability:** `A`: every mutating transition; `P`: synchronous completion, retained continuation, or potentially growing causal work.
+- **Declaration owner:** Execution binding and source/target completion contract.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.
-- **Enforcement / evidence owner:** Reentrancy, levels `0/1/2`, alternative-slot transfer, double-consumption, continuation, exact branch accounting, retry/redelivery/handoff preservation, and depth/fan-out causal-budget `N/N+1` tests.
+- **Enforcement / evidence owner:** Non-reentrancy and acceptance-before-dispatch; complete finite execution including completion handlers; accepted-output/refusal preservation; actual capacity and numeric-budget boundaries, continuation, and handoff preservation when those mechanisms exist.
 - **Resolution, failure, and conformance:** Resolve under §0.2; a violation is non-conforming in the stated scope unless the Rule states a stricter local failure.
-- **Reuse and absent-trigger behavior:** Profile mechanics may be reused; absent synchronous/multi-Decision/fan-out paths need no slot or fan-out artifact, and no retry, handoff, or continuation resets or double-counts the scope.
+- **Reuse and absent-trigger behavior:** One serialized binding serves multiple owners. Finite immediate execution needs no causal field, numbered reservation, queue, or continuation; present retained/growing work keeps its bounds across retries, handoff, and resume.
 - **Primary verification route:** `§17.1`
 
 ### PBA-10 — Fault Atomicity
@@ -297,7 +284,7 @@ Source: §7.4.
 
   - public read contract;
   - versioned immutable snapshot;
-  - target-owned `ModuleResult` carried by a verified `ModuleResultPulse`;
+  - target-owned result through an immediate trusted typed return or a verified `ModuleResultPulse` under §6.9;
   - observed signal/event;
   - Read Model;
   - target-side validation/reservation.
@@ -342,7 +329,7 @@ Source: §7.1.
 Source: §3.5.
 
 - **Rule:**
-  Semantic state refers to planned work through a stable `SemanticHandle` when that work is retained, can outlive the call, can be retried or reordered, is cancellable or reconcilable, survives recovery, crosses a Ball boundary, or appears in operation status:
+  Semantic state refers to planned work through a stable `SemanticHandle` when that work is retained beyond the current call, can complete later, be retried or reordered, be independently cancelled or reconciled, survive recovery, or be observed independently, including through operation status:
 
   ```text
   SemanticHandle {
@@ -358,10 +345,10 @@ Source: §3.5.
   SemanticHandle -> OutputId
   ```
 
-  but it does not rewrite business state merely to materialize a transport ID. An immediate local output that is completely consumed in the accepted call scope and has no detached-work trigger uses its accepted frame position; it does not require an `OperationId`, `SemanticHandle`, or wrapper object merely for uniformity.
+  but it does not rewrite business state merely to materialize a transport ID. An immediate same-build call may use its typed target and call scope as command identity and provenance. Crossing a Ball boundary alone does not require a materialized handle, source token, result token, or protocol identifier. Retaining an intermediate value only for the current call does not activate stable identity. The accepted output position and call/return relation identify this work without an `OperationId`, `SemanticHandle`, or wrapper object.
 
   The stable semantic-identity rule for detached or addressable planned work is the `SemanticHandle` contract in the preceding paragraph; immediate accepted call-scope work remains identified by its accepted frame position.
-- **Applicability:** `P`: work is retained, detached, retryable, reorderable, cancellable, recoverable, cross-Ball, or status-visible.
+- **Applicability:** `P`: work outlives the current call, can complete later, be retried or reordered, be independently cancelled, reconciled, recovered, or observed.
 - **Declaration owner:** Ball state/protocol owner.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.
 - **Enforcement / evidence owner:** Nucleus/runtime identity mapping tests.
@@ -461,23 +448,17 @@ Source: §9.1.
 
 - **Rule:**
   - Every result-producing Effect, Command, or accepted-subscription path binds its result to previously accepted source work with trusted provenance and correlation sufficient for that path.
-  - For a command path, the target owns one exact command/result mapping.
-  - A trusted target boundary constructs `ModuleCommandPulse` only from the verified accepted source frame.
-  - Target `decide` is the sole acceptance point.
-  - A command result is created only as `ModuleResultOutput` in an accepted target Decision.
-  - It reaches the source only as a verified `ModuleResultPulse`.
-  - It preserves the accepted source `commandSource`.
-  - It preserves the accepted target `resultSource`.
-  - It preserves the effective protocol identity.
-  - It preserves the target-owned payload.
-  - Assembly transports and does not synthesize or modify those identities or payload.
-  - Detached or reorderable results materialize stable causal identity.
-  - Same-stack erasure proves the same accepted tuples.
+  - The target owns the exact command/result mapping; the target's serialized `decide` and acceptance are the sole acceptance point for target work.
+  - An accepted command result is created as target semantic output and reaches the source through its serialized result handler. Assembly neither invents accepted work nor selects business outcomes.
+  - An immediate same-build call uses its typed target, trusted construction, call scope, and acceptance-before-return order as identity and provenance. Source dispatch follows acceptance and remains outside pure `decide`.
+  - Crossing a Ball boundary or retaining an intermediate value for the current call alone requires no handle, source/result token, issuer field, protocol identifier, or proof of equivalence to absent tuples.
+  - Detached, reordered, retryable, recoverable, or independently observed delivery preserves verified accepted-source `commandSource`, accepted-target `resultSource`, effective protocol identity, target-owned payload, and required issuer provenance.
+  - Untrusted or independently delivered messages undergo the actual provenance and authenticity checks required by their boundary.
 - **Applicability:** `P`: Effect/Command/subscription produces a result.
 - **Declaration owner:** Effect source or command source/target owns semantic mapping; result issuer owns provenance.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.
-- **Enforcement / evidence owner:** Resource/route verifier proves accepted source and, for commands, target tuples plus effective protocol identity.
+- **Enforcement / evidence owner:** Binding tests prove source acceptance before dispatch, target ownership/acceptance before accepted return, and serialized source completion; portable routes additionally verify accepted tuples, protocol identity, and required provenance.
 - **Resolution, failure, and conformance:** Resolve under §0.2; a violation is non-conforming in the stated scope unless the Rule states a stricter local failure.
-- **Reuse and absent-trigger behavior:** Verifier may be referenced; same-stack erasure proves equal tuples; omit when no result path exists.
+- **Reuse and absent-trigger behavior:** Binding/verifier evidence may be reused; immediate calls use actual execution properties without tuple reconstruction; omit when no result path exists.
 - **Primary verification route:** `§17.1`
 <!-- pkb:generated:end -->

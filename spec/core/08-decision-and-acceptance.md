@@ -96,8 +96,9 @@ When a numeric `maxTransitionSteps` declaration is used, determinism also applie
   - The mere existence of a `Query` creates no new mandatory per-Ball read-limit field.
   - When admission can fail, the concrete finite closed `AdmissionFailure.reason` union bounds its outcome space.
   - No open reason string is permitted.
-  - Each same-stack command uses §8.4's one next-level alternative-completion reservation: exactly one accepted target Decision or source carrier Decision consumes it, never both; successful target acceptance separately reserves the following result completion, and unavailable capacity prevents acceptance rather than losing a carrier or resetting the causal budget.
-  - When `maxCumulativeFanout` is present, §10.9/PBA-29 defines its one causal-scope branch unit, aggregation, duplicate treatment, and exact boundary. A static proof may establish the effective ceiling; otherwise the existing total causal reservation admits the whole candidate output batch before acceptance. The first branch at `N+1` rejects that entire candidate Decision with `AdmissionFailure(CausalBudgetExceeded)` and dispatches no subset.
+  - A statically finite synchronous workflow may establish its work and completion bounds through its complete execution structure under §§8.4/10.9. It needs no carried causal scope/depth, geometric fan-out calculation, or level-by-level completion reservation.
+  - Queues, external requests, retained outputs/completions, and other potentially growing work still need finite capacity and admission mechanisms. Capacity failure prevents acceptance of work that would later be lost; it cannot discard an accepted result or pre-acceptance refusal owed to a source.
+  - When a causal bound is enforced numerically, §10.9/PBA-29 fixes its scope and counting contract. Admission checks the whole candidate output batch before acceptance; the first required unit at `N+1` rejects that candidate with `AdmissionFailure(CausalBudgetExceeded)` and dispatches no subset.
 
   Every variable dimension that exists on a reachable path has a finite effective bound. The proof for one dimension is exactly one of:
 
@@ -132,8 +133,8 @@ When a numeric `maxTransitionSteps` declaration is used, determinism also applie
   | `maxOutputBytesPerDecision` | A Decision can contain a variable-size output sequence: maximum bytes for the complete ordered accepted output sequence under the binding-owned byte-measure contract below. A fixed bounded output algebra and representation may prove it statically. |
   | `maxEffectsPerDecision` | `EffectRequest` exists: maximum such outputs in one Decision. |
   | `maxCommandsPerDecision` | `ModuleCommandRequest` exists: maximum such outputs in one Decision. |
-  | `maxCausalDepth` | An accepted consequence can cause another mutating Decision or a route spans multiple Decision hops: maximum total hops including the root. |
-  | `maxCumulativeFanout` | Accepted outputs traverse declared routes within one causal scope: maximum distinct accepted output-to-effective-route/consumer branches under the exact §10.9/PBA-29 counting contract. |
+  | `maxCausalDepth` | A numeric causal bound is needed because the full execution structure does not bound a chain: maximum total accepted Decision hops including the root. A statically finite synchronous chain needs no numeric depth. |
+  | `maxCumulativeFanout` | A numeric aggregate bound is needed for potentially growing output branches: maximum distinct accepted output-to-effective-route/consumer branches under §10.9/PBA-29. A complete structural work bound needs no separate geometric fan-out total. |
   | `maxRetriesPerOperation` | A retry path exists: maximum repeated attempts beyond the initial attempt for the named retry owner and failure mode. |
   | `maxTransitionSteps` | A numeric declaration is used to bound decision work instead of or in addition to a closed bounded type or static control-flow proof: maximum units under one exact versioned binding-owned Decision Work Meter. |
 
@@ -173,13 +174,13 @@ When a numeric `maxTransitionSteps` declaration is used, determinism also applie
 
   For `dimension = State`, the measured value is the complete candidate `nextState` semantic representation before acceptance. `representationDefinition` includes the State schema discriminator/version and every retained State field plus any other semantic metadata it names. It excludes heap/object headers, allocator padding, indexes, storage-record framing, compression, encryption, replication metadata, and transport mechanics. A binding that persists another representation maps it deterministically to the selected sequence. At exact `N = maxStateBytes`, the complete Decision may be accepted; `N+1` rejects the whole Decision before State, revision, or output acceptance and performs no truncation or dispatch.
 
-  For `dimension = DecisionOutputs`, the measured value is one deterministic semantic representation of the complete ordered `Decision.outputs` sequence before dispatch. The bytes include sequence structure plus every required output-envelope field, correlation token, `sourceOrdinal`, and payload. They exclude `nextState`, accepted-frame fields that are not part of an output envelope, and later transport-only framing, compression, encryption, retry headers, or `AttemptId`. At exact `N = maxOutputBytesPerDecision`, the complete Decision may be accepted; `N+1` rejects the whole Decision before State, revision, or output acceptance, and no individual output is truncated or omitted.
+  For `dimension = DecisionOutputs`, the measured value is one deterministic semantic representation of the complete ordered `Decision.outputs` sequence before dispatch. The bytes include sequence structure plus every output field and payload required by the selected representation; correlation tokens and `sourceOrdinal` are included only when present under their triggers. They exclude `nextState`, accepted-frame fields that are not part of an output envelope, and later transport-only framing, compression, encryption, retry headers, or `AttemptId`. At exact `N = maxOutputBytesPerDecision`, the complete Decision may be accepted; `N+1` rejects the whole Decision before State, revision, or output acceptance, and no individual output is truncated or omitted.
 
   A closed bounded type plus static representation proof may establish any of these ceilings without a `BoundedByteMeasure` artifact or runtime serialization/counting. The proof still fixes the same dimension, complete value scope, and `N/N+1` result; it cannot rely on an unspecified implementation representation.
 
   An absent output kind, retry path, causal chain, collection, queue, or profile path requires no zero-valued field. Absence is proved by the closed protocol/type/profile/route inventory. A present dimension with no static proof, no applicable reusable policy, and no local declaration is invalid; `unbounded` is never an effective value. Delivery attempts, retention, concurrency, IPC, resource responses, and other profile-specific dimensions resolve by the same rule when their paths exist.
 
-  Every `ModuleResultOutput` counts as one target output under `maxOutputsPerDecision` and contributes its complete target-owned envelope/payload bytes to the target's `maxOutputBytesPerDecision`. A retained, retried, or independently observable result route also counts against the target's finite delivery/status bounds and one stop-eligible target slot; source-side input, command, or output bounds do not substitute for these target bounds.
+  Every accepted target result counts as one target output under `maxOutputsPerDecision`; its actual complete representation contributes to any applicable `maxOutputBytesPerDecision`. An immediate typed return need not invent envelope fields for that measurement. A retained, retried, or independently observable result route also counts against the target's finite delivery/status bounds and one stop-eligible target slot; source-side input, command, or output bounds do not substitute for these target bounds.
 
   When operation status is triggered, the source/status capacity plan has finite effective bounds for every reachable operation record, pending observation, lifecycle/cancellation/result facet, retention marker, and unique delivery-stop record. It reserves the newly reachable capacity before the acceptance point that can create the source fact. Capacity `N+1` prevents that source acceptance and dispatch under the declared typed admission/fault policy; after acceptance, pressure cannot justify eviction, truncation, or loss of the accepted source or observation.
 
@@ -189,7 +190,7 @@ When a numeric `maxTransitionSteps` declaration is used, determinism also applie
 - **Applicability:** `A`: present input/state/decision/output dimensions; `P`: numeric decision metering, synchronous command completion, collections, reads/routes/buffers, queues, retries, fan-out, concurrency, IPC, delivery, retention, status, or fallible admission.
 - **Declaration owner:** Ball/project; binding owns meter identity/unit, each byte-measure identity/version/representation, and source/target reservations; Assembly/runtime/status/profile owner owns other introduced dimensions/reasons.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.
-- **Enforcement / evidence owner:** Meter identity/version/unit resolution; input/State/output byte-measure dimension/identity/version/representation/limit resolution, mapping/erasure invariance, tuple incomparability and exact stage-specific `N/N+1`; equal-input determinism, monotonic no-reset per-`decide` scope, depth/fan-out exact `N/N+1`, alternative-completion transfer, branch identity/aggregation, read bounds, closed reasons, pressure, and overflow tests.
+- **Enforcement / evidence owner:** Complete structural work/completion bounds or applicable numeric admission checks; meter identity/version/unit resolution; input/State/output byte-measure dimension/identity/version/representation/limit resolution and exact stage-specific `N/N+1`; equal-input determinism, monotonic no-reset per-`decide` scope, accepted-work preservation, read bounds, closed reasons, pressure, and overflow tests.
 - **Resolution, failure, and conformance:** Resolve under §0.2; a violation is non-conforming in the stated scope unless the Rule states a stricter local failure.
 - **Reuse and absent-trigger behavior:** Static/local/shared proof; static work, byte-size, or fan-out needs no runtime counter or measure artifact, Query alone adds no limit field, absent dimensions/reasons are omitted, unlike meters/byte-measure tuples are not compared, retries/redelivery do not double-count one accepted route branch, and accepted status facts are never evicted/truncated.
 - **Primary verification route:** `§17.1`
@@ -197,7 +198,7 @@ When a numeric `maxTransitionSteps` declaration is used, determinism also applie
 ### 8.4. Run-to-completion
 
 <!-- pkb:term:start name="RetainedContinuation" -->
-**RetainedContinuation** — a bounded single-owner continuation of a reserved synchronous causal chain; every retained item preserves its own trusted Pulse-to-DecisionContext association, and resume continues the original total causal budget and declared terminal policy without adding that runtime budget to Context.
+**RetainedContinuation** — a bounded single-owner continuation of an unfinished causal chain; every retained item preserves its own trusted Pulse-to-DecisionContext association. Resume preserves the applicable structural bound or remaining runtime causal budget and declared terminal policy without adding runtime capacity to Context.
 <!-- pkb:term:end -->
 
 <!-- pkb:pba-source:start id="PBA-09" title="No Reentrant Transition" -->
@@ -206,49 +207,36 @@ When a numeric `maxTransitionSteps` declaration is used, determinism also applie
 - **Rule:**
   One mutating transition runs to acceptance or rejection. Reentrant transitions are prohibited.
 
-  The remainder of this subsection is path-triggered when an accepted output can complete synchronously into another mutating `Pulse`, or when one causal scope spans more than one Decision hop. A Ball with no such path needs no causal-budget field, deque, reservation, or continuation artifact.
+  A synchronous command is executed only from an already accepted source output, after the source transition has ended. The target serializes its own decision and acceptance. Its immediate typed return, including a refusal before target acceptance, reaches the source through the source's serialized handler; it never writes source State directly or re-enters an unfinished transition. A later executor failure cannot be returned as if the target had not accepted.
 
-  The total causal budget is tied to the root operation or another explicit causal scope. It includes at least the remaining `maxCausalDepth` and, when present, the exact `maxCumulativeFanout` branch accounting defined by §10.9/PBA-29. It is not reset by yield, resume, transport retry, redelivery, or a hop between Balls. Static fan-out proof needs no runtime counter; otherwise fan-out capacity is part of this existing reservation/admission state and never a `DecisionContext` field or a new protocol.
+  For a statically finite synchronous workflow, the complete execution structure may establish bounded completion. The proof includes accepted outputs, target work, and every result, refusal, and failure handler, including anything those handlers can issue. For example, a source emits one `Counter.increment`, Counter returns, and the source accepts that result and terminates. No carried `causalScope`, numeric depth, level-1/level-2 reservation, or separate geometric fan-out calculation is required for this closed execution. An import DAG alone is insufficient: a result handler that emits the same command again can create an unbounded chain despite acyclic imports.
 
-  Before accepting a Decision, the runtime reserves depth in the same total causal budget and bounded completion slots for every output that may complete synchronously. If a full reservation is unavailable, the Decision is not accepted and a typed `AdmissionFailure(CausalBudgetExceeded)` is returned; no subset of outputs is dispatched. An already accepted synchronous completion is never dropped because the next execution quantum is exhausted.
+  The structure does not excuse a real capacity risk. Before acceptance, the binding ensures that it can preserve the complete accepted output batch and every completion it is obliged to deliver. Immediate call scope, bounded caller-owned storage, or a reusable serialized binding may supply that mechanism. A queue, continuation, external-request pool, or other storage that can fill has finite capacity and admission checks; work that would be lost after acceptance is not accepted. The required evidence concerns preservation and ordering, not one prescribed slot-transfer scheme.
 
-  For a same-stack command round trip, the source/root Decision, target command Decision, and source result Decision consume causal levels `0`, `1`, and `2`: three total hops including the root. Before source acceptance, the source reserves one level-1 **alternative-completion slot** for each command output that can invoke its target synchronously. Exactly one of two mutually exclusive branches consumes each slot:
+  When the full execution structure does not bound causally growing work, a finite declared causal budget applies to the root operation or another explicit scope under §10.9. Admission checks the complete candidate before acceptance, preserves capacity for already accepted completions and refusal handling, and rejects over-budget new work with typed `AdmissionFailure(CausalBudgetExceeded)`. Accepted causes and outputs are not rolled back or dropped; pending work remains retained or terminal under the declared bounded policy. Yield, resume, retry, redelivery, and a hop between Balls cannot reset the active scope or its remaining budget. Mutually exclusive outcomes need not reserve as though both occur, but the selected outcome must remain deliverable.
 
-  - if the target accepts, its Decision consumes the slot at level 1; before that acceptance the target separately reserves the level-2 source-result completion;
-  - if target validation, admission, or `decide` rejects before acceptance, the target attempt consumes no accepted target level and creates no target frame, revision, or output; the verified boundary atomically transfers the already reserved level-1 slot to the source `decide(ControlPulse)` that applies `CommandRejectedBeforeAcceptance`.
+  The synchronous invocation contributes `source -> target` to the `Direct Control Dependency` graph; its immediate return does not create a reverse edge. An asynchronous handoff removes only that synchronous-invocation contribution; any independently present compile-time-import edge remains. The handoff preserves any active causal bound.
 
-  If the source cannot reserve level 1, its Decision is not accepted and the command is not dispatched. If the target cannot reserve level 2, the target Decision is not accepted and the second branch returns `AdmissionFailure(CausalBudgetExceeded)` through the carrier; no target result output exists. The target and carrier branches cannot both consume the alternative slot. The carrier cannot be dropped, deferred outside a declared `RetainedContinuation` that preserves the same slot and total budget, applied by a direct State write, or moved to a reset or over-budget causal scope. Before accepting a carrier-handling source Decision, the runtime reserves any further synchronous completions emitted by that Decision from the remaining total budget under the ordinary rule above.
-
-  The synchronous invocation contributes `source -> target` to the `Direct Control Dependency` graph; the causally bound result or carrier return does not create a reverse edge. An asynchronous handoff removes only that synchronous-invocation contribution; any independently present compile-time-import edge remains. The handoff preserves the same causal scope, depth, and remaining budget rather than resetting them, and same-stack slot transfer is not inferred merely from asynchronous transport.
-
-  If an Inline executor completes an `EffectRequest` synchronously, the causally bound `Fact` is placed in a pre-reserved bounded local deque only after acceptance of the current Decision. The trusted binding boundary constructs each initial or completion item with the verified, bounded, field-minimized context for that item's own Pulse under §8.1:
+  Each completion uses the trusted context for its own current Pulse under §8.1. A binding can reuse this same sequence for many owners:
 
   ```text
-  InlineWorkItem {
-      pulse
-      decisionContext # trusted for this pulse; Unit when no context field is triggered
-  }
-
-  while deque not empty:
-      if executionQuantum exhausted:
-          return RetainedContinuation(deque, totalCausalBudget)
-      item = pop_front()
-      decision = decide(committedState, item.pulse, item.decisionContext)
-      preflightAndReserve(decision, totalCausalBudget)
-      acceptedFrame = accept(decision)
-      dispatch acceptedFrame.outputs
-      enqueue trusted InlineWorkItem completions into reserved slots
+  handle(owner, pulse, context):
+      candidate = owner.decide(owner.acceptedState, pulse, context)
+      preflight(candidate)                 # only applicable capacity/limit checks
+      accepted = owner.accept(candidate)   # State and complete outputs together
+      dispatch(accepted.outputs)           # transition has ended
+      process completions through their owner's serialized handler
   ```
 
-  `totalCausalBudget`, its remaining depth/completion/fan-out capacity, and `executionQuantum` are runtime reservation state passed only to the loop and `preflightAndReserve`; they are never added to `DecisionContext`. For equal committed State, Pulse, valid per-Pulse Context, and transition artifact version, changing only remaining runtime capacity cannot change the candidate Decision; it can change only whether that complete candidate is admitted.
+  This is ordering pseudocode, not a required dispatcher, queue, library, or recursive implementation. Reentrant transition entry remains prohibited. A yieldable implementation retains unfinished items in a bounded `RetainedContinuation` with one owner and a resume/status policy. A fully immediate finite chain needs no continuation artifact.
 
-  A `RetainedContinuation` has one owner, bounded capacity, and a resume and status policy; resume continues the same total causal budget. It may be caller-owned or use fixed storage and does not impose a mailbox or queue on a Ball that has no synchronous causal chain. When the total limit is reached, previously accepted causes and outputs are not rolled back and the budget is not reset: the current Decision with a new over-budget output is not accepted; the current `Pulse` remains in a retained or terminal state according to the declared policy, and the runtime returns a typed admission or status outcome.
-- **Applicability:** `A`: every mutating transition; `P`: synchronous completion or a causal scope spanning multiple Decisions; a same-stack command adds the exclusive target/carrier alternative completion.
-- **Declaration owner:** Execution binding and route/source reservation contract.
+  Runtime capacity, remaining numeric causal budget, and execution quantum are admission state, never `DecisionContext`. For equal accepted State, Pulse, valid per-Pulse Context, and transition artifact, varying only runtime capacity cannot change the candidate Decision; it can change only whether the whole candidate is admitted.
+- **Applicability:** `A`: every mutating transition; `P`: synchronous completion, retained continuation, or potentially growing causal work.
+- **Declaration owner:** Execution binding and source/target completion contract.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.
-- **Enforcement / evidence owner:** Reentrancy, levels `0/1/2`, alternative-slot transfer, double-consumption, continuation, exact branch accounting, retry/redelivery/handoff preservation, and depth/fan-out causal-budget `N/N+1` tests.
+- **Enforcement / evidence owner:** Non-reentrancy and acceptance-before-dispatch; complete finite execution including completion handlers; accepted-output/refusal preservation; actual capacity and numeric-budget boundaries, continuation, and handoff preservation when those mechanisms exist.
 - **Resolution, failure, and conformance:** Resolve under §0.2; a violation is non-conforming in the stated scope unless the Rule states a stricter local failure.
-- **Reuse and absent-trigger behavior:** Profile mechanics may be reused; absent synchronous/multi-Decision/fan-out paths need no slot or fan-out artifact, and no retry, handoff, or continuation resets or double-counts the scope.
+- **Reuse and absent-trigger behavior:** One serialized binding serves multiple owners. Finite immediate execution needs no causal field, numbered reservation, queue, or continuation; present retained/growing work keeps its bounds across retries, handoff, and resume.
 - **Primary verification route:** `§17.1`
 <!-- pkb:pba-source:end -->
 ### 8.5. Atomic Decision acceptance
@@ -329,9 +317,9 @@ Preflight checks only dimensions activated by the Decision and selected profile.
 - expected revision;
 - runtime quotas.
 
-Before accepting any Decision under numeric `maxStateBytes`, preflight measures the complete candidate `nextState` once under its exact §8.3 `BoundedByteMeasure`; `N+1` rejects before State, revision, or output acceptance. Before Transient acceptance of an output-bearing Decision, preflight MUST also reserve the ability to retain the complete output batch. Under numeric `maxOutputBytesPerDecision`, it measures the complete ordered sequence once under its exact byte-measure tuple; it never checks each payload independently or substitutes later transport bytes. When synchronous completion can cause another mutating Decision, preflight also reserves the corresponding bounded slots and total causal budget. A state-only Decision needs no output-batch reservation, but still satisfies every applicable State bound. A reservation is not dispatch and does not make an output visible.
+Before accepting any Decision under numeric `maxStateBytes`, preflight measures the complete candidate `nextState` once under its exact §8.3 `BoundedByteMeasure`; `N+1` rejects before State, revision, or output acceptance. Before Transient acceptance of an output-bearing Decision, preflight MUST also reserve the ability to retain the complete output batch. Under numeric `maxOutputBytesPerDecision`, it measures the complete ordered sequence once under its exact byte-measure tuple; it never checks each payload independently or substitutes later transport bytes. For synchronous completions, §8.4 permits a complete finite execution structure to establish their capacity and order. Where completion storage can fill or work can grow beyond that structure, preflight reserves the applicable real capacity and causal budget. A state-only Decision needs no output-batch reservation, but still satisfies every applicable State bound. A reservation is not dispatch and does not make an output visible.
 
-Before accepting a target Decision containing `ModuleResultOutput`, preflight includes that output in the target `maxOutputsPerDecision` count and complete-sequence `maxOutputBytesPerDecision` measurement. If the selected result route is retained, retried, or independently observable, it also reserves the output's target stop-eligible delivery/status slot. Failure at `N+1` rejects the entire target Decision before acceptance; when the missing capacity is the level-2 result-completion reservation for the current command, the target remains unaccepted, the verified target boundary projects `AdmissionFailure(CausalBudgetExceeded)` through `CommandRejectedBeforeAcceptance`, and §8.4 atomically transfers the existing level-1 alternative-completion slot to the source carrier Decision.
+Before accepting a target Decision with a result, preflight includes the result in the target's output bounds using its actual complete representation. A retained, retried, or independently observable result route additionally reserves its target delivery/status capacity. Failure rejects the entire target Decision before acceptance. The source still receives the declared refusal through its serialized handler; the binding cannot lose that response, accept only part of the target Decision, or relabel a failure after acceptance as `NotAccepted`. An immediate typed return uses the finite call mechanism under §8.4, without mandatory numbered reservation transfer.
 
 Preflight MUST NOT:
 

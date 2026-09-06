@@ -99,7 +99,7 @@ cartResultPulse = ModuleResultPulse {
 }
 ```
 
-The next Checkout Decision consumes this Pulse. On successful same-stack completion, Checkout reserves the level-1 alternative-completion slot, accepted Cart `decide` consumes it, Cart reserves level 2, and the Checkout result Decision consumes level 2, producing accepted levels `0/1/2`. If Cart is not accepted, Cart consumes no accepted level and the Checkout carrier Decision consumes the same level-1 alternative instead. Only the direct invocation creates the edge `Checkout -> Cart`; neither return branch creates a `Cart -> Checkout` edge. Generated code may erase the transport objects but must prove these same accepted tokens, identities, payload ownership, reservations, and acceptance points.
+The next serialized Checkout Decision consumes this Pulse. Cart accepts its own work before the accepted result returns; a pre-acceptance refusal creates no accepted Cart frame and enters Checkout through the declared refusal observation. Checkout retains portable causal evidence here because the workflow is recoverable and independently observed, not because the route happens to cross a Ball. Its actual retained-work and completion-capacity bounds remain in force without mandatory level-1/level-2 reservations. Only the direct invocation creates `Checkout -> Cart`; neither return branch creates `Cart -> Checkout`. The immediate Counter example in the composition guide needs only typed target, accepted dispatch, and call/return order, with no reconstruction of absent causal tuples.
 
 After target acceptance/result, the Flow receives a field-minimized snapshot:
 

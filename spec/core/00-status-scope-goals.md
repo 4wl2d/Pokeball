@@ -10,7 +10,7 @@
 
 This ordered canonical document set is the sole normative text for understanding and implementing the Pokeball Architecture baseline. It describes the architectural core, the minimum executable semantics, and profile-specific extensions only to the extent required to design a real application.
 
-> `canonical draft` is the current working truth rather than a stable compatibility promise: `1.4.0-draft` retains the closed `Pulse` and `SemanticOutput` unions introduced by `1.3.0-draft` and adds exact causal-reservation, composition-view, and decision-work-meter semantics. Consumers re-resolve bindings against this exact declared baseline; no compatibility alias changes the ordered protocol algebra.
+> `canonical draft` is the current working truth rather than a stable compatibility promise. `1.5.0-draft` permits immediate same-build typed calls and returns without mandatory handles, provenance tokens or protocol identifiers; a Ball crossing or temporary call-local retention alone activates none of them. Complete structurally finite execution replaces mandatory static graph ceilings, carried causal levels and completion-slot protocols. Delayed, reordered, repeated, recovered or independently observed work still requires the identity and source verification its contract needs; growing, queued, external and retained work retains real capacity and no-accepted-loss obligations. State isolation is observable and permits immutable sharing. Existing laws and semantic roles remain one Core; consumers re-resolve affected bindings against this exact baseline.
 
 This Core is intentionally not a specification for a cloud platform, message broker, workflow engine, IAM system, disaster-recovery framework, or conformance-certification service.
 
@@ -301,7 +301,7 @@ Protocol Nucleus
 Resource Hemisphere and explicit routes
 ```
 
-`ProjectionOutput` and `ReplyOutput` return to Interaction for presentation or response encoding. `EffectRequest`, `ModuleCommandRequest`, `ModuleResultOutput`, `SignalPublication`, and `TimerRequest` leave through the Resource Hemisphere or an explicit route. A verified command route creates `ModuleCommandPulse` at the target; a verified result route creates `ModuleResultPulse` at the source. These are logical directions; a same-stack binding may use **representation erasure**—omit materialized adapters while proving the same semantic values, ownership, authority, bounds, verification, and accepted tuples (§22).
+`ProjectionOutput` and `ReplyOutput` return to Interaction for presentation or response encoding. `EffectRequest`, `ModuleCommandRequest`, `ModuleResultOutput`, `SignalPublication`, and `TimerRequest` leave through Resources or an explicit route. A command reaches the target owner and its result returns to the source owner. These are logical directions: an immediate same-build typed call and return preserve them through actual target access, acceptance order and serialized source completion without reconstructing absent envelope fields (§6.9). Independently delivered messages retain their required verified causal representation.
 
 The basic mutation formula is mode-specific:
 

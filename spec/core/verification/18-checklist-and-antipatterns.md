@@ -52,9 +52,9 @@ Applicability checks:
 - [ ] Every version consumed by a Decision or retained as lineage is a named verified current Context field or an exact enclosing-binding proof; Checkout explicitly supplies `artifactVersion = IV`, retains `interactionArtifactVersion = IV`, and keeps it distinct from `transitionArtifactVersion` across retry/recovery/migration.
 - [ ] Remaining causal budget/depth/slots, execution quantum, and current runtime capacity reach only reservation/admission/continuation logic; they are absent from `DecisionContext` and cannot change the candidate Decision.
 - [ ] Detached/addressable work has stable semantic identity, while immediate local output need not materialize it.
-- [ ] If a command/result route exists, trusted boundaries derive `commandSource` from the accepted source frame and `resultSource` from the accepted target frame; Assembly and same-stack generated code transport/prove rather than synthesize those tuples or target-owned payloads.
+- [ ] A local command uses typed target access and call scope; independently delivered commands/results verify the required source/target causal identity and provenance.
 - [ ] Every target refusal follows its static versioned carrier-or-accepted-result classification. Carrier `BusinessRejection` projects `RejectedBeforeAcceptance + NotExpected`; accepted result rejection projects `Accepted + Rejected`; conflicting evidence fails closed.
-- [ ] On a same-stack pre-acceptance refusal, the target has no accepted frame or causal level and the source carrier Decision consumes the atomically transferred level-1 alternative-completion slot without a new root, reset, overrun, loss, direct State write, or undeclared deferral.
+- [ ] Local pre-acceptance refusal creates no accepted target state/output and reaches the source through its serialized handler; a later executor failure preserves acceptance.
 - [ ] If a Query/stamped read/status path exists, its exact result/stamp/authority contract is closed.
 - [ ] All reads remain non-mutating.
 - [ ] Each status namespace has one committed revisioned single-writer authority.
@@ -104,7 +104,7 @@ Applicability checks:
 Apply this subsection only when an inter-Ball edge or Flow exists.
 
 - [ ] A public dependency is declared as `ReadDependency`, `DeclaredCommandDependency`, `DeclaredSignalDependency`, or `FlowParticipation`.
-- [ ] `maxDeclaredDependenciesPerBall`, when present, counts each distinct owner-declared read/command/signal/participation row once; referenced dependency and participation rows both count, same-target operations remain distinct, exact aliases/duplicates are invalid, exact `N` resolves, and `N+1` rejects the contract.
+- [ ] Static dependencies are visible in types and wiring without mandatory numeric dependency/participant/route ceilings; any optional project limit has its own purpose and contract.
 - [ ] A physical helper import is classified before that four-kind semantic taxonomy: Ball-local utility owned by exactly one logical role, or shared mechanical Foundation. An ownerless shared domain/business utility fails; shared domain semantics remain local copies or acquire one Ball/Flow owner and a declared Application Surface/protocol.
 - [ ] Every utility import remains visible in the acyclic compile-time graph; it adds no Assembly route or dependency row and no `Direct Control Dependency` unless it exposes another Ball's Application Surface or synchronously crosses authority.
 - [ ] Every `FlowParticipation` resolves one Flow authority, one participant authority, one exact participant `Application Surface`, a non-empty bounded Flow-owned coordination set, and bounded references to existing read/command/signal dependencies and their Assembly bindings.
@@ -112,7 +112,7 @@ Apply this subsection only when an inter-Ball edge or Flow exists.
 - [ ] Every referenced `Application Surface` remains participant-owned and exposes only deliberate public semantic types/entrypoints—not mutable State, Nucleus internals, runtime/transport mechanics, private Resource adapters, or re-exported foreign contracts.
 - [ ] A caller Nucleus imports only the exact declared target- or producer-owned Application Surfaces required by its closed `Query`, `Pulse`, and `Decision` contracts; import transfers no ownership.
 - [ ] Checkout's positive fixture imports the four Cart/Inventory/Payment/Order participant-owned surfaces and resolves the nine target-owned command/result mappings.
-- [ ] Checkout resolves thirteen dependency units (four participation plus nine command declarations) and nine `maxRoutesPerFlow` units; each unit is one effective command/result round trip, ingress/return legs count together, and participation/references create no route.
+- [ ] Checkout has four participation relations and nine command routes. These are inspectable facts of the example, not mandatory Core capacity limits.
 - [ ] Caller redeclaration or a structurally identical mirror, foreign State/internal/private-adapter import, protocol re-export, and Interaction/Assembly synthesis all fail.
 - [ ] Every `ReadDependency` resolves exactly one target authority, target-owned Query/result mapping and effective protocol identity, target read/status authority, caller freshness/consistency requirement, and Assembly route/binding.
 - [ ] Caller and Assembly cannot redefine the target payload, stamp, status fact, or read meaning.
@@ -129,14 +129,14 @@ Apply this subsection only when an inter-Ball edge or Flow exists.
 - [ ] Imported target types are not redeclared as caller-owned.
 - [ ] Assembly selects route/version/binding and transports verified `ModuleCommandPulse`/`ModuleResultPulse` values.
 - [ ] Assembly does not create or alter `commandSource`, `resultSource`, target payloads, or refusal meaning.
-- [ ] Same-stack erasure proves the same accepted tuples.
+- [ ] An immediate same-build call is checked by its actual target, acceptance order and return; missing tuple fields need not be reconstructed.
 - [ ] Assembly/generated wiring does not construct semantic context, select business permission/read results, or move mutable business communication through foundation/runtime state.
 - [ ] A read-like operation uses the command bridge only when accepted provenance, stable step identity, idempotent replay, status, or reconciliation is required; an ordinary non-recording read remains `ReadDependency`/`Query` with no target Decision/revision/output.
 - [ ] A same-stack command round trip has one `source -> target` direct-control edge and no reverse return edge.
-- [ ] The source reserves one level-1 alternative-completion slot per synchronous command: an accepted target or its source carrier Decision consumes it, never both.
-- [ ] Successful result completion consumes accepted levels `0/1/2`; an unaccepted target consumes no level and its source carrier Decision consumes level 1.
-- [ ] Missing level 1 prevents source acceptance/dispatch; missing level 2 prevents target acceptance and transfers level 1 to the carrier branch.
-- [ ] Carrier handling cannot lose evidence, reset/overrun the budget, create a new root, or defer outside a declared continuation preserving the same slot and total scope; any further synchronous output reserves normally.
+- [ ] The complete finite local execution includes result handling and cannot regenerate work; an import DAG alone is insufficient.
+- [ ] Finite local completion needs no carried causal scope/depth or reservation levels.
+- [ ] Real queue, external-request and retained-output capacity is secured before accepting work that can otherwise be lost.
+- [ ] Completion cannot lose accepted evidence or reset an applicable growing-work budget; further outputs remain subject to their actual bounds.
 - [ ] Async handoff removes only the synchronous-invocation contribution to direct control, retains any separately present compile-time-import edge, and does not reset scope/depth/budget.
 - [ ] A Feature does not import another Feature's internals.
 - [ ] A one-hop command is not artificially turned into a micro-Flow.
@@ -145,7 +145,7 @@ Apply this subsection only when an inter-Ball edge or Flow exists.
 - [ ] A Flow does not copy mutable participant truth.
 - [ ] A Flow stores only field-minimized workflow values needed by later decisions/recovery; a participant/runtime ledger, outbox, and history do not become hidden decision input.
 - [ ] A public contract does not re-export another authority's owned types.
-- [ ] The route graph and fan-out are bounded; when `maxCumulativeFanout` exists, tree, diamond, mixed-route, mutually exclusive/co-reachable, duplicate/redelivery, async-handoff, independent-root, and exact `N/N+1` fixtures use the §10.9 branch unit.
+- [ ] Full structurally finite execution needs no separate geometric fan-out calculation. Growing fan-out has an effective bound, with no acceptance or partial dispatch beyond capacity.
 - [ ] Compile-time import and `Direct Control Dependency` graphs are unconditionally acyclic, including generated inline dispatch before handoff/yield. A waiver records deliberate non-conformance and cannot make this check pass.
 - [ ] Async feedback, if present, has an owner, stable identity, a finite causal budget, an escape condition, and fan-out protection; idempotency/deduplication and a retry budget appear only when duplicate or retry paths exist.
 - [ ] A multi-source read is not called an atomic snapshot without a corresponding mechanism.

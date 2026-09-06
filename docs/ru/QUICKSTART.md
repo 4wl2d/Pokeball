@@ -30,6 +30,7 @@ record State { quantity: UInt8 }
 enum Intent { QuantitySelected(value: UInt8) }
 enum Query { GetQuantity }
 enum BusinessRejection { QuantityOutsideRange }
+record QuantityNotAccepted { reason: BusinessRejection }
 
 pure decide(state: State, intent: Intent):
     match intent:
@@ -50,7 +51,7 @@ scope OrderDraft on its enforced owning thread:
         candidate = decide(committed, QuantitySelected(value))
         match candidate:
             Rejected(reason):
-                return BoundaryResponse(DecisionRejected(reason))
+                return QuantityNotAccepted(reason)
             Accepted(decision):
                 // Acceptor: the only state publication, with no suspension.
                 committed = decision.nextState
@@ -64,7 +65,7 @@ scope OrderDraft on its enforced owning thread:
 
 `Intent` — единственный вариант `Pulse` этого Ball. Его `DecisionContext` по смыслу равен `Unit`: время, актор, конфигурация или другие поля контекста не меняют решение. Закрытое множество семантических выходов пусто, поэтому `SnapshotDecision(nextState)` не содержит пустую коллекцию выходов. Это допустимые [сокращения представления](spec/core/03-model-boundaries-zones.md#33-canonical-mutation-and-read-forms), а не иная семантика решения.
 
-Результат `Accepted` из `decide` остаётся кандидатом, пока владелец его не опубликует. Отклонённый кандидат не меняет зафиксированное состояние. Нормальный возврат после публикации — обычное завершение локального вызова; адресованного семантического `Reply` здесь нет. Отклонение использует существующий [ответ до принятия](spec/core/06-protocol-algebra.md#613-error-classes). Геттер читает только текущее зафиксированное состояние в той же области и напрямую возвращает данные закрытого типа `UInt8`.
+Результат `Accepted` из `decide` остаётся кандидатом, пока владелец его не опубликует. Отклонённый кандидат не меняет зафиксированное состояние. Нормальный возврат после публикации — обычное завершение локального вызова; адресованного семантического `Reply` здесь нет. Определённый контрактом возврат `QuantityNotAccepted` выражает [отказ до принятия](spec/core/06-protocol-algebra.md#613-error-classes); общая оболочка carrier для этого непосредственного вызова не нужна. Геттер читает только текущее зафиксированное состояние в той же области и напрямую возвращает данные закрытого типа `UInt8`.
 
 Адаптера Resources нет, потому что внешних действий нет. Роль Resources пуста. [Три логические роли](spec/core/03-model-boundaries-zones.md#5-three-logical-zones) не требуют трёх классов или папок.
 
@@ -84,11 +85,11 @@ draft.selectQuantity(20)
 assert draft.quantity() == 20
 
 assert draft.selectQuantity(21)
-       == BoundaryResponse(DecisionRejected(QuantityOutsideRange))
+       == QuantityNotAccepted(QuantityOutsideRange)
 assert draft.quantity() == 20          // rejection published nothing
 
 assert draft.selectQuantity(0)
-       == BoundaryResponse(DecisionRejected(QuantityOutsideRange))
+       == QuantityNotAccepted(QuantityOutsideRange)
 assert draft.quantity() == 20
 
 draft.selectQuantity(3)
@@ -130,6 +131,27 @@ assert draft.quantity() == 3
 | Манифест, иерархия интерфейсов, DI-контейнер | Исходный код и хост уже показывают контракт; эти артефакты не добавляют нужной границы. [§14.1](spec/core/14-manifest-and-organization.md#141-role-of-the-manifest), [§14.6](spec/core/14-manifest-and-organization.md#146-interfaces-di-and-code-generation) |
 
 Обычная реализация не требует досье об отсутствии только потому, что категория не используется. Заявление о соответствии или выпуске, которое опирается на отсутствие, включает отдельные [правила применимости и подтверждения](spec/core/00-status-scope-goals.md#02-proportionality-principle).
+
+<a id="share-immutable-parts-of-one-state"></a>
+
+## Разделяйте неизменяемые части одного State
+
+Один Document Ball может владеть неизменяемым `DocumentState(metadata, paragraphs)`. Изменение заголовка создаёт новые metadata и разделяет прежние неизменяемые paragraphs. Для этого не нужны Ball на каждый абзац или физическое глубокое копирование:
+
+```text
+next = DocumentState(Metadata(title = newTitle), current.paragraphs)
+assert next.paragraphs is current.paragraphs
+assert current.metadata.title == previousTitle
+
+builder = mutableList(current.paragraphs)  // Private to this candidate.
+builder.append(newText)
+if exceedsDocumentLimit(builder): return NotAccepted(DocumentSize)
+next = DocumentState(current.metadata, immutableTuple(builder))
+```
+
+Читатели получают только неизменяемые значения. Builder не выходит в принятый State; отказ после его изменения сохраняет все опубликованные документы. [Тесты Document](../../tests/test_local_composition.py) проверяют разделение структуры при изменении заголовка, изоляцию кандидата и отказ за разрешённой границей размера документа. Способ хранения и копирования остаётся выбором реализации.
+
+Для следующей **локальной** зависимости перейдите к [композиции Counter](COMPOSITION.md#a-counter-with-two-capabilities). Она переиспользует один сериализованный binding у нескольких владельцев, предоставляет возможности чтения/увеличения и проверяет принятие, отказ и ошибку после принятия обычными вызовами. Добавление потребителя не создаёт токенов команды/результата, enum вызывающих или ещё одного диспетчера.
 
 <a id="next-change-asynchronous-search"></a>
 

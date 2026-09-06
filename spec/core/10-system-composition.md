@@ -142,7 +142,7 @@ Between application authorities, every semantic dependency is declared as one of
   - there is no cross-participant compensation;
   - the source stores only local operation state;
   - command and result contracts are explicit;
-  - the target owns exactly one closed `ModuleCommand -> ModuleResult` mapping for the selected operation, including static pre-acceptance-versus-accepted-result refusal classification;
+  - the target owns one closed typed command/result contract for the selected operation, including the distinction between refusal before acceptance and an accepted result;
   - an idempotency contract is explicit when duplicate execution is possible;
   - a deadline contract is explicit when the command has a semantic or resource deadline;
   - the `Direct Control Dependency` graph remains bounded and acyclic.
@@ -153,7 +153,9 @@ Between application authorities, every semantic dependency is declared as one of
   OrderBall -> NotificationBall.SendReceipt
   ```
 
-  The source accepts `ModuleCommandRequest`; the trusted target boundary constructs `ModuleCommandPulse`; the target accepts only through `decide` and creates any `ModuleResultOutput` inside that accepted Decision; the verified return route constructs `ModuleResultPulse` for the source. The caller imports the target mapping through `dependencies.commands`, while Assembly binds both ingress and return routes. A same-stack invocation contributes `source -> target` to the `Direct Control Dependency` graph; returning the causally bound result does not add an edge in the opposite direction. An asynchronous handoff removes only the synchronous-invocation contribution, not any separately present compile-time-import edge, and retains the original causal scope, depth, and budget.
+  The source accepts its command output before execution. The target handles the typed command through its own `decide` and acceptance; the result or refusal then reaches the source through the source's serialized handler. For an immediate same-build call, the target-owned interface, trusted binding boundary, and call scope establish the operation and return association under §6.9. No additional source/result token, issuer field, or carrier type is required merely because the call crosses a Ball boundary. Separately delivered messages retain the applicable source verification and correlation contract.
+
+  The caller imports the target-owned operation; Assembly supplies the permitted interface and binds execution and return. The operation describes Counter's capability, not a registry of consumer names. If business policy depends on the caller, Counter still checks that policy using trusted relevant input. A same-stack invocation contributes `source -> target` to the `Direct Control Dependency` graph; its return adds no reverse edge. An asynchronous handoff removes only the synchronous-invocation contribution and preserves any active causal bound.
 
   #### DeclaredSignalDependency
 
@@ -176,7 +178,7 @@ Between application authorities, every semantic dependency is declared as one of
 
   `effectiveProtocolIdentity` may be exact same-build type identity. Explicit producer and consumer protocol versions materialize only when the two sides can version or deploy independently. `deliverySemantics` names the observation point and whether loss or redelivery is permitted. The route has finite effective fan-out and observation-size bounds. Strong durable delivery is not inferred from the dependency itself and requires a corresponding channel contract.
 
-  Additional route fields materialize only with their trigger: an idempotency or deduplication policy and retention bound for duplicate/redelivery risk; `orderingScope` when ordering is observable or relied upon; `maxBufferedOrInFlightObservations` when buffering exists; `maxCausalDepth` when the observation can re-enter a Decision chain; and `maxDeliveryAttempts` when delivery is retried. An `ObservedSignal` carries only the source identity, revision, handle, ordinal, and issuer provenance required by those effective policies. The publisher does not import consumers: the producer-to-consumer edge belongs to the typed source or `Assembly`, has bounded fan-out, and does not become a wildcard subscription. Absent triggered fields are omitted rather than declared as `none`, zero, or `not-applicable`.
+  Additional route fields materialize only with their trigger: an idempotency or deduplication policy and retention bound for duplicate/redelivery risk; `orderingScope` when ordering is observable or relied upon; `maxBufferedOrInFlightObservations` when buffering exists; `maxCausalDepth` when the observation can regenerate work beyond a complete structural bound; and `maxDeliveryAttempts` when delivery is retried. An `ObservedSignal` carries only the source identity, revision, handle, ordinal, and issuer provenance required by those effective policies. The publisher does not import consumers: the producer-to-consumer edge belongs to the typed source or `Assembly`, has bounded fan-out, and does not become a wildcard subscription. Absent triggered fields are omitted rather than declared as `none`, zero, or `not-applicable`.
 
   #### FlowParticipation
 
@@ -318,16 +320,17 @@ CatalogIndexUpdated -> SearchReadModel.ObserveCatalogIndexUpdated
 ```
 
 <!-- pkb:term:start name="Assembly" -->
-**Assembly** — an explicit composition root that selects routes, effective protocol/version pairs, delivery bindings, and command-result return bindings. It transports verified values and has no authority to synthesize or modify causal tokens, target-owned payloads, context, refusal meaning, policy, read-result selection, or other business semantics.
+**Assembly** — an explicit composition root that supplies permitted target-owned interfaces and selects routes, applicable protocol/version pairs, delivery bindings, and command-result return bindings. Immediate trusted calls use their interface and call scope; independently delivered values use the required source verification. Assembly has no authority to invent or modify causal information, target-owned payloads, context, refusal meaning, policy, read-result selection, or other business semantics.
 <!-- pkb:term:end -->
 
-Under the marked definition, Assembly is responsible for the route, selected effective protocol/version pair, command-ingress and result-return bindings, and deployment wiring. It transports only values verified under the target-owned contract. It makes no business decision and reads no private state. Assembly MUST NOT synthesize or modify `commandSource`, `resultSource`, a `ModuleCommand` or `ModuleResult` payload, mapping, refusal classification or reason, or other business meaning.
+Under the marked definition, Assembly binds the permitted target-owned interfaces and concrete execution/return routes. A trusted immediate same-build call uses this existing boundary and the interface available to the caller as source evidence. It needs no separate issuer field or protocol token. Independently delivered or untrusted messages require the source verification and portable provenance appropriate to their boundary. Assembly makes no business decision, reads no private State, and must not fabricate or alter payloads, refusal meaning, causal information that is actually required, or authorization policy.
 
+For example, one Counter owner exposes `CounterRead.value()` and `CounterCommands.increment(): IncrementResult`. Assembly gives a display the read interface and gives each permitted increment consumer the command interface. Connecting another allowed consumer changes wiring; it does not change Counter's result type, decision logic, or a list of consumer names in Counter. Caller-dependent business authorization, when present, remains Counter's responsibility. This example prescribes neither these names nor a prohibition on domain-relevant caller categories.
 For a `ReadDependency`, Assembly binds the caller to the selected target authority, target-owned `Query -> ResultPayload` mapping, read/status authority, and transport. It does not own or alter the caller's freshness/consistency requirement, target result, status fact, `ConsistencyStamp`, or read meaning. Explicit versions, actor/authentication, cache/comparison, source-position, ordering, buffering, timeout, retry, and status fields appear only under their existing triggers; generated same-stack wiring proves the same resolved contract without needing materialized route wrappers.
 
 For a `DeclaredSignalDependency`, Assembly fixes the producer, consumer, effective protocol identity, delivery semantics, source identity/provenance, and finite fan-out/observation-size bounds. Independent protocol versions, deduplication, ordering, buffering, causal-depth, and delivery-attempt fields are added only when their §10.2 triggers exist. Such a route delivers an `ObservedSignal` but does not turn the Signal into a command or grant the consumer additional authority.
 
-Static composition is the default. It may be generated direct dispatch and does not require a runtime service registry. Generated same-stack code may erase transport objects only while proving the same accepted source frame, target frame, effective protocol identity, and issuer provenance as the materialized bridge.
+Static composition is the default. Ordinary typed calls or generated direct dispatch require no runtime service registry. For an immediate same-build call, verify the actual source acceptance, selected target owner, target acceptance/refusal, and serialized return order. Do not reconstruct absent tuple fields merely to prove equivalence to a materialized bridge.
 
 Assembly owns route selection and delivery binding, but it does not erase graph facts. A generated route that invokes another Ball synchronously before asynchronous handoff/yield is also a `Direct Control Dependency`; an asynchronous enqueue/handoff followed by later target execution is not.
 
@@ -374,50 +377,28 @@ Assembly owns route selection and delivery binding, but it does not erase graph 
 **Source clause for PBA-29 — Bounded Composition.**
 
 - **Rule:**
-  Every present composition dimension resolves under §0.2 through a static bounded type/control-flow proof, a local declaration, or an optional exact reusable project policy plus an explicitly permitted Ball or Flow delta. The applicable catalog includes:
+  Static composition keeps its actual dependencies, participants, routes, and authority owners visible through source types and Assembly wiring. Core does not impose numeric maxima on the number of declared dependencies per Ball, participants, or routes in a statically finite workflow. A project may choose such limits for a concrete maintenance or resource reason; adding an allowed static consumer does not by itself require changing a global connection budget.
 
-  ```text
-  maxDeclaredDependenciesPerBall
-  maxFlowParticipants
-  maxRoutesPerFlow
-  maxConsumersPerSignal
-  maxOutputsPerDecision
-  maxCausalDepth
-  maxCumulativeFanout
-  ```
+  A synchronous workflow whose complete execution is bounded by its structure needs no carried causal scope/depth, per-level reservation scheme, or separately computed geometric fan-out total. That structure includes all reachable command, result, refusal, failure, and signal handlers and the work they can generate. A source that issues one command, accepts its result, and stops is finite; a handler that repeatedly issues a new command is not bounded merely because its imports form a DAG.
 
-  When a policy reference is used, its revision is exact and does not change silently. Effective limits must remain constant with respect to growth in the total number of modules. Absent dimensions need no zero-valued entry. One universal event bus with wildcard subscriptions destroys the ability to calculate change radius.
+  Every actually growing dimension remains finitely bounded under §0.2: queued or in-flight messages, external requests, retained outputs/completions, dynamic consumers, retries, and other work that the execution structure does not bound. A fixed output algebra or closed wiring may establish a bound directly. Otherwise an exact local declaration or reusable policy supplies a finite effective bound, enforced before accepting work that the mechanism cannot preserve. No overflow permits partial acceptance or silent loss of already accepted non-drop-eligible work. Wildcard routes and undeclared consumers remain prohibited.
 
-  `maxDeclaredDependenciesPerBall` counts the complete resolved semantic-dependency inventory owned by one Ball. One unit is one distinct resolved declaration of exactly one of the four §10.2 kinds:
+  Numeric causal limits are used only where the structural bound is insufficient or the project deliberately selects a tighter operational limit. Their existing names retain these meanings:
 
-  - `ReadDependency`: identity is caller + target authority + target-owned query/result mapping + effective protocol identity + target read/status authority; the caller owns the count;
-  - `DeclaredCommandDependency`: identity is caller + target authority + target-owned command/result operation + effective protocol identity; the caller owns the count;
-  - `DeclaredSignalDependency`: identity is consumer + producer + producer-owned signal type + effective protocol identity; the consumer owns the count;
-  - `FlowParticipation`: identity is Flow authority + participant authority; the Flow owns the count.
+  - `maxOutputsPerDecision`: maximum complete accepted output sequence length;
+  - `maxConsumersPerSignal`: maximum effective consumers of one Signal when that count needs a numeric cap;
+  - `maxCausalDepth`: maximum accepted Decision hops, including the root, within the declared causal scope;
+  - `maxCumulativeFanout`: maximum accepted output-delivery branches within that scope.
 
-  A `FlowParticipation.dependencyRefs` entry only references an existing read/command/signal declaration: that existing declaration still counts once in its own kind, and the participation row counts once independently. Multiple operations against one target remain distinct command declarations. An exact duplicate or alias that resolves to an already present identity is an invalid declaration rather than free deduplicated capacity. Every `DeclaredSignalDependency` therefore counts toward `maxDeclaredDependenciesPerBall`, and each distinct consumer also counts toward `maxConsumersPerSignal` and cumulative fan-out. An undeclared consumer and a wildcard signal route are prohibited. Static resolution accepts exactly `N` resolved declarations and rejects the contract when the first distinct declaration would make `N+1`; no runtime Decision is partially admitted under an invalid graph.
+  For a numeric `maxCumulativeFanout`, one unit is one distinct accepted output delivery from its source to one effective route and consumer/executor. A single-destination output counts once; a Signal with `k` consumers counts `k`. Sum all co-reachable branches, including terminal branches and separate paths that converge on the same authority. Mutually exclusive future alternatives reserve only their maximum and only the selected branch consumes it. Retry or redelivery of the same output on the same route to the same consumer/executor does not add a unit; a newly accepted output does. Source identity is represented according to §§3.5/6.9, without inventing absent tuple fields for an immediate call.
 
-  `maxRoutesPerFlow` counts the distinct effective Assembly command/result round-trip mappings used by one Flow after dependency and version resolution. One unit is the complete mapping from the accepted Flow source command through target ingress to its bound canonical result return; its ingress and result-return transport legs do not count as two routes. Read and signal dependencies remain counted under `maxDeclaredDependenciesPerBall` and their own read/consumer/fan-out/Assembly bounds; they do not consume this command-route limit. `FlowParticipation` and `dependencyRefs` create no route. Distinct command operations remain distinct route rows even when they share a target or receiving endpoint. An exact duplicate, spelling alias, or equivalent repeated row is invalid and cannot create free capacity; coexisting distinct command mappings count separately. Static resolution accepts exactly `N` rows and rejects the Flow/Assembly contract at `N+1` before execution.
-
-  When `maxCumulativeFanout` is present, its contract is exact:
-
-  - the counting scope is one accepted root operation or another explicitly named causal scope;
-  - one unit is one distinct accepted `SemanticOutput` delivery branch from its complete accepted source tuple to one effective route and consumer/executor; a single-destination output counts once, and one `SignalPublication` with `k` declared consumers counts `k` branches;
-  - a terminal delivery branch counts once even when it causes no later Decision; every co-reachable output branch at every causal level is summed, including separate branches that converge on the same downstream authority;
-  - a diamond therefore counts route traversals, not unique authorities; two accepted source branches into the same target count twice;
-  - mutually exclusive future alternatives share one reservation sized to the maximum permitted alternative and only the selected accepted branch consumes it; alternatives that can both occur are co-reachable and are summed;
-  - retry or redelivery of the same accepted source tuple through the same effective route to the same consumer/executor does not add a unit, while a new accepted output source tuple does;
-  - an asynchronous handoff preserves the same causal scope and remaining fan-out budget; only a separately declared independent root with no causal continuation starts a fresh scope.
-
-  `maxOutputsPerDecision` still bounds one accepted source batch, `maxConsumersPerSignal` still bounds one Signal, and `maxCausalDepth` still bounds accepted hops. None substitutes for the cumulative branch count across the causal scope, and the cumulative bound does not weaken any of them.
-
-  A static bounded graph/control-flow proof may establish the ceiling without a runtime artifact. Otherwise, before accepting each Decision, the existing total causal reservation from §8.4 reserves the units for the complete candidate output batch and any mutually exclusive reservation it owns. At exact `N = maxCumulativeFanout`, the Decision may be accepted. The first required unit `N+1` rejects the whole candidate Decision with typed `AdmissionFailure(CausalBudgetExceeded)`; no State, revision, partial output batch, or dispatch is accepted. The fan-out counter/reservation is runtime admission state, not `DecisionContext`, and does not create a new protocol or conformance authority.
-- **Applicability:** `P`: routes, participants, fan-out, or multi-hop causality exists.
-- **Declaration owner:** Producer/Flow owns the causal scope and output branches; Assembly owns effective route/consumer resolution; the binding owns any runtime reservation mechanics.
+  A numeric budget retains its root/scope across yield, resume, asynchronous handoff, retry, and redelivery. Only a separately declared independent root with no causal continuation starts a fresh scope. Admission checks the whole candidate batch and required completion capacity before acceptance: exact `N` may be accepted; the first required unit `N+1` rejects the whole candidate with typed `AdmissionFailure(CausalBudgetExceeded)` and dispatches no subset. The counter is runtime admission state, not `DecisionContext`. Depth, aggregate branches, and actual storage/resource capacities bound different risks; selecting one cannot silently waive another present risk.
+- **Applicability:** `P`: composition exists; numeric causal accounting only when structure does not bound the full work or an explicit operational cap is selected; real capacity limits when work/storage can grow.
+- **Declaration owner:** Ball/Flow owns its work and completion behavior; Assembly owns actual route/consumer resolution; project/binding owns any selected operational limits and capacity/admission mechanics.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.
-- **Enforcement / evidence owner:** Static dependency/route resolution plus graph/control-flow proof or route/admission branch accounting, with four-kind declaration ownership/reference/alias tests, one-round-trip route tests, tree, diamond, mixed-route, mutual-exclusion, duplicate/redelivery, handoff, and exact `N/N+1` tests.
+- **Enforcement / evidence owner:** Types and wiring, full execution/control-flow checks including completion handlers, no-wildcard/wrong-target checks, and preservation/overflow tests for actual growing resources; branch, duplicate, handoff, and exact `N/N+1` tests when numeric accounting is used.
 - **Resolution, failure, and conformance:** Resolve under §0.2; a violation is non-conforming in the stated scope unless the Rule states a stricter local failure.
-- **Reuse and absent-trigger behavior:** Static/local ceilings or optional exact project policy plus deltas; exact aliases/repeated rows are invalid rather than free, Flow references create neither a duplicate dependency nor a route, retries/redeliveries reuse the same branch identity, independent roots receive fresh scope, and absent composition/fan-out dimensions need no counter or field.
+- **Reuse and absent-trigger behavior:** Reuse source types, wiring, and binding checks. Static finite composition has no mandatory dependency/participant/route counts, causal fields, or geometric fan-out total; selected policies are exact and accepted work retains the guarantees of its actual path.
 - **Primary verification route:** `§17.5`
 <!-- pkb:pba-source:end -->
 ### 10.10. Cycles
@@ -434,7 +415,7 @@ A business process may return to an earlier phase or create feedback through dec
 
 If the feedback path can duplicate, it also has idempotency/deduplication. If it retries, it also has one finite owned retry budget.
 
-Permitted asynchronous feedback begins only after an explicit bounded handoff/yield and does not itself add a `Direct Control Dependency` edge. The handoff preserves the existing causal depth and cumulative-fan-out scope/budget; it cannot reset either counter at the queue, broker, worker, or target hop. It does not make a compile-time import or direct-control cycle permissible.
+Permitted asynchronous feedback begins only after an explicit bounded handoff/yield and does not itself add a `Direct Control Dependency` edge. The handoff preserves every active causal bound and any numeric depth/fan-out scope or budget; it cannot reset accounting at the queue, broker, worker, or target hop. It does not make a compile-time import or direct-control cycle permissible.
 
 ### 10.11. Versioning and compatibility
 
@@ -469,7 +450,7 @@ These marked definitions are the sole glossary inputs for the terms owned in thi
 
 
 <!-- pkb:term:start name="DeclaredCommandDependency" -->
-**DeclaredCommandDependency** — an explicit one-hop command dependency without an independent multi-participant workflow; the target owns one exact command-to-result mapping/refusal classification, the caller imports it, and Assembly binds verified command ingress and accepted-result return.
+**DeclaredCommandDependency** — an explicit one-hop command dependency without an independent multi-participant workflow; the target owns the operation and acceptance/refusal meaning, the caller imports it, and Assembly binds the permitted target and result return. An immediate trusted same-build call may represent this with its typed interface and call scope.
 <!-- pkb:term:end -->
 
 <!-- pkb:term:start name="DeclaredSignalDependency" -->

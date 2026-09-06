@@ -10,37 +10,11 @@ Every `PKB-AR-*` rule is defined only in [AGENT-CONTRACT.md](AGENT-CONTRACT.md).
 
 ## 4. Imported edge and Assembly
 
-For each edge that exists, the target/producer owns its Application Surface, the caller Nucleus owns only its use of that imported surface in a closed contract, and Assembly owns:
+For an immediate same-build edge, inspect the operation types and Assembly wiring: the target owns the operation and result meanings; the consumer receives only its permitted interface. Typed target access and call scope supply the local identity and provenance. Adding another permitted consumer changes wiring, not a target-maintained list of caller names. Caller-dependent business policy remains enforced by the target.
 
-```text
-route identity and dependency kind
-producer/source and exact protocol identity
-consumer/target and exact protocol identity
-delivery point and semantics
-identity/deduplication/ordering policy when triggered
-retry failure mode, exact primary owner, secondary disabled-or-finite-transparent proof, cumulative cap, and unknown/status policy when triggered
-queue/backpressure/retention and security binding when triggered
-effective route/fan-out bounds
-```
+Check the actual sequence: source accepts an output, its executor invokes the target outside pure `decide`, the target accepts or refuses under its serial owner, then the source handles completion through its serialized entrypoint. A pre-acceptance refusal creates no accepted target state/output; a post-acceptance executor failure preserves acceptance and never becomes `NotAccepted`. No missing command/result/issuer tuple is reconstructed to compare this call with an envelope.
 
-For `maxCumulativeFanout`, the resolved view additionally identifies the one causal scope, the complete accepted source-tuple/effective-route/consumer branch identity, mutually exclusive reservation rule, duplicate/redelivery treatment, async-handoff continuation, independent-root boundary, and static-proof or existing-admission enforcement owner. It does not replace the separate per-Decision, per-Signal, or causal-depth bounds.
-
-For a command edge, the resolved view additionally proves:
-
-```text
-target-owned ModuleCommand -> ModuleResult mapping
-static refusal classification and target protocol version
-accepted source ModuleCommandRequest -> verified ModuleCommandPulse ingress
-accepted target ModuleResultOutput -> verified ModuleResultPulse return
-effective protocol/version pair
-commandSource/resultSource/issuer provenance transport without synthesis
-target output-count and the `DecisionOutputs` dimension of its resolved `BoundedByteMeasure` plus conditional result-delivery/status slot
-same-stack source level-1 alternative-completion reservation
-target level-2 result reservation on the accepted branch
-atomic level-1 transfer to source carrier Decision on pre-acceptance branch
-```
-
-The result-delivery key is the unnamed tuple `(effectiveProtocolIdentity, commandSource, resultSource)`. A same-stack representation may erase envelopes only while proving identical accepted tuples. The source reserves level 1 before acceptance; target acceptance consumes it only after reserving level 2, while verified target validation/admission/`decide` rejection consumes no target level/frame/revision/output and transfers level 1 to the source `decide(ControlPulse)` carrier path. Missing level 1 prevents source acceptance/dispatch; missing level 2 prevents target acceptance and returns `AdmissionFailure(CausalBudgetExceeded)` through the carrier. Further synchronous outputs from carrier handling reserve from the remaining total budget. Reclassification requires a new target protocol version and Assembly pair. A result return is not a reverse dependency edge; async transport preserves the causal scope/depth/budget but does not infer the same-stack transfer rule.
+For independently delivered commands and results, resolve the portable identity, source verification, refusal classification, version pair when independently versioned, ordering, retry and retention required by the actual path. Preserve the accepted source and target tuples without synthesis and secure real output/completion capacity before acceptance. The result-delivery key remains `(effectiveProtocolIdentity, commandSource, resultSource)` when that delivery exists. A complete structurally finite local execution needs no carried scope/depth, level reservations or geometric fan-out calculation; result handlers that regenerate work invalidate that premise. Growing and queued work retains its effective bounds across handoff.
 
 Within the command idempotency horizon, the binding returns only verified ACK proof of the existing accepted target frame while its result is pending; it does not wait, re-invoke `decide`, revise, fabricate a result, or repeat Resource execution. Once a result frame exists, it redelivers that exact accepted frame with unchanged effective identity, `commandSource`, and `resultSource`, changing only mechanical attempt identity. Same identity with a different command fingerprint or conflicting evidence fails closed.
 
@@ -58,14 +32,14 @@ For routine work, validate the affected source/delta/edge:
 - every physical helper import resolves to one Ball/logical-role-local implementation or shared mechanical Foundation and remains in the acyclic compile-time graph; reject a fifth semantic dependency row, ownerless shared domain/business utility, and relabelling domain semantics as Foundation; Ball-owned shared semantics use a declared Application Surface/protocol;
 - every `ReadDependency` resolves its complete target-owned identity/authority/requirement/binding contract, triggered-only fields, and successfully evaluated total-result codomain; target-declared permitted/denied/redacted/non-disclosing variants pass, while wrong version/authority/mapping/stamp, undeclared `NotFound`, `BusinessRejection`, post-admission `BoundaryResponse`, exception, payload invention, and command/read substitution fail;
 - representation and declared closed-protocol/type invariants independent of committed State, semantic Context, and business policy fail at Interaction before semantic input; valid typed State/Context/business rules remain Nucleus-owned; promoting a fixed constraint into the type invariant changes the effective versioned protocol and is never a dynamic binding-stage choice;
-- imported command/result types resolve to one target-owned mapping and static refusal classification; verified ingress/accepted-frame return preserve exact tuples and target bounds; duplicate-before-result returns verified ACK only, duplicate-after-result replays the exact accepted frame, and command-fingerprint/evidence conflict fails closed; explicit versions agree when independent versioning/deployment triggers them;
+- imported command/result types resolve to the target-owned operation and refusal semantics. Local calls verify owner access and actual sequence; independently delivered paths verify portable tuples, ACK/result replay and conflict behavior. Explicit versions agree when independent versioning/deployment triggers them;
 - every imported `Application Surface` is exact, declared, target/producer-owned, and required by a closed caller Nucleus contract; import transfers no ownership, exposes no foreign State/internal/private adapter, and creates no caller mirror/redeclaration, protocol re-export, or Interaction/Assembly-synthesized semantics; every Flow/participant pair has one resolved `FlowParticipation` with a non-empty bounded coordination set and only bounded refs to existing dependencies;
-- same-stack command resolution proves source level-1 reservation, accepted-target level-2 reservation, target-pre-acceptance no-frame behavior, atomic level-1 carrier transfer, carrier-output reservation, and async budget preservation;
+- local command checks use owner access, actual acceptance order, serialized completion and failure-stage preservation; no absent tuple or reservation-slot check is added;
 - inferred applicability cannot be disabled by missing metadata;
 - every triggered guardrail has one construction proof, local declaration, or exact policy reference plus allowed delta;
 - every present variable dimension has a finite effective bound;
 - each numeric input/State/output byte limit is either closed by a static type-and-representation proof or resolves one exact dimension-specific `BoundedByteMeasure`: input fixes the raw-boundary or normalized-trusted stage and complete metadata/Context inclusion before `decide`; State covers the complete candidate `nextState` semantic representation before State/revision/output acceptance; DecisionOutputs covers the complete ordered output sequence and required envelope semantics while excluding later mechanics; every dimension proves exact alternate-representation mapping, erasure invariance, tuple incomparability, and exact `N/N+1` behavior without truncation or partial acceptance;
-- each present `maxDeclaredDependenciesPerBall` counts distinct resolved read/command/signal/FlowParticipation declarations once with referenced rows retained, multiple operations distinct, duplicate/equivalent-alias declarations rejected, and static exact-`N`/reject-contract-at-`N+1`; each `maxRoutesPerFlow` counts only distinct effective Assembly command/result round-trip mappings with command ingress/result return unified, read/signal/participation/reference units at zero, exact duplicate/spelling-alias/equivalent-row/split-leg aliases rejected, and static exact-`N`/reject-Flow-Assembly-at-`N+1`;
+- static dependency, participant and route counts are inspectable structural facts, not mandatory Core ceilings; enforce an optional numeric project limit only under that project contract;
 - each present `maxCumulativeFanout` resolves one causal scope, exact accepted output/route/consumer branch identity, all-level tree/diamond/terminal/converging and co-reachable aggregation, mutually exclusive maximum reservation, duplicate/redelivery and new-tuple behavior, handoff/independent-root behavior, and static proof or exact `N/N+1` admission with no partial Decision;
 - each triggered `DecisionWorkMeter` has one complete immutable meter identity/version, transition artifact version, unit/cap/overflow contract, deterministic monotonic per-`decide` counting, `N/N+1` behavior, and no illicit reset or cross-binding comparison;
 - output paths have acceptance-before-dispatch and route/capability binding;

@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Test compact skill structure
-        run: python3 -m unittest discover -s tests -p 'test_skill_tools.py' -v
+      - name: Test compact skills and local composition behavior
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
       - name: Check compact skills and source integrity
         run: python3 scripts/check_skills.py

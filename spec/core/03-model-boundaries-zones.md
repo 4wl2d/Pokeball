@@ -112,7 +112,7 @@ Consequence:
   | SignalPublication | TimerRequest
 ```
 
-`Projection`, `Reply`, `Effect`, `ModuleCommand`, `ModuleResult`, `Signal`, and `TimerIntent` are semantic payload types. `ModuleCommand` and `ModuleResult` are owned by the target contract. The `Nucleus` returns output payloads only inside the canonical output envelopes defined in §6.12. Mechanical delivery records, transport attempts, storage rows, and tracing metadata are not business outputs of the `Nucleus`.
+`Projection`, `Reply`, `Effect`, `ModuleCommand`, `ModuleResult`, `Signal`, and `TimerIntent` are semantic payload types. `ModuleCommand` and `ModuleResult` are owned by the target contract. The `Nucleus` returns output payloads only as the semantic output family defined in §6.12; immediate typed calls need no materialized envelope. Mechanical delivery records, transport attempts, storage rows, and tracing metadata are not business outputs of the `Nucleus`.
 
 ### 3.5. Semantic and mechanical identity
 
@@ -165,14 +165,14 @@ Identifiers fall into two classes.
 - **Primary verification route:** `§17.4`
 <!-- pkb:pba-source:end -->
 <!-- pkb:term:start name="SemanticHandle" -->
-**SemanticHandle** — the stable domain-visible identity of planned work that is detached, retained, retryable, reorderable, cancellable, recoverable, cross-Ball, or status-visible; immediate call-scope output needs only its accepted sequence position.
+**SemanticHandle** — the stable domain-visible identity of planned work that can outlive its call, be retried or reordered, be independently cancelled, reconciled, recovered, or observed. Temporary retention within the current call and crossing a Ball boundary alone do not require a handle; immediate output uses its accepted sequence position and typed call scope.
 <!-- pkb:term:end -->
 
 <!-- pkb:pba-source:start id="PBA-15" title="Semantic Handle" -->
 **Source clause for PBA-15 — Semantic Handle.**
 
 - **Rule:**
-  Semantic state refers to planned work through a stable `SemanticHandle` when that work is retained, can outlive the call, can be retried or reordered, is cancellable or reconcilable, survives recovery, crosses a Ball boundary, or appears in operation status:
+  Semantic state refers to planned work through a stable `SemanticHandle` when that work is retained beyond the current call, can complete later, be retried or reordered, be independently cancelled or reconciled, survive recovery, or be observed independently, including through operation status:
 
   ```text
   SemanticHandle {
@@ -188,10 +188,10 @@ Identifiers fall into two classes.
   SemanticHandle -> OutputId
   ```
 
-  but it does not rewrite business state merely to materialize a transport ID. An immediate local output that is completely consumed in the accepted call scope and has no detached-work trigger uses its accepted frame position; it does not require an `OperationId`, `SemanticHandle`, or wrapper object merely for uniformity.
+  but it does not rewrite business state merely to materialize a transport ID. An immediate same-build call may use its typed target and call scope as command identity and provenance. Crossing a Ball boundary alone does not require a materialized handle, source token, result token, or protocol identifier. Retaining an intermediate value only for the current call does not activate stable identity. The accepted output position and call/return relation identify this work without an `OperationId`, `SemanticHandle`, or wrapper object.
 
   The stable semantic-identity rule for detached or addressable planned work is the `SemanticHandle` contract in the preceding paragraph; immediate accepted call-scope work remains identified by its accepted frame position.
-- **Applicability:** `P`: work is retained, detached, retryable, reorderable, cancellable, recoverable, cross-Ball, or status-visible.
+- **Applicability:** `P`: work outlives the current call, can complete later, be retried or reordered, be independently cancelled, reconciled, recovered, or observed.
 - **Declaration owner:** Ball state/protocol owner.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.
 - **Enforcement / evidence owner:** Nucleus/runtime identity mapping tests.
@@ -228,7 +228,7 @@ RequestId attempt-2 ─┼─ same IdempotencyKey
                                     └─ AttemptId 2
 ```
 
-A new `RequestId` must not be used to bypass idempotency, and a new `OperationId` must not be created merely because a transport attempt was repeated. A path that has no retry, detached work, durable record, status, or cross-boundary correlation does not materialize this full lineage.
+A new `RequestId` must not be used to bypass idempotency, and a new `OperationId` must not be created merely because a transport attempt was repeated. A path that has no retry, detached work, durable record, status, or correlation beyond its current call does not materialize this full lineage.
 
 ### Definition source records for §3
 

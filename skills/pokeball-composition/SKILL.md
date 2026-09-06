@@ -7,36 +7,31 @@ description: Implement Pokeball ownership boundaries, cross-authority reads, com
 
 ## Assign ownership
 
-Identify changed facts, invariants, authority, lifecycle/recovery and trust boundaries. Keep one semantic owner and logical writer per mutable fact. Combine behavior when one owner can enforce its invariant; separate independent authorities or lifecycle/recovery boundaries. Do not derive Ball ownership from screens, endpoints, tables or call counts.
+Find the changed facts, invariants and lifecycle/recovery/trust boundaries in the application. Keep one authority and logical writer per mutable fact. Combine behavior when one owner can enforce its invariant; separate independent authorities or lifecycles. Screens, folders, tables and call counts do not determine Ball boundaries.
 
-Use a Feature Ball for an owned local capability. Use a Read Model Ball for owned derived query State with source positions, freshness and rebuild policy; give it no command authority over source facts. Introduce a Flow only for material coordination: lifecycle, ordering/branch/join, compensation/recovery, cancellation, reconciliation or an independent terminal outcome. A lookup or command hop alone needs no Flow.
+Use a Feature Ball for a local capability and a Read Model Ball for derived query State, source positions, freshness and rebuild policy. A Read Model gets no command authority over source facts. Add a Flow for actual coordination: independent lifecycle, ordering/branch/join, compensation/recovery, cancellation, reconciliation or terminal outcome. One command round trip needs no Flow.
 
-## Select the interaction
+## Connect the owners
 
-- **Read:** bind the exact target-owned Query/result surface. Keep the target read pure: no decision, acceptance, State/revision change or output. Put admitted denial/redaction in its closed result. Resolve actual authorization context, consistency/freshness requirements and mismatch behavior. Add stamps or retained read State only when the selected consistency/status path requires them.
-- **Command:** the source decision emits an accepted `ModuleCommandRequest`; verify and deliver a `ModuleCommandPulse` to the target. The target accepts its `ModuleResultOutput`; verify and return a `ModuleResultPulse` to the source. Keep schemas target-owned and preserve accepted source/target correlation and issuer provenance. Use the declared pre-acceptance rejection carrier, not a fabricated result for an unaccepted command.
-- **Signal:** publish the producer-owned closed signal after source acceptance. Bind exact consumers with required provenance, ordering/deduplication and bounded fan-out. Do not substitute a signal for an acknowledged command outcome or transfer ownership of source facts.
+- **Read:** use the target-owned Query/result interface. Reading causes no decision, acceptance, revision or output. Resolve actual authorization and consistency/freshness requirements; keep admitted denial/redaction in the result. Add stamps only where their use requires them.
+- **Immediate command:** run the typed target call from an accepted source output, outside pure `decide`. The target accepts its own change; the return enters the source's serialized handler. `increment() -> Changed(value) | NotAccepted(reason)` can express the contract. Supplied capability and call scope carry target, provenance and correlation. Crossing a Ball alone requires no token, envelope, issuer or protocol-ID fields. Failure after acceptance never means `NotAccepted`.
+- **Independently delivered command:** preserve accepted source/target identity, verified provenance, exact protocol mapping and serialized delivery. Carry causal envelopes where information must survive the call. Distinguish pre-acceptance refusal, accepted results and unknown external outcomes.
+- **Signal:** dispatch producer-owned accepted signals to exact consumers. Apply required provenance, ordering/deduplication and actual fan-out bounds. Signals do not acknowledge command outcomes or transfer source authority.
 
-Capture foreign results as explicit inputs before decisions. Retain required values and lineage in owned State when later decisions consume them. Perform no cross-authority I/O or mutable reads inside the pure Nucleus.
+Supply foreign results as explicit decision inputs. Retain values and required lineage in owned State when later decisions need them. Do no cross-authority I/O or mutable read inside the pure Nucleus.
 
-## Wire the contracts
+## Wire and bound execution
 
-Participants own their Application Surfaces and protocol schemas. Callers may import declared owner-authored public surfaces, never foreign internals/State. Do not redeclare or re-export another participant's protocol.
+Participants own operation/read schemas. Supply narrow capabilities through Assembly, such as read-only and increment-only Counter views. Consumer names belong in wiring: an additional allowed consumer of an existing operation changes no Counter result type or caller registry. Caller-dependent business permission stays in the owner. Never access foreign mutable State or redeclare foreign protocols.
 
-Keep Assembly to static route/version selection and transport. Business branches, output choices, permissions and result interpretation stay in the responsible Nucleus. Bind one effective command/result round trip per declared operation; do not split its legs into separate business routes or add wildcard dispatch.
+Assembly selects routes, versions and bindings. Keep business branches, payload choices and result interpretation in owners. One command/result round trip is one mapping; avoid split-leg aliases and wildcard dispatch. Derive optional manifests and route tables from source types and wiring.
 
-For a Flow, retain required participant references and cross-step values in State. Make compensation, cancellation and uncertain-outcome reconciliation explicit decisions. Give each retryable failure mode one primary retry owner; preserve semantic identity across transport attempts. Do not promise a distributed transaction or infer known failure from timeout.
+Keep import and Direct Control Dependency graphs acyclic; async handoff does not remove remaining imports. Static terminating execution—one command, return, source update, then completion—needs no numeric dependency/participant/route quota, depth field, geometric fan-out calculation or reservation protocol. An import DAG alone does not prevent a result handler from issuing the command again.
 
-## Check graph and bounds
+Bound actual growing work: queues, retained outputs, external requests, retries and dynamic fan-out. Preserve applicable budgets across handoff; reject overflow before accepting work that could be lost. Give each retryable failure mode one primary retry owner. Preserve identity across attempts and uncertainty after possible external execution.
 
-Keep compile-time imports and Direct Control Dependencies acyclic. Async handoff removes synchronous invocation coupling only; independently present imports remain dependencies.
+Share purely mechanical Foundation code. Keep business policy owned by a Ball/Flow and expose its public contract; do not hide communication in globals or service locators.
 
-Count each distinct resolved read, command, signal and FlowParticipation declaration once. Count a command/result round-trip mapping as one Flow route; reject duplicate or split-leg aliases. Enforce dependency, route and participant limits before execution. For cumulative fan-out, count accepted-output-to-consumer branches across the causal scope; sum co-reachable branches, share reservations only for mutually exclusive alternatives and exclude retry/redelivery of the same branch. Reject over-limit candidates as a whole before acceptance.
+## Verify
 
-Keep helpers owned by one Ball and logical role unless sharing purely mechanical Foundation code. Shared business policy gets an explicit Ball/Flow owner and public contract. Do not hide business communication in Foundation, globals or service locators.
-
-## Verify and finish
-
-Test the actual bound target and result, repeated non-mutating reads, schema ownership, both dependency graphs and changed count boundaries. For commands, test correlation, pre-acceptance refusal and accepted result return. For changed workflow failures, test the declared terminal/recovery path.
-
-Report changed ownership, contracts and edges, tests/results and unresolved policy selections. Preserve unaffected contracts and features.
+Test target selection, reads, acceptance order, return, refusal and post-acceptance failure. Add an allowed consumer through wiring and reuse the binding. Test changed growing-work limits and failure/recovery behavior. Report ownership/contract changes, checks run and unresolved choices; preserve unaffected project contracts.

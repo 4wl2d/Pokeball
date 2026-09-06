@@ -1,8 +1,8 @@
 # Pokeball Architecture — Core Specification
 
-**Version:** `1.4.0-draft`<br>
+**Version:** `1.5.0-draft`<br>
 **Status:** canonical draft<br>
-**Date:** 2026-09-05<br>
+**Date:** 2026-09-07<br>
 **Language:** English; exact protocol type and field names use Latin identifiers
 
 ---

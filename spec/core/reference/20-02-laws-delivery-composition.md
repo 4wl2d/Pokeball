@@ -15,9 +15,9 @@ Source: §9.4.
   - Validation, admission, pre-acceptance Decision rejection, target acceptance, accepted business outcome, post-acceptance Resource failure/timeout/unknown, and delivery-policy exhaustion retain the exact §6.13 carrier/result/status meaning.
   - Those stages cannot rewrite one another.
   - A post-commit mechanical observation, including verified `CommandRejectedBeforeAcceptance`, changes Sovereign State only through its declared typed `ControlPulse` path.
-  - On a same-stack pre-acceptance command branch, that carrier path consumes the level-1 alternative-completion reservation transferred under §8.4; it creates neither a target accepted level nor a fresh causal scope.
-  - An accepted target outcome reaches the source only through `ModuleResultPulse`.
-  - Neither form may be synthesized from the other or selected dynamically by a binding.
+  - An immediate typed call may return pre-acceptance refusal directly under §6.13; it creates no accepted target frame. Statically finite execution needs no reservation levels; applicable growing-work and completion-capacity bounds remain in force.
+  - An accepted target outcome reaches the source through its serialized result input, represented by the immediate typed return or verified portable `ModuleResultPulse`.
+  - The binding cannot rewrite the acceptance meaning of either form; a concrete return type may carry their distinct variants.
 
   - An ACK answers: **was the declared acceptance point reached?**
   - A `Fact` or `ModuleResultPulse` answers: **what was the accepted business outcome?**
@@ -28,9 +28,9 @@ Source: §9.4.
 
   For a same-identity target-command duplicate after target acceptance but before any result frame has been accepted, the only legal immediate response is verified ACK proof of the original accepted target command frame and its pending-result state. It is not a result and does not wait for one, run another target Decision, increment revision, create an Effect/Resource action, or fabricate a pending `ModuleResult`. Once the result frame exists, a duplicate may instead redeliver proof of that exact accepted result under §9.6. Conflicting fingerprint or acceptance/result evidence fails closed.
 - **Applicability:** `P`: any §6.13 validation/admission/refusal/accepted-result/Resource/delivery stage is reachable or separately observed.
-- **Declaration owner:** Ball owns typed outcome/facet meaning; binding owns legal carrier/result/status mapping and same-stack carrier slot transfer.
+- **Declaration owner:** Ball owns typed outcome/facet meaning; binding owns faithful typed return or portable carrier/result/status mapping and applicable capacity admission.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.
-- **Enforcement / evidence owner:** Stage table, provenance, same-stack carrier level/slot ownership, dispatcher/result-route, duplicate-before-result ACK, exact post-result replay, later-failure, both-order, and conflict tests.
+- **Enforcement / evidence owner:** Stage table, provenance, immediate return order, applicable completion capacity, dispatcher/result-route, duplicate-before-result ACK, exact post-result replay, later-failure, both-order, and conflict tests.
 - **Resolution, failure, and conformance:** Resolve under §0.2; a violation is non-conforming in the stated scope unless the Rule states a stricter local failure.
 - **Reuse and absent-trigger behavior:** Mechanics may be shared; omit unreachable stages and never substitute one stage's carrier/status for another or create a new carrier scope.
 - **Primary verification route:** `§17.1`
@@ -239,7 +239,7 @@ Source: §10.2.
   - there is no cross-participant compensation;
   - the source stores only local operation state;
   - command and result contracts are explicit;
-  - the target owns exactly one closed `ModuleCommand -> ModuleResult` mapping for the selected operation, including static pre-acceptance-versus-accepted-result refusal classification;
+  - the target owns one closed typed command/result contract for the selected operation, including the distinction between refusal before acceptance and an accepted result;
   - an idempotency contract is explicit when duplicate execution is possible;
   - a deadline contract is explicit when the command has a semantic or resource deadline;
   - the `Direct Control Dependency` graph remains bounded and acyclic.
@@ -250,7 +250,9 @@ Source: §10.2.
   OrderBall -> NotificationBall.SendReceipt
   ```
 
-  The source accepts `ModuleCommandRequest`; the trusted target boundary constructs `ModuleCommandPulse`; the target accepts only through `decide` and creates any `ModuleResultOutput` inside that accepted Decision; the verified return route constructs `ModuleResultPulse` for the source. The caller imports the target mapping through `dependencies.commands`, while Assembly binds both ingress and return routes. A same-stack invocation contributes `source -> target` to the `Direct Control Dependency` graph; returning the causally bound result does not add an edge in the opposite direction. An asynchronous handoff removes only the synchronous-invocation contribution, not any separately present compile-time-import edge, and retains the original causal scope, depth, and budget.
+  The source accepts its command output before execution. The target handles the typed command through its own `decide` and acceptance; the result or refusal then reaches the source through the source's serialized handler. For an immediate same-build call, the target-owned interface, trusted binding boundary, and call scope establish the operation and return association under §6.9. No additional source/result token, issuer field, or carrier type is required merely because the call crosses a Ball boundary. Separately delivered messages retain the applicable source verification and correlation contract.
+
+  The caller imports the target-owned operation; Assembly supplies the permitted interface and binds execution and return. The operation describes Counter's capability, not a registry of consumer names. If business policy depends on the caller, Counter still checks that policy using trusted relevant input. A same-stack invocation contributes `source -> target` to the `Direct Control Dependency` graph; its return adds no reverse edge. An asynchronous handoff removes only the synchronous-invocation contribution and preserves any active causal bound.
 
   #### DeclaredSignalDependency
 
@@ -273,7 +275,7 @@ Source: §10.2.
 
   `effectiveProtocolIdentity` may be exact same-build type identity. Explicit producer and consumer protocol versions materialize only when the two sides can version or deploy independently. `deliverySemantics` names the observation point and whether loss or redelivery is permitted. The route has finite effective fan-out and observation-size bounds. Strong durable delivery is not inferred from the dependency itself and requires a corresponding channel contract.
 
-  Additional route fields materialize only with their trigger: an idempotency or deduplication policy and retention bound for duplicate/redelivery risk; `orderingScope` when ordering is observable or relied upon; `maxBufferedOrInFlightObservations` when buffering exists; `maxCausalDepth` when the observation can re-enter a Decision chain; and `maxDeliveryAttempts` when delivery is retried. An `ObservedSignal` carries only the source identity, revision, handle, ordinal, and issuer provenance required by those effective policies. The publisher does not import consumers: the producer-to-consumer edge belongs to the typed source or `Assembly`, has bounded fan-out, and does not become a wildcard subscription. Absent triggered fields are omitted rather than declared as `none`, zero, or `not-applicable`.
+  Additional route fields materialize only with their trigger: an idempotency or deduplication policy and retention bound for duplicate/redelivery risk; `orderingScope` when ordering is observable or relied upon; `maxBufferedOrInFlightObservations` when buffering exists; `maxCausalDepth` when the observation can regenerate work beyond a complete structural bound; and `maxDeliveryAttempts` when delivery is retried. An `ObservedSignal` carries only the source identity, revision, handle, ordinal, and issuer provenance required by those effective policies. The publisher does not import consumers: the producer-to-consumer edge belongs to the typed source or `Assembly`, has bounded fan-out, and does not become a wildcard subscription. Absent triggered fields are omitted rather than declared as `none`, zero, or `not-applicable`.
 
   #### FlowParticipation
 
@@ -381,50 +383,28 @@ Source: §10.8.
 Source: §10.9.
 
 - **Rule:**
-  Every present composition dimension resolves under §0.2 through a static bounded type/control-flow proof, a local declaration, or an optional exact reusable project policy plus an explicitly permitted Ball or Flow delta. The applicable catalog includes:
+  Static composition keeps its actual dependencies, participants, routes, and authority owners visible through source types and Assembly wiring. Core does not impose numeric maxima on the number of declared dependencies per Ball, participants, or routes in a statically finite workflow. A project may choose such limits for a concrete maintenance or resource reason; adding an allowed static consumer does not by itself require changing a global connection budget.
 
-  ```text
-  maxDeclaredDependenciesPerBall
-  maxFlowParticipants
-  maxRoutesPerFlow
-  maxConsumersPerSignal
-  maxOutputsPerDecision
-  maxCausalDepth
-  maxCumulativeFanout
-  ```
+  A synchronous workflow whose complete execution is bounded by its structure needs no carried causal scope/depth, per-level reservation scheme, or separately computed geometric fan-out total. That structure includes all reachable command, result, refusal, failure, and signal handlers and the work they can generate. A source that issues one command, accepts its result, and stops is finite; a handler that repeatedly issues a new command is not bounded merely because its imports form a DAG.
 
-  When a policy reference is used, its revision is exact and does not change silently. Effective limits must remain constant with respect to growth in the total number of modules. Absent dimensions need no zero-valued entry. One universal event bus with wildcard subscriptions destroys the ability to calculate change radius.
+  Every actually growing dimension remains finitely bounded under §0.2: queued or in-flight messages, external requests, retained outputs/completions, dynamic consumers, retries, and other work that the execution structure does not bound. A fixed output algebra or closed wiring may establish a bound directly. Otherwise an exact local declaration or reusable policy supplies a finite effective bound, enforced before accepting work that the mechanism cannot preserve. No overflow permits partial acceptance or silent loss of already accepted non-drop-eligible work. Wildcard routes and undeclared consumers remain prohibited.
 
-  `maxDeclaredDependenciesPerBall` counts the complete resolved semantic-dependency inventory owned by one Ball. One unit is one distinct resolved declaration of exactly one of the four §10.2 kinds:
+  Numeric causal limits are used only where the structural bound is insufficient or the project deliberately selects a tighter operational limit. Their existing names retain these meanings:
 
-  - `ReadDependency`: identity is caller + target authority + target-owned query/result mapping + effective protocol identity + target read/status authority; the caller owns the count;
-  - `DeclaredCommandDependency`: identity is caller + target authority + target-owned command/result operation + effective protocol identity; the caller owns the count;
-  - `DeclaredSignalDependency`: identity is consumer + producer + producer-owned signal type + effective protocol identity; the consumer owns the count;
-  - `FlowParticipation`: identity is Flow authority + participant authority; the Flow owns the count.
+  - `maxOutputsPerDecision`: maximum complete accepted output sequence length;
+  - `maxConsumersPerSignal`: maximum effective consumers of one Signal when that count needs a numeric cap;
+  - `maxCausalDepth`: maximum accepted Decision hops, including the root, within the declared causal scope;
+  - `maxCumulativeFanout`: maximum accepted output-delivery branches within that scope.
 
-  A `FlowParticipation.dependencyRefs` entry only references an existing read/command/signal declaration: that existing declaration still counts once in its own kind, and the participation row counts once independently. Multiple operations against one target remain distinct command declarations. An exact duplicate or alias that resolves to an already present identity is an invalid declaration rather than free deduplicated capacity. Every `DeclaredSignalDependency` therefore counts toward `maxDeclaredDependenciesPerBall`, and each distinct consumer also counts toward `maxConsumersPerSignal` and cumulative fan-out. An undeclared consumer and a wildcard signal route are prohibited. Static resolution accepts exactly `N` resolved declarations and rejects the contract when the first distinct declaration would make `N+1`; no runtime Decision is partially admitted under an invalid graph.
+  For a numeric `maxCumulativeFanout`, one unit is one distinct accepted output delivery from its source to one effective route and consumer/executor. A single-destination output counts once; a Signal with `k` consumers counts `k`. Sum all co-reachable branches, including terminal branches and separate paths that converge on the same authority. Mutually exclusive future alternatives reserve only their maximum and only the selected branch consumes it. Retry or redelivery of the same output on the same route to the same consumer/executor does not add a unit; a newly accepted output does. Source identity is represented according to §§3.5/6.9, without inventing absent tuple fields for an immediate call.
 
-  `maxRoutesPerFlow` counts the distinct effective Assembly command/result round-trip mappings used by one Flow after dependency and version resolution. One unit is the complete mapping from the accepted Flow source command through target ingress to its bound canonical result return; its ingress and result-return transport legs do not count as two routes. Read and signal dependencies remain counted under `maxDeclaredDependenciesPerBall` and their own read/consumer/fan-out/Assembly bounds; they do not consume this command-route limit. `FlowParticipation` and `dependencyRefs` create no route. Distinct command operations remain distinct route rows even when they share a target or receiving endpoint. An exact duplicate, spelling alias, or equivalent repeated row is invalid and cannot create free capacity; coexisting distinct command mappings count separately. Static resolution accepts exactly `N` rows and rejects the Flow/Assembly contract at `N+1` before execution.
-
-  When `maxCumulativeFanout` is present, its contract is exact:
-
-  - the counting scope is one accepted root operation or another explicitly named causal scope;
-  - one unit is one distinct accepted `SemanticOutput` delivery branch from its complete accepted source tuple to one effective route and consumer/executor; a single-destination output counts once, and one `SignalPublication` with `k` declared consumers counts `k` branches;
-  - a terminal delivery branch counts once even when it causes no later Decision; every co-reachable output branch at every causal level is summed, including separate branches that converge on the same downstream authority;
-  - a diamond therefore counts route traversals, not unique authorities; two accepted source branches into the same target count twice;
-  - mutually exclusive future alternatives share one reservation sized to the maximum permitted alternative and only the selected accepted branch consumes it; alternatives that can both occur are co-reachable and are summed;
-  - retry or redelivery of the same accepted source tuple through the same effective route to the same consumer/executor does not add a unit, while a new accepted output source tuple does;
-  - an asynchronous handoff preserves the same causal scope and remaining fan-out budget; only a separately declared independent root with no causal continuation starts a fresh scope.
-
-  `maxOutputsPerDecision` still bounds one accepted source batch, `maxConsumersPerSignal` still bounds one Signal, and `maxCausalDepth` still bounds accepted hops. None substitutes for the cumulative branch count across the causal scope, and the cumulative bound does not weaken any of them.
-
-  A static bounded graph/control-flow proof may establish the ceiling without a runtime artifact. Otherwise, before accepting each Decision, the existing total causal reservation from §8.4 reserves the units for the complete candidate output batch and any mutually exclusive reservation it owns. At exact `N = maxCumulativeFanout`, the Decision may be accepted. The first required unit `N+1` rejects the whole candidate Decision with typed `AdmissionFailure(CausalBudgetExceeded)`; no State, revision, partial output batch, or dispatch is accepted. The fan-out counter/reservation is runtime admission state, not `DecisionContext`, and does not create a new protocol or conformance authority.
-- **Applicability:** `P`: routes, participants, fan-out, or multi-hop causality exists.
-- **Declaration owner:** Producer/Flow owns the causal scope and output branches; Assembly owns effective route/consumer resolution; the binding owns any runtime reservation mechanics.
+  A numeric budget retains its root/scope across yield, resume, asynchronous handoff, retry, and redelivery. Only a separately declared independent root with no causal continuation starts a fresh scope. Admission checks the whole candidate batch and required completion capacity before acceptance: exact `N` may be accepted; the first required unit `N+1` rejects the whole candidate with typed `AdmissionFailure(CausalBudgetExceeded)` and dispatches no subset. The counter is runtime admission state, not `DecisionContext`. Depth, aggregate branches, and actual storage/resource capacities bound different risks; selecting one cannot silently waive another present risk.
+- **Applicability:** `P`: composition exists; numeric causal accounting only when structure does not bound the full work or an explicit operational cap is selected; real capacity limits when work/storage can grow.
+- **Declaration owner:** Ball/Flow owns its work and completion behavior; Assembly owns actual route/consumer resolution; project/binding owns any selected operational limits and capacity/admission mechanics.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.
-- **Enforcement / evidence owner:** Static dependency/route resolution plus graph/control-flow proof or route/admission branch accounting, with four-kind declaration ownership/reference/alias tests, one-round-trip route tests, tree, diamond, mixed-route, mutual-exclusion, duplicate/redelivery, handoff, and exact `N/N+1` tests.
+- **Enforcement / evidence owner:** Types and wiring, full execution/control-flow checks including completion handlers, no-wildcard/wrong-target checks, and preservation/overflow tests for actual growing resources; branch, duplicate, handoff, and exact `N/N+1` tests when numeric accounting is used.
 - **Resolution, failure, and conformance:** Resolve under §0.2; a violation is non-conforming in the stated scope unless the Rule states a stricter local failure.
-- **Reuse and absent-trigger behavior:** Static/local ceilings or optional exact project policy plus deltas; exact aliases/repeated rows are invalid rather than free, Flow references create neither a duplicate dependency nor a route, retries/redeliveries reuse the same branch identity, independent roots receive fresh scope, and absent composition/fan-out dimensions need no counter or field.
+- **Reuse and absent-trigger behavior:** Reuse source types, wiring, and binding checks. Static finite composition has no mandatory dependency/participant/route counts, causal fields, or geometric fan-out total; selected policies are exact and accepted work retains the guarantees of its actual path.
 - **Primary verification route:** `§17.5`
 
 ### PBA-30 — Honest Read Consistency

@@ -81,7 +81,7 @@ The commands above are for POSIX shells. On Windows, copy the entire selected di
 
 ## Use it in your application
 
-Keep the agent's working directory in your application. It applies the installed instructions to your source code, accepted project contracts, and tests.
+Keep the agent's working directory in your application. It applies the installed instructions to your source code, accepted project contracts, and tests. Immediate trusted calls use their typed target and call scope; a Ball boundary alone adds no token/carrier requirement or numeric composition quota. Dynamic work, independent delivery and recovery retain their triggered identity, capacity and failure obligations. The [Counter and Document examples](COMPOSITION.md) show the bounded local form.
 
 For example, in Codex:
 
@@ -92,8 +92,9 @@ Reuse its binding and test the changed business rule.
 Use $pokeball-async to fix stale search results overwriting newer results.
 Inspect the existing request and status contracts before changing code.
 
-Use $pokeball-composition to decide who owns this checkout workflow and
-implement the requested connection between the existing authorities.
+Use $pokeball-composition to connect another allowed consumer to this
+Counter increment capability. Reuse the serialized binding and test the return,
+pre-acceptance refusal and post-acceptance executor failure.
 
 Use $pokeball-binding to implement the acceptance boundary for this binding.
 The application's accepted profile and guarantee requirements are in ./docs/binding.md.
