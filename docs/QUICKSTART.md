@@ -131,9 +131,9 @@ if exceedsDocumentLimit(builder): return NotAccepted(DocumentSize)
 next = DocumentState(current.metadata, immutableTuple(builder))
 ```
 
-Only immutable values reach readers. The builder never escapes to accepted State; rejecting after its mutation leaves every published document unchanged. The [Document tests](../tests/test_local_composition.py) verify title sharing, candidate isolation and rejection after the permitted document-size boundary. The storage/copy strategy remains an implementation choice.
+Only immutable values reach readers. The builder never escapes to accepted State; rejecting after its mutation leaves every published document unchanged. In your implementation, test title sharing, candidate isolation and rejection after the permitted document-size boundary. The storage/copy strategy remains an implementation choice.
 
-For a next **local** dependency, follow the [Counter composition](COMPOSITION.md#a-counter-with-two-capabilities). It reuses one serialized binding across owners, exposes read/increment capabilities, and tests acceptance, refusal and post-acceptance failure with ordinary calls. Adding a consumer does not introduce command/result tokens, a caller enum or another dispatcher.
+For a next **local** dependency, follow the [Counter composition](COMPOSITION.md#a-counter-with-two-capabilities). It shows one serialized binding shared across owners, read/increment capabilities, and acceptance, refusal and post-acceptance failure with ordinary calls. Adding a consumer does not introduce command/result tokens, a caller enum or another dispatcher.
 
 ## Next change: asynchronous search
 

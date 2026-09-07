@@ -27,7 +27,7 @@ Counter describes operations, not consumer names. Reading and incrementing remai
 
 ## Share the acceptance mechanism
 
-The [executable teaching fixture](../examples/local_composition.py) uses one `SerialOwner` for Counter and a source. This is its acceptance path in pseudocode:
+The following pseudocode uses one `SerialOwner` for Counter and a source. An implementation supplies the owning-thread check and acceptance mechanism:
 
 ```text
 handle(input):
@@ -45,7 +45,7 @@ handle(input):
     return candidate.result
 ```
 
-State and outputs are immutable here. The owning thread is checked at entry; a decision cannot reenter its owner. The accepted call retains its complete frame while dispatch executes. An unhandled executor fault retains that frame and stops new mutations; supervision/recovery is outside this fixture. Counter returns immediately, so its accepted result needs no queue. These closed paths have no growing batch, detached work or retry. This small mechanism illustrates an `Inline + Transient + InProcess + Standard` binding; it is not a general runtime or a required library.
+State and outputs are immutable here. The owning thread is checked at entry; a decision cannot reenter its owner. The accepted call retains its complete frame while dispatch executes. An unhandled executor fault retains that frame and stops new mutations; supervision/recovery is outside this example. Counter returns immediately, so its accepted result needs no queue. These closed paths have no growing batch, detached work or retry. This small mechanism illustrates an `Inline + Transient + InProcess + Standard` binding; it is not a general runtime or a required library.
 
 The source owns its current display. Its decision emits one increment request, and its executor supplies the returned value as a new source input:
 
@@ -76,7 +76,7 @@ additionalConsumer = makeSource(commands)  // Assembly-only addition.
 
 The executor runs only for an accepted source output. Counter accepts its own mutation, then the source accepts its display update through the same serialized mechanism. The current call associates the immediate return with the request; no missing tuple fields must be reconstructed to prove this order. The source's displayed number is a captured value, not another writable Counter authority.
 
-The [behavior tests](../tests/test_local_composition.py) distinguish three paths:
+Check these three paths in the consuming implementation:
 
 | Path | Counter | Source |
 |---|---|---|
@@ -84,7 +84,7 @@ The [behavior tests](../tests/test_local_composition.py) distinguish three paths
 | Increment at the limit | Returns `NotAccepted(LimitReached)` without acceptance | Accepts its refusal display; keeps the previous value |
 | Executor fails after Counter acceptance | Accepted increment remains | Accepts `ExecutionFailed`; never records `NotAccepted` |
 
-The fault is injected while handing back an already accepted result. It demonstrates failure-stage separation, not recovery of a lost external outcome. An external action that may have happened remains unknown until the contract has proof; neither a timeout nor an executor error means nonacceptance. Such a contract adds its own required closed outcomes rather than adopting one mandatory carrier shape.
+For the last path, inject a fault while handing back an already accepted result and verify that Counter's accepted change remains. This checks failure-stage separation within the local example. An external action that may have happened remains unknown until the contract has proof; neither a timeout nor an executor error means nonacceptance. Such a contract adds its own required closed outcomes rather than adopting one mandatory carrier shape.
 
 ## Check the work that can grow
 
@@ -94,21 +94,17 @@ Queues, external requests, retained outputs, retries and dynamic fan-out still n
 
 ## Try three small changes
 
-Run the standalone tests with the standard library:
+Use your project's binding and test framework for these exercises. Verify increments through 3, refusal beyond 3, source acceptance before target invocation, serialized source completion, and the post-acceptance fault path above. Keep the same behavioral assertions while changing the implementation.
 
-```sh
-python3 -m unittest discover -s tests -p 'test_local_composition.py' -v
-```
-
-The tests perform these changes and account for their distinct costs:
+The expected scope of each change is:
 
 | Change | Domain code | Composition code | Repeated binding mechanics | Manually synchronized derived descriptions |
 |---|---|---|---|---|
 | Add a small indicator Ball | One toggle decision | One `SerialOwner` construction | None; existing class reused | None |
-| Add an allowed Counter consumer | None | One `make_source(app.commands)` connection | None | None |
+| Add an allowed Counter consumer | None | One `makeSource(commands)` connection | None | None |
 | Rename a variable and extract the limit check | One renamed decision and one pure helper | None | None | None |
 
-These counts describe changed functions/connections, not a comparative performance or usability measurement. Boundary, refusal, acceptance-order and return tests operate on behavior and remain unchanged under the refactor. The fixture's types and wiring are the inspectable source contract; it maintains no second manifest or route table. A tool can derive those views if a project needs them. The examples support this bounded form on these scenarios; they establish no claim about ease of use for every system or for novice humans. [Project evaluation](EVALUATION.md) describes a broader measured comparison.
+This table counts expected changed functions and connections, not measured performance or usability. Verify that boundary, refusal, acceptance-order and return assertions survive the refactor in your implementation. The example's types and wiring supply the inspectable source contract without a second manifest or route table; a tool can derive those views when needed. These documentation exercises do not establish ease of use for every system or for novice humans. [Project evaluation](EVALUATION.md) describes a broader measured comparison.
 
 ## How an application is composed
 
