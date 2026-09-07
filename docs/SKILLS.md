@@ -4,6 +4,8 @@ Install the official Pokeball skills to give a coding agent practical instructio
 
 The skills are derived guidance. The [ordered Core set](../spec/pokeball-architecture-core.md) remains authoritative. Installation supplies neither a runtime nor evidence that your application conforms to Pokeball.
 
+**[Install with one prompt](agents/INSTALL.md#install-skills-with-your-agent).** Open your application project and paste the ready-to-use prompt into its coding agent. It installs all five skills in the current project, preserves existing files and reports the exact source commit. You can select fewer skills by editing the list. The manual steps below remain available for project or personal scope.
+
 ## Choose a workflow
 
 | Skill | Use it for |
@@ -18,13 +20,7 @@ Each skill contains one concise `SKILL.md` with the complete work instructions, 
 
 ## Download once
 
-Download the complete directory of each selected skill from [GitHub](https://github.com/4wl2d/Pokeball/tree/master/skills), including its `SKILL.md` and notices. A GitHub skill installer that preserves the whole selected directory is supported. For example, ask your agent:
-
-```text
-Install skills/pokeball from https://github.com/4wl2d/Pokeball at master.
-Keep the entire skill directory and its legal notices. Report the installed
-path and source commit. Preserve any existing installation or local changes.
-```
+Download the complete directory of each selected skill from [GitHub](https://github.com/4wl2d/Pokeball/tree/master/skills), including its `SKILL.md` and notices. A GitHub skill installer that preserves the whole selected directory is supported; the [agent installation prompt](agents/INSTALL.md#install-skills-with-your-agent) specifies the project destination and preservation checks.
 
 For manual installation, clone once into a new staging directory, then copy only the skills you want. The following POSIX-shell commands use an example staging location; choose an absent destination before running them:
 
@@ -81,7 +77,7 @@ The commands above are for POSIX shells. On Windows, copy the entire selected di
 
 ## Use it in your application
 
-Keep the agent's working directory in your application. It applies the installed instructions to your source code, accepted project contracts, and tests.
+Keep the agent's working directory in your application. It applies the installed instructions to your source code, accepted project contracts, and tests. Immediate trusted calls use their typed target and call scope; a Ball boundary alone adds no token/carrier requirement or numeric composition quota. Dynamic work, independent delivery and recovery retain their triggered identity, capacity and failure obligations. The [Counter and Document examples](COMPOSITION.md) show the bounded local form.
 
 For example, in Codex:
 
@@ -92,8 +88,9 @@ Reuse its binding and test the changed business rule.
 Use $pokeball-async to fix stale search results overwriting newer results.
 Inspect the existing request and status contracts before changing code.
 
-Use $pokeball-composition to decide who owns this checkout workflow and
-implement the requested connection between the existing authorities.
+Use $pokeball-composition to connect another allowed consumer to this
+Counter increment capability. Reuse the serialized binding and test the return,
+pre-acceptance refusal and post-acceptance executor failure.
 
 Use $pokeball-binding to implement the acceptance boundary for this binding.
 The application's accepted profile and guarantee requirements are in ./docs/binding.md.

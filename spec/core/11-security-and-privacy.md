@@ -21,6 +21,8 @@
 | unsafe escape hatch | the closed effect algebra deliberately admits raw interpreter authority; if it does not, no repeated forbidden-capability list is required; |
 | isolation/hardening evidence | the corresponding profile or security claim is selected. |
 
+For a statically connected same-build call within one trusted boundary, the interface supplied through Assembly and its actual call path establish origin and available operations. No issuer enum, source field, or separate authentication artifact is required solely because the callee is another Ball. If caller identity affects business permission, the owner evaluates that policy from trusted context. Untrusted or independently delivered messages retain the provenance checks required by their boundary. A restricted local interface does not claim hostile-code isolation.
+
 Shared ingress, capability, sink, redaction, and isolation mechanisms may be declared and tested once at exact project/binding scope. A Ball records only its semantic wiring, triggered local policy, and permitted delta. Unknown trust or external behavior activates the conservative guardrail; omission of local boilerplate never suppresses an inferred trigger.
 
 ### 11.1. Double Quarantine
@@ -364,7 +366,7 @@ These marked definitions are the sole glossary inputs for the terms owned in thi
 <!-- pkb:term:end -->
 
 <!-- pkb:term:start name="Trusted Boundary" -->
-**Trusted Boundary** — an explicitly authorized binding edge that verifies representation, finite bounds, provenance, accepted-frame correspondence, protocol identity, and every triggered authenticity/integrity/version/validity rule before constructing trusted semantic input, non-empty `DecisionContext`, or actor-dependent `ReadContext`. It is an edge, not the Interaction role; physical co-location transfers neither semantic interpretation nor business authority. The Ball/Nucleus owns semantic schema and interpretation. For a command/result bridge it constructs `ModuleCommandPulse`/`ModuleResultPulse` only from the corresponding accepted frame; it does not replace target `decide`, select policy/read results, synthesize business meaning, or grant authority merely by authenticating origin.
+**Trusted Boundary** — an explicitly authorized binding edge that establishes representation validity, applicable bounds, provenance, and accepted-work correspondence before constructing trusted input or context. Immediate same-build calls may establish these through typed interfaces, trusted construction, and actual acceptance/call/return order without separate provenance fields or tuple reconstruction. Independently delivered or untrusted values require protocol and causal evidence plus every triggered authenticity/integrity/version/validity check. This edge does not replace target `decide`, select business/read outcomes, or grant business authority merely by authenticating origin; semantic schema and interpretation remain with the Ball/Nucleus.
 <!-- pkb:term:end -->
 
 

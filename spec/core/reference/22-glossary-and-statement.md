@@ -17,7 +17,7 @@ This exact glossary projection is generated from the marked term definitions in 
 
 **Application Surface** — the exact Ball-owned set of deliberate public semantic types and entrypoints exposed to another Ball or Assembly. It excludes mutable State, Nucleus internals, runtime/transport mechanics, private Resource adapters, caller-owned mirrors or redeclarations, and re-exported foreign contracts. A caller Nucleus may import it only when required by a closed Query/Pulse/Decision contract; import is a compile-time relation, not a new protocol, route, synthesis authority, or ownership transfer.
 
-**Assembly** — an explicit composition root that selects routes, effective protocol/version pairs, delivery bindings, and command-result return bindings. It transports verified values and has no authority to synthesize or modify causal tokens, target-owned payloads, context, refusal meaning, policy, read-result selection, or other business semantics.
+**Assembly** — an explicit composition root that supplies permitted target-owned interfaces and selects routes, applicable protocol/version pairs, delivery bindings, and command-result return bindings. Immediate trusted calls use their interface and call scope; independently delivered values use the required source verification. Assembly has no authority to invent or modify causal information, target-owned payloads, context, refusal meaning, policy, read-result selection, or other business semantics.
 
 **AttemptId** — the mechanical identity of one delivery/execution attempt; it changes on retry and does not replace `OperationId`, `SemanticHandle`, or `OutputId`.
 
@@ -37,11 +37,11 @@ This exact glossary projection is generated from the marked term definitions in 
 
 **Captured Input** — an immutable bounded field-minimized value from a prior ingress/result/context/authority snapshot, retained for a later decision/recovery. It adds source correlation, version, provenance, and deletion metadata only when the actual source, rollout, trust, ambiguity, or lifetime trigger requires them; it does not become a second mutable authority.
 
-**CausalToken** — a field-minimized correlation record that binds detached, addressable, routed, late, or causal work to an accepted frame; generation, revision, depth, and budget fields appear only when their respective lifecycle or multi-Decision triggers exist. When materialized, one causal-budget scope preserves every triggered remaining depth and cumulative-fan-out capacity without adding a second scope field. `commandSource` derives from the accepted source command frame and `resultSource` from the accepted target result frame.
+**CausalToken** — a field-minimized portable correlation record that binds detached, addressable, late, retryable, recoverable, or independently observed work to an accepted frame; generation, revision, depth, and budget fields appear only when their actual lifecycle or growing-work triggers exist. An immediate typed call needs no token solely because it crosses a Ball boundary or involves multiple Decisions. When materialized, one causal-budget scope preserves every triggered remaining depth and cumulative-fan-out capacity without adding a second scope field. `commandSource` derives from the accepted source command frame and `resultSource` from the accepted target result frame.
 
 **Claim Record** — a binding-specific statement of a performance, durability, delivery, recovery, receipt, acceptance, once-only, RPO, RTO, isolation, security, or conformance guarantee together with its exact named boundary, scope, mechanism, assumptions, retention, evidence, and explicit non-guarantees. Source durability or retained pending work alone proves no stronger downstream outcome. When no claim is made, no evidence dossier is required.
 
-**CommandRejectedBeforeAcceptance** — the verified mechanical command-route carrier of `commandSource`, effective protocol identity, exactly one pre-acceptance `BoundaryResponse`, and target-boundary provenance. It is neither Reply nor target result; at a source it projects `RejectedBeforeAcceptance + NotExpected` and creates no trusted Pulse when provenance is invalid. On a same-stack target-not-accepted branch, no accepted target level exists and the source Decision applying the carrier atomically consumes the transferred level-1 alternative-completion slot in the original causal scope.
+**CommandRejectedBeforeAcceptance** — a trusted observation that the target refused before accepting work. An immediate call may represent it as a typed `NotAccepted(reason)` return; independently delivered refusal uses the verified carrier with command identity, closed boundary response, and target provenance. It is not an accepted target result; source state changes only through its serialized declared input handler.
 
 **Commit-before-dispatch** — the rule under which dispatch of a `SemanticOutput` is permitted only after successful acceptance/commit of the complete source Decision frame.
 
@@ -53,7 +53,7 @@ This exact glossary projection is generated from the marked term definitions in 
 
 **ConsistencyStamp** — the exact available identity of the committed snapshot used by a successful read when the stamped-read trigger applies: revision plus only the triggered instance/schema identities; by itself it promises neither subsequent freshness nor multi-source atomicity.
 
-**ControlPulse** — a declared trusted lifecycle/timer/cancellation/delivery observation from a runtime/resource/route boundary; it is not raw external mutation ingress. If a post-commit mechanical dispatch/ACK or pre-acceptance command-carrier observation changes Sovereign State, it passes as this typed input through single-writer `decide` rather than being written directly by runtime; a business `Fact` or `ModuleResultPulse` is not reclassified. A same-stack carrier-handling Decision consumes the transferred alternative-completion slot and creates no new causal root.
+**ControlPulse** — a declared trusted lifecycle/timer/cancellation/delivery observation from a runtime/resource/route boundary; it is not raw external mutation ingress. If a post-commit mechanical dispatch/ACK or pre-acceptance command-carrier observation changes Sovereign State, it passes as this typed input through single-writer `decide` rather than being written directly by runtime; a business `Fact` or `ModuleResultPulse` is not reclassified. Completion handling preserves any applicable causal-work bound; a statically finite synchronous execution needs no causal token or reservation levels.
 
 **Decision** — the bounded mode-specific Nucleus mutation result selected by the state profile: a `SnapshotDecision` with next State or an `EventDecision` with events/NoDomainChange, each carrying the complete ordered `SemanticOutput` batch and accepted atomically through its exact frame.
 
@@ -61,7 +61,7 @@ This exact glossary projection is generated from the marked term definitions in 
 
 **DecisionContext** — a closed field-minimized record of contextual observations that actually change one Decision; it may be empty. The trusted binding boundary verifies, bounds, and constructs it for that invocation's current `Pulse`, while the Ball/Nucleus owns its semantic schema and interpretation. Each Inline deque or continuation item preserves its own Pulse-to-Context association; actor, authorization, config, policy, time, reserved IDs, semantic limits, validity, and version fields appear only when relevant to that Pulse. Every present version field names the exact artifact it versions and is not interchangeable with another artifact's version or ambient build/deployment state. Remaining causal budget, execution quantum, and current runtime capacity are admission state rather than Context, and the current cause remains the separate `Pulse`.
 
-**DeclaredCommandDependency** — an explicit one-hop command dependency without an independent multi-participant workflow; the target owns one exact command-to-result mapping/refusal classification, the caller imports it, and Assembly binds verified command ingress and accepted-result return.
+**DeclaredCommandDependency** — an explicit one-hop command dependency without an independent multi-participant workflow; the target owns the operation and acceptance/refusal meaning, the caller imports it, and Assembly binds the permitted target and result return. An immediate trusted same-build call may represent this with its typed interface and call scope.
 
 **DeclaredSignalDependency** — an explicit one-hop route from a committed `SignalPublication` to an `ObservedSignal` with exact effective protocol identity, delivery, source identity/provenance, and finite fan-out/observation bounds; version, deduplication, ordering, buffering, causal, and retry fields appear only when triggered.
 
@@ -111,19 +111,19 @@ This exact glossary projection is generated from the marked term definitions in 
 
 **ModuleCommand** — a target-owned addressed public command payload for another Ball authority.
 
-**ModuleCommandPulse** — the canonical verified target input carrying accepted-source `commandSource`, effective protocol identity, target-owned `ModuleCommand`, and issuer provenance; target `decide` is its sole acceptance point.
+**ModuleCommandPulse** — the target's trusted command input from previously accepted source work; an immediate same-build call uses its typed target and call scope, while independently delivered input carries verified accepted-source identity and provenance. Target `decide` is its sole acceptance point.
 
-**ModuleCommandRequest** — a canonical `SemanticOutput` envelope with a `ModuleCommand` payload and accepted sequence position; its inter-Ball path activates a complete `SemanticHandle` and materialized `sourceOrdinal`.
+**ModuleCommandRequest** — a canonical `SemanticOutput` envelope with a `ModuleCommand` payload and accepted sequence position; a stable `SemanticHandle` and materialized `sourceOrdinal` appear only when the actual lifecycle extends beyond immediate call scope.
 
-**ModuleResult** — a target-owned business-outcome payload for one target command mapping; it is emitted only through `ModuleResultOutput` and received as the payload of `ModuleResultPulse`.
+**ModuleResult** — a target-owned business-outcome payload for one command mapping, produced by accepted target work and returned to the source's serialized result handler. An immediate typed return represents that result directly; portable delivery uses `ModuleResultOutput` and `ModuleResultPulse` records.
 
-**ModuleResultOutput** — the canonical target `SemanticOutput` created only inside an accepted target Decision, carrying target-frame `sourceOrdinal`, accepted-source `commandSource`, target-owned `ModuleResult`, and `semanticHandle = commandSource.semanticHandle` as correlation without ownership transfer.
+**ModuleResultOutput** — a target-owned semantic result output created only inside an accepted target Decision. An immediate return uses its accepted position and call scope; portable delivery carries target-frame `sourceOrdinal`, accepted-source `commandSource`, target-owned payload, and `semanticHandle = commandSource.semanticHandle` for correlation without ownership transfer.
 
-**ModuleResultPulse** — the canonical verified source input carrying accepted-source `commandSource`, accepted-target `resultSource`, effective protocol identity, target-owned `ModuleResult`, and issuer provenance.
+**ModuleResultPulse** — the source's trusted input for an accepted target result; immediate delivery uses the typed return and call scope, while portable delivery carries verified `commandSource`, `resultSource`, effective protocol identity, target-owned payload, and issuer provenance.
 
 **Nucleus** — the Ball's pure bounded semantic authority that owns State, protocol/context schemas and interpretation, and the sole local business-decision/Policy Gate. It performs no I/O or raw provenance verification and imports only its own artifacts—including Ball-local utilities owned by the Nucleus role—mechanical foundation, and exact declared target/producer-owned Application Surfaces required by closed Query/Pulse/Decision contracts, without ownership transfer.
 
-**ObservedSignal** — a provenance-checked causal input envelope created from a previously accepted `SignalPublication` over a declared signal route.
+**ObservedSignal** — a trusted causal input from a previously accepted `SignalPublication` over a declared route; immediate delivery may use typed call scope, while independent delivery or observation carries verified portable provenance and causal identity.
 
 **Operation Status Authority** — the one committed revisioned single-writer query authority for a declared status namespace. It losslessly materializes only reachable lifecycle, acceptance, cancellation, accepted-result, ambiguity, delivery-stop, and retention facets through causal-order application or bounded pending, idempotent monotonic conflict handling, pre-acceptance capacity reservation with no later eviction/truncation, and a covered-source/empty-pending marker before absence with no resurrection. Co-location can reduce lag while separation can isolate query load; either form remains one query authority, transfers no command/business-fact authority, and makes no unsupported cross-source freshness promise.
 
@@ -163,11 +163,11 @@ This exact glossary projection is generated from the marked term definitions in 
 
 **Resource Hemisphere** — the adapter/executor role that implements an accepted Effect through the minimum capability and applies the immediate Execution Gate; it checks triggered proof/capability/constraint/version/freshness/revocation/endpoint/quota/sink bindings and maps typed outcomes to provenance-bound `Fact` without making a new business decision.
 
-**RetainedContinuation** — a bounded single-owner continuation of a reserved synchronous causal chain; every retained item preserves its own trusted Pulse-to-DecisionContext association, and resume continues the original total causal budget and declared terminal policy without adding that runtime budget to Context.
+**RetainedContinuation** — a bounded single-owner continuation of an unfinished causal chain; every retained item preserves its own trusted Pulse-to-DecisionContext association. Resume preserves the applicable structural bound or remaining runtime causal budget and declared terminal policy without adding runtime capacity to Context.
 
 **Safe Sink** — the applicable parameterized, structured, capability-rooted, or context-encoded API at an interpreter or dialect boundary; it prevents untrusted data from being interpreted as code, traversal, or dialect syntax.
 
-**SemanticHandle** — the stable domain-visible identity of planned work that is detached, retained, retryable, reorderable, cancellable, recoverable, cross-Ball, or status-visible; immediate call-scope output needs only its accepted sequence position.
+**SemanticHandle** — the stable domain-visible identity of planned work that can outlive its call, be retried or reordered, be independently cancelled, reconciled, recovered, or observed. Temporary retention within the current call and crossing a Ball boundary alone do not require a handle; immediate output uses its accepted sequence position and typed call scope.
 
 **SemanticOutput** — the ordered closed family `ProjectionOutput | ReplyOutput | EffectRequest | ModuleCommandRequest | ModuleResultOutput | SignalPublication | TimerRequest`; every present variant has a typed payload and accepted zero-based sequence position, while a stable `SemanticHandle` is added only for detached/addressable work.
 
@@ -175,7 +175,7 @@ This exact glossary projection is generated from the marked term definitions in 
 
 **Signal** — a semantic publication without one mandatory requester; not a universal `DataChanged`.
 
-**SignalPublication** — a canonical routed `SemanticOutput` envelope with a `Signal` payload, complete `SemanticHandle`, and materialized `sourceOrdinal`.
+**SignalPublication** — a routed semantic output with a `Signal` payload and accepted sequence position; a complete `SemanticHandle` and materialized `sourceOrdinal` are required only when its actual lifecycle needs stable identity under §3.5.
 
 **SnapshotOutbox** — a durability profile in which a state snapshot is accepted durably and any present durable source outputs join the same atomic transaction; retry, duplicate handling, terminal `DispatchStopped`, and status/retention facets appear only when their delivery paths exist, and eventual delivery is not guaranteed.
 
@@ -193,7 +193,7 @@ This exact glossary projection is generated from the marked term definitions in 
 
 **TriggerAbsenceProof** — the closed static evidence record materialized only when a Pokeball conformance/release claim or accepted ambiguity-resolution decision relies on absence of a `path-triggered`, `risk-triggered`, or `claim-triggered` predicate. It binds the exact anchor, scope/profile, inventory and revisions/digests, evaluated predicate, `Absent` conclusion, evidence owner, and invalidation conditions; it cannot negate `always` or a present trigger/claim and becomes unusable until reevaluated after invalidation.
 
-**Trusted Boundary** — an explicitly authorized binding edge that verifies representation, finite bounds, provenance, accepted-frame correspondence, protocol identity, and every triggered authenticity/integrity/version/validity rule before constructing trusted semantic input, non-empty `DecisionContext`, or actor-dependent `ReadContext`. It is an edge, not the Interaction role; physical co-location transfers neither semantic interpretation nor business authority. The Ball/Nucleus owns semantic schema and interpretation. For a command/result bridge it constructs `ModuleCommandPulse`/`ModuleResultPulse` only from the corresponding accepted frame; it does not replace target `decide`, select policy/read results, synthesize business meaning, or grant authority merely by authenticating origin.
+**Trusted Boundary** — an explicitly authorized binding edge that establishes representation validity, applicable bounds, provenance, and accepted-work correspondence before constructing trusted input or context. Immediate same-build calls may establish these through typed interfaces, trusted construction, and actual acceptance/call/return order without separate provenance fields or tuple reconstruction. Independently delivered or untrusted values require protocol and causal evidence plus every triggered authenticity/integrity/version/validity check. This edge does not replace target `decide`, select business/read outcomes, or grant business authority merely by authenticating origin; semantic schema and interpretation remain with the Ball/Nucleus.
 
 **Workflow Sovereignty** — the rule of one coordination owner for one stateful multi-participant workflow.
 
@@ -225,4 +225,4 @@ Declare once; reference exactly.
 
 ---
 
-**End of Pokeball Architecture — Core Specification `1.4.0-draft`.**
+**End of Pokeball Architecture — Core Specification `1.5.0-draft`.**

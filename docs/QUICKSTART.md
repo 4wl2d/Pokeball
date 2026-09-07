@@ -20,6 +20,7 @@ record State { quantity: UInt8 }
 enum Intent { QuantitySelected(value: UInt8) }
 enum Query { GetQuantity }
 enum BusinessRejection { QuantityOutsideRange }
+record QuantityNotAccepted { reason: BusinessRejection }
 
 pure decide(state: State, intent: Intent):
     match intent:
@@ -40,7 +41,7 @@ scope OrderDraft on its enforced owning thread:
         candidate = decide(committed, QuantitySelected(value))
         match candidate:
             Rejected(reason):
-                return BoundaryResponse(DecisionRejected(reason))
+                return QuantityNotAccepted(reason)
             Accepted(decision):
                 // Acceptor: the only state publication, with no suspension.
                 committed = decision.nextState
@@ -54,7 +55,7 @@ scope OrderDraft on its enforced owning thread:
 
 `Intent` is this Ball's only `Pulse` variant. Its `DecisionContext` is semantically `Unit`: no clock, actor, configuration, or other contextual field changes the decision. The closed semantic-output set is empty, so `SnapshotDecision(nextState)` omits the empty output collection. These are permitted [representational omissions](../spec/core/03-model-boundaries-zones.md#33-canonical-mutation-and-read-forms), not alternative decision semantics.
 
-`Accepted` from `decide` is a candidate until the owner publishes it. A rejected candidate leaves committed state unchanged. Returning normally after publication is ordinary completion of this local call; there is no addressed semantic `Reply`. Rejection uses the existing [pre-acceptance response](../spec/core/06-protocol-algebra.md#613-error-classes). The getter reads only the current committed state in that same scope and returns the closed `UInt8` payload directly.
+`Accepted` from `decide` is a candidate until the owner publishes it. A rejected candidate leaves committed state unchanged. Returning normally after publication is ordinary completion of this local call; there is no addressed semantic `Reply`. The contract-specific `QuantityNotAccepted` return expresses [pre-acceptance rejection](../spec/core/06-protocol-algebra.md#613-error-classes); no common carrier wrapper is required for this immediate call. The getter reads only the current committed state in that same scope and returns the closed `UInt8` payload directly.
 
 There is no Resource adapter because the feature has no external action. Its Resource role is empty. The [three logical roles](../spec/core/03-model-boundaries-zones.md#5-three-logical-zones) do not require three classes or folders.
 
@@ -72,11 +73,11 @@ draft.selectQuantity(20)
 assert draft.quantity() == 20
 
 assert draft.selectQuantity(21)
-       == BoundaryResponse(DecisionRejected(QuantityOutsideRange))
+       == QuantityNotAccepted(QuantityOutsideRange)
 assert draft.quantity() == 20          // rejection published nothing
 
 assert draft.selectQuantity(0)
-       == BoundaryResponse(DecisionRejected(QuantityOutsideRange))
+       == QuantityNotAccepted(QuantityOutsideRange)
 assert draft.quantity() == 20
 
 draft.selectQuantity(3)
@@ -114,6 +115,25 @@ These omissions follow from its stated behavior:
 | Manifest, interface hierarchy, DI container | Source and host already expose the contract; these artifacts add no needed boundary. [§14.1](../spec/core/14-manifest-and-organization.md#141-role-of-the-manifest), [§14.6](../spec/core/14-manifest-and-organization.md#146-interfaces-di-and-code-generation) |
 
 Ordinary implementation creates no absence dossier merely because a category is unused. A conformance or release claim that relies on absence activates the separate [applicability and evidence rules](../spec/core/00-status-scope-goals.md#02-proportionality-principle).
+
+## Share immutable parts of one State
+
+One Document Ball can own immutable `DocumentState(metadata, paragraphs)`. Changing a title creates new metadata and shares unchanged immutable paragraphs. It does not require a Ball per paragraph or a physical deep copy:
+
+```text
+next = DocumentState(Metadata(title = newTitle), current.paragraphs)
+assert next.paragraphs is current.paragraphs
+assert current.metadata.title == previousTitle
+
+builder = mutableList(current.paragraphs)  // Private to this candidate.
+builder.append(newText)
+if exceedsDocumentLimit(builder): return NotAccepted(DocumentSize)
+next = DocumentState(current.metadata, immutableTuple(builder))
+```
+
+Only immutable values reach readers. The builder never escapes to accepted State; rejecting after its mutation leaves every published document unchanged. In your implementation, test title sharing, candidate isolation and rejection after the permitted document-size boundary. The storage/copy strategy remains an implementation choice.
+
+For a next **local** dependency, follow the [Counter composition](COMPOSITION.md#a-counter-with-two-capabilities). It shows one serialized binding shared across owners, read/increment capabilities, and acceptance, refusal and post-acceptance failure with ordinary calls. Adding a consumer does not introduce command/result tokens, a caller enum or another dispatcher.
 
 ## Next change: asynchronous search
 

@@ -40,13 +40,13 @@ This is a reference-only routing table. Core defines `Runtime / acceptor` once a
 | # | Runtime concern | Exact Core anchors | Primary package route |
 |---:|---|---|---|
 | 1 | Cause and field-minimized context | §§3.3–3.4, 6.11, 8.1 | `DESIGN-RUNBOOK`; `SECURITY-LIMITS-RUNBOOK` for trusted Decision/read context; `ASYNC-STATUS-RUNBOOK` for retained per-Pulse cause/context association |
-| 2 | Finite semantic and runtime bounds | §§8.3–8.4, 10.9, 13.1–13.2; PBA-38 | `SECURITY-LIMITS-RUNBOOK` for the Decision Work Meter when triggered; `COMPOSITION-PROFILES` for graph ceilings; `ASYNC-STATUS-RUNBOOK` for capacity-only admission, alternative-completion, and status reservations |
+| 2 | Finite semantic and runtime bounds | §§8.3–8.4, 10.9, 13.1–13.2; PBA-38 | `SECURITY-LIMITS-RUNBOOK` for triggered measures; `COMPOSITION-PROFILES` for structural finiteness; `ASYNC-STATUS-RUNBOOK` for actual growing-work and status capacity |
 | 3 | Semantic, causal, and mechanical identities | §§3.5–3.6, 9.1–9.2 | `DESIGN-RUNBOOK`, `ASYNC-STATUS-RUNBOOK`; `MANIFEST-AND-ASSEMBLY` for effective protocol identity |
-| 4 | Preflight, reservation, and admission | §§8.4, 8.7, 13.2 | `DESIGN-RUNBOOK`, `SECURITY-LIMITS-RUNBOOK`; `ASYNC-STATUS-RUNBOOK` for level-1 alternative-completion transfer, level-2 result, causal, and status reservations |
+| 4 | Preflight, reservation, and admission | §§8.4, 8.7, 13.2 | `DESIGN-RUNBOOK`, `SECURITY-LIMITS-RUNBOOK`; `ASYNC-STATUS-RUNBOOK` for required output/completion capacity with no accepted loss |
 | 5 | Atomic Decision acceptance | §§8.5, 8.9; PBA-07 | `DESIGN-RUNBOOK`; flattened `AcceptedSnapshotDecisionFrame` versus `AcceptedEventCommit`, with no Event `nextState` |
 | 6 | Commit-before-dispatch | §8.6; PBA-08 | `DESIGN-RUNBOOK`, `ASYNC-STATUS-RUNBOOK`, including accepted target result output |
 | 7 | Preservation of accepted work | §§8.4, 8.8, 9.13, 12.4–12.6 | `DESIGN-RUNBOOK`, `ASYNC-STATUS-RUNBOOK`, `COMPOSITION-PROFILES`; target result stop never rewrites source outcome |
-| 8 | Command ingress, accepted result return, and pre-acceptance refusal | §§6.8–6.13, 8.4–8.9, 9.1–9.4, 10.2/10.7/10.11; PBA-18/PBA-19 | `ASYNC-STATUS-RUNBOOK`, `MANIFEST-AND-ASSEMBLY`, `DESIGN-RUNBOOK`; exact bridge, refusal class, result tuple, command-vs-read, level-1 alternative-completion transfer, level-2 result reservation, and async budget preservation |
+| 8 | Command call, accepted return, and pre-acceptance refusal | §§6.8–6.13, 8.4–8.9, 9.1–9.4, 10.2/10.7/10.11; PBA-18/PBA-19 | `ASYNC-STATUS-RUNBOOK`, `MANIFEST-AND-ASSEMBLY`, `DESIGN-RUNBOOK`; local target/acceptance/completion, portable identity/provenance when triggered, failure stages and actual capacity |
 | 9 | Results, ACKs, delivery, and trusted observations | §§6.5, 6.9–6.11, 9.3–9.5, 9.11–9.13 | `ASYNC-STATUS-RUNBOOK`; `SECURITY-LIMITS-RUNBOOK` at trust edges |
 | 10 | Rejections, admission failures, and runtime faults | §§6.7, 6.13, 8.7–8.8, 13.2 | `DESIGN-RUNBOOK`, `ASYNC-STATUS-RUNBOOK`; exact carrier/result/Resource/stop/programming-fault stage mapping |
 | 11 | Persistence, recovery, and migration | §§8.9, 10.11, 12.5–12.6, 17.7 | `COMPOSITION-PROFILES`, `TEST-AND-REVIEW-GATES` |

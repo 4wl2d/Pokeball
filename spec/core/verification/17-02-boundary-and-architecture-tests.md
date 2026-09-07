@@ -113,11 +113,11 @@ selected state profile resolves exactly one mutation function and frame: Snapsho
 representation or declared closed protocol/type invariant violation = pre-Intent ValidationFailure; valid typed value violating a State- or semantic-Context-owned rule = Nucleus BusinessRejection; promoting the rule into the type requires a new protocol identity
 Pulse union order = Intent | Fact | ModuleCommandPulse | ModuleResultPulse | ObservedSignal | ControlPulse
 SemanticOutput union order = ProjectionOutput | ReplyOutput | EffectRequest | ModuleCommandRequest | ModuleResultOutput | SignalPublication | TimerRequest
-ModuleCommandPulse fields = commandSource + effectiveProtocolIdentity + command + issuerProvenance
-ModuleResultOutput fields/invariant = semanticHandle equals commandSource.semanticHandle + target sourceOrdinal + commandSource + payload
-ModuleResultPulse fields = commandSource + resultSource + effectiveProtocolIdentity + result + issuerProvenance
-the result-delivery key is exactly the unnamed tuple (effectiveProtocolIdentity, commandSource, resultSource)
-the canonical pre-acceptance carrier has exactly commandSource + effectiveProtocolIdentity + one closed BoundaryResponse + targetBoundaryProvenance; on a same-stack target-not-accepted branch it creates no accepted target level and its source Decision consumes the transferred level-1 alternative-completion slot
+portable ModuleCommandPulse fields = commandSource + effectiveProtocolIdentity + command + issuerProvenance
+portable ModuleResultOutput fields/invariant = semanticHandle equals commandSource.semanticHandle + target sourceOrdinal + commandSource + payload
+portable ModuleResultPulse fields = commandSource + resultSource + effectiveProtocolIdentity + result + issuerProvenance
+independent result-delivery key = (effectiveProtocolIdentity, commandSource, resultSource); an immediate typed return needs no delivery key
+portable pre-acceptance carrier preserves commandSource + effectiveProtocolIdentity + closed BoundaryResponse + targetBoundaryProvenance; immediate local refusal uses the target contract type and call scope without a mandatory carrier shape
 no bare ModuleResult is a Pulse variant; timer firing remains a declared ControlPulse and Catalog SignalPublication/ObservedSignal remain unchanged
 every non-empty Ball-owned protocol category resolves each used variant exactly once through an inline declaration or one version-pinned authoritative reference; omitted categories are empty for FeatureBall and FlowBall alike
 every routed Signal resolves exactly once in the producer-owned protocol; Assembly owns route/version/delivery binding and cannot define the producer payload
@@ -141,11 +141,11 @@ CatalogState-to-CatalogView mappings are set-equal to the same six states, one c
 Catalog v1 persisted state enters v2 decide only through authoritative upcast; missing rejection-reason or other required evidence routes to quarantine/manual remediation and never to an invented default
 for Checkout, the stopped-handle universe includes the initial RequestAccepted ReplyOutput and all nine command Step handles; cap/order/reservation/materialization and 10/11 tests cover the same exact set
 every imported ModuleCommand/ModuleResult resolves through exactly one target-owned command-to-result mapping and declared dependency whose effective protocol identity matches Assembly; refusal classification is static for that version, explicit producer/consumer versions are required only across independent versioning/deployment, and imported target types are not redeclared as caller-owned
-every command Assembly route binds verified target ingress and accepted-frame result return while synthesizing/modifying no commandSource, resultSource, target-owned payload, or refusal meaning; same-stack erasure proves the same accepted tuples
+every command Assembly binding preserves target ownership, source acceptance before invocation, target acceptance before accepted result, and serialized source completion; local target access and call scope suffice, while portable routes preserve their required verified tuples
 every read-like operation requiring accepted provenance, stable command/step identity, idempotent replay, status, or reconciliation uses the command bridge; an ordinary non-recording read uses Query/ReadDependency and creates no target Decision/revision/output
-same-stack command success has one source-to-target Direct Control Dependency, no reverse return edge, accepted levels 0/1/2, one level-1 alternative-completion reservation, and a separate level-2 result reservation; every pre-acceptance target-not-accepted branch consumes the transferred level-1 alternative in the source carrier Decision, never in an accepted target, while async handoff preserves causal scope/depth/budget without inferring the transfer
+local command success has one source-to-target Direct Control Dependency and no reverse return edge; complete finite execution needs no carried scope/depth or level reservations; regenerating work and queued/external/retained work require their actual bounds and no accepted loss
 CheckoutCommandDeliveryObserved carrier aliases are set-equal to commandSource, effectiveProtocolIdentity, boundaryResponse, and targetBoundaryProvenance; all nine normal Checkout business refusals are accepted results
-every example output maps to the canonical envelope/payload algebra; no orphan EffectIntent/ModuleCommandIntent/CommandId
+every example output preserves its canonical semantic role; typed local calls need no envelope fields invented only for representation equivalence
 compile-time import and Direct Control Dependency graphs are independently and unconditionally acyclic; generated inline dispatch before async handoff/yield is included
 a WaiverRecord on either direct cycle records deliberate non-conformance and cannot make the architecture test pass
 async feedback after a bounded handoff/yield creates no direct-control edge and is tested separately for owner, identity, finite budget, escape condition and fan-out protection
@@ -167,8 +167,8 @@ every §6.13 error maps from its exact stage to only its legal carrier/result/st
 candidate OperationId reservation followed by root validation/admission/Decision rejection creates only BoundaryResponse and no accepted operation, known status row, marker, handle, output, or reply; covered lookup may return only NotFound, while participant refusal remains an accepted source operation's step facet
 root same-key/same-fingerprint retry redelivers the exact accepted ReplyOutput(RequestAccepted) source frame with only a new AttemptId; same-key/different-fingerprint returns pre-Intent ValidationFailure(IdempotencyConflict) and creates no semantic artifact
 target duplicate before accepted result returns only verified ACK proof of the original target frame/pending result; after result it redelivers the exact accepted result frame, and neither path re-decides or re-executes
-maxDeclaredDependenciesPerBall unit = one distinct owner-declared ReadDependency | DeclaredCommandDependency | DeclaredSignalDependency | FlowParticipation row; dependencyRefs preserve both counts and aliases/duplicates fail
-maxRoutesPerFlow unit = one distinct effective Flow command/result round-trip mapping; ingress+return = one, participation/reference = zero, and Checkout = nine
+static dependencies remain visible in types and wiring; no mandatory maxDeclaredDependenciesPerBall or maxFlowParticipants ceiling
+static routes remain visible in types and wiring; no mandatory maxRoutesPerFlow ceiling; optional project ceilings follow that project contract
 maxInputBytes unit = one exact raw-or-normalized candidate-input representation with declared boundary-metadata/Context inclusion; maxStateBytes unit = complete candidate nextState semantic representation; maxOutputBytesPerDecision unit = complete ordered Decision.outputs semantic representation; one measure tuple fixes each N/N+1 and later storage/transport mechanics are excluded
 Catalog stale SearchCancelled operationId mismatch accepts no Decision/revision/handle/projection/effect; protocolVersion 2.0.0 + stateSchemaVersion 2 + transitionArtifactVersion 2.0.1 remain distinct
 Checkout StillUnknown on its sole status slot terminates normal v1 at NeedsManualReconciliation with outputs = [] and no implicit reopening

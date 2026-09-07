@@ -10,7 +10,7 @@ Every rule and test in this runbook is a projection of its named Core source cla
 
 ## 1. Detached causal identity
 
-When work can detach, retain, retry, reorder, cancel, recover, cross a Ball boundary, or enter status, resolve:
+When work outlives its call, can complete later, retry, reorder, be independently cancelled, recovered, reconciled, or observed, resolve:
 
 ```text
 logical OperationId when an independent operation lifecycle exists
@@ -21,7 +21,7 @@ OutputId and AttemptId only after materialization
 result issuer and accepted-operation proof only across the corresponding trust/acceptance boundary
 generation and stale policy only for late/reorderable generations
 duplicate identity and retention only for duplicate/redelivery risk
-causal depth/budget only when the work can cause a later Decision
+causal depth/budget only when growing work needs those bounds
 ```
 
 A retry changes attempt identity, not the logical operation or handle. At root mutation ingress within the declared legal retry horizon, same key and fingerprint redelivers proof of the original accepted `ReplyOutput(RequestAccepted(operationId))` frame with its `BallInstanceId`, `CommitRevision`, materialized `OutputId`, `semanticHandle`, `sourceOrdinal`, payload, `OperationId`, and accepted Interaction artifact/fingerprint lineage unchanged; only `AttemptId` changes, and no second `decide`, revision, accepted frame, semantic output, command, or status source exists. While the covered idempotency record remains retained, same key with a different fingerprint is rejected before Intent construction as `BoundaryResponse(ValidationFailure(IdempotencyConflict))`. The accepted root frame and idempotency record are retained for at least the declared legal retry horizon; after the record is absent, no replay or conflict behavior is inferred. A reserved `OperationId` remains a candidate until root acceptance: root validation, admission, conflict, or `decide` rejection creates only its typed `BoundaryResponse`, never an operation, authoritative handle, output, status source, known row, or retention marker. A same-stack synchronous completion may use accepted call-scope position and needs no fabricated operation/transport lineage.
@@ -57,7 +57,9 @@ Root idempotency remains at its real ingress stage. Within the declared legal re
 
 ## 4. Command/result round trip
 
-For every declared command path, resolve one target-owned, versioned `ModuleCommand -> ModuleResult` mapping and one static refusal classification. The complete accepted round trip is:
+Resolve one target-owned closed command/result mapping and fixed refusal semantics. For an immediate same-build call, typed target and trusted call scope suffice: dispatch accepted source output outside pure `decide`, let the target serialize and accept its own change/result, and deliver the return through the source's serialized handler. `Changed(value)` and pre-acceptance `NotAccepted(reason)` may share one operation-specific return type; post-acceptance failure never becomes `NotAccepted`. No new carrier, source/result token, issuer type, or absent-tuple proof is required.
+
+When the lifecycle requires portable evidence, the accepted round trip is:
 
 ```text
 accepted source ModuleCommandRequest frame
@@ -74,9 +76,9 @@ accepted source ModuleCommandRequest frame
 
 `ModuleResultOutput` has the target-frame `sourceOrdinal`, carries `commandSource` and `payload: ModuleResult`, and uses `semanticHandle = commandSource.semanticHandle` only for correlation. It remains target-owned, counts against target output-count and canonical `maxOutputBytesPerDecision`, and, when retained, retried, or independently observable, occupies one target stop-eligible delivery/status slot. The `DecisionOutputs` dimension of the binding's `BoundedByteMeasure` covers the complete ordered `Decision.outputs` semantic representation: sequence structure, every required output-envelope field, correlation token, `sourceOrdinal`, and payload count; `nextState`, accepted-frame fields outside an output envelope, and later transport framing, compression, encryption, retry headers, and `AttemptId` do not. The result-delivery key is exactly the unnamed tuple `(effectiveProtocolIdentity, commandSource, resultSource)`.
 
-Assembly or generated same-stack code selects/binds the route and version pair and transports verified values. It cannot synthesize or modify `commandSource`, `resultSource`, issuer provenance, target payload, or refusal meaning. Representation erasure proves the same accepted source and target tuples.
+For portable delivery, Assembly selects/binds the route and version pair and transports verified values. It cannot synthesize or modify `commandSource`, `resultSource`, issuer provenance, target payload, or refusal meaning. An immediate typed call is checked by actual target ownership and acceptance/return order, without reconstructing absent tuples.
 
-Pre-acceptance refusal uses only:
+Independently delivered pre-acceptance refusal uses:
 
 ```text
 CommandRejectedBeforeAcceptance {
@@ -94,7 +96,7 @@ The carrier is neither Reply nor result and creates no accepted target Decision,
 
 A snapshot refusal on the accepted-result path is a same-state accepted `SnapshotDecision` published through the flattened `AcceptedSnapshotDecisionFrame<State> { commitRevision?, nextState, outputs }`, with revision advance and `ModuleResultOutput(Rejected(...))`; EventJournal records an `AcceptedEventCommit` whose `decision` is accepted `NoDomainChange`, with no independent `nextState`. Within the idempotency horizon, redelivery of the same effective identity and `commandSource` before a result has been accepted returns only verified ACK proof of the already accepted target frame and pending-result state. It does not wait for completion, invoke `decide`, increment revision, fabricate a pending `ModuleResult`, or repeat a Resource action. After result acceptance, redelivery transports the exact accepted target result frame with unchanged effective identity, `commandSource`, `resultSource`, target revision, `semanticHandle`, `sourceOrdinal`, and payload; only `AttemptId` changes. Same identity with a different command fingerprint or conflicting evidence fails closed.
 
-For a same-stack round trip, source/root, target-command, and source-result Decisions consume causal levels `0/1/2`. Before source acceptance, the source reserves one level-1 alternative-completion slot. Exactly one mutually exclusive branch consumes it: an accepted target Decision consumes level 1 after separately reserving the level-2 result completion, while validation, admission, or target `decide` rejection before acceptance consumes no target level/frame/revision/output and atomically transfers level 1 to the source `decide(ControlPulse)` that applies the verified carrier. If level 1 cannot be reserved, the source is not accepted and nothing is dispatched. If level 2 cannot be reserved, the target is not accepted and `AdmissionFailure(CausalBudgetExceeded)` returns through the carrier. The carrier-handling Decision reserves any further synchronous outputs from the remaining budget. The invocation contributes `source -> target` to direct control; the return is not a reverse edge. Async handoff removes only that synchronous-invocation contribution, retains any separately present compile-time-import edge, and preserves causal scope, depth, and remaining budget; same-stack slot transfer is not inferred merely from asynchronous transport.
+A complete statically finite synchronous execution needs no causal-depth fields or reservation levels; include result/refusal/failure handlers in that structural bound. Real queues, retained completions, external work, or dynamically growing chains keep finite capacity and admission that cannot lose accepted work. Handoff and retry preserve any applicable causal budget. Invocation contributes `source -> target` to direct control; return is not a reverse edge. Async handoff removes only the synchronous-invocation contribution and retains any compile-time-import edge.
 
 ## 5. ACK, ambiguity, and retry
 

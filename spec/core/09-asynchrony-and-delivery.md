@@ -12,7 +12,7 @@ This section is a catalog of independently triggered contracts, not one mandator
 
 | Contract | Trigger |
 |---|---|
-| causal identity / revision (§§9.1–9.2) | work or its result can outlive the call, reorder, retry, cross an authority, recover, or appear in status; |
+| causal identity / revision (§§9.1–9.2) | work or its result can outlive the call, reorder, retry, recover, or be observed independently; |
 | independent operation facets (§9.3) | dispatch, target acceptance, business result, cancellation, or ambiguity can diverge; |
 | ACK/refusal/result separation (§9.4) | delivery or target acceptance, pre-acceptance refusal, accepted business result, or delivery exhaustion is observed separately; |
 | `OutcomeUnknown` (§9.5) | external execution may have occurred without a proven terminal result; |
@@ -30,7 +30,7 @@ If a trigger is absent, its types, fields, tables, tests, and `N/A` placeholders
 ### 9.1. Causal identity
 
 <!-- pkb:term:start name="CausalToken" -->
-**CausalToken** — a field-minimized correlation record that binds detached, addressable, routed, late, or causal work to an accepted frame; generation, revision, depth, and budget fields appear only when their respective lifecycle or multi-Decision triggers exist. When materialized, one causal-budget scope preserves every triggered remaining depth and cumulative-fan-out capacity without adding a second scope field. `commandSource` derives from the accepted source command frame and `resultSource` from the accepted target result frame.
+**CausalToken** — a field-minimized portable correlation record that binds detached, addressable, late, retryable, recoverable, or independently observed work to an accepted frame; generation, revision, depth, and budget fields appear only when their actual lifecycle or growing-work triggers exist. An immediate typed call needs no token solely because it crosses a Ball boundary or involves multiple Decisions. When materialized, one causal-budget scope preserves every triggered remaining depth and cumulative-fan-out capacity without adding a second scope field. `commandSource` derives from the accepted source command frame and `resultSource` from the accepted target result frame.
 <!-- pkb:term:end -->
 
 Every detached, addressable, or routed asynchronous output has sufficient stable identity for its actual lifecycle. The `CausalToken` block below is a field-minimized structural catalog, not a mandatory record shape:
@@ -43,36 +43,32 @@ CausalToken {
     sourceCommitRevision?   # accepted source revision is observed
     sourceOrdinal           # position in the accepted source Decision
     operationGeneration?    # late or reorderable generations exist
-    causalDepth?            # the output can cause a later Decision
-    causalBudgetScope?      # multi-hop or synchronous causal budget exists
+    causalDepth?            # growing causal work needs a depth bound
+    causalBudgetScope?      # growing causal work needs a shared budget
 }
 ```
 
-`Fact` returns the accepted `EffectRequest` token or an equivalent sufficient correlation identity. A `ModuleCommandPulse` carries `commandSource` derived from the accepted source command frame. Its accepted target `ModuleResultOutput` retains that token, and the resulting `ModuleResultPulse` also carries `resultSource` derived from the accepted target frame. `causalDepth` is present and incremented only when a semantic output can cause a later Decision; a detached Reply or Projection with no such path needs no depth or causal budget. When a causal budget exists, yield, continuation, asynchronous handoff, and transport retry preserve `causalBudgetScope` and every triggered remaining depth/fan-out capacity; they do not reset or double-count the total budget. A transport retry changes attempt metadata, not the logical operation, semantic handle, or fan-out branch identity. Immediate local completion may remain in call scope and needs no materialized token except that a cross-Ball command/result bridge still proves the set-equal accepted tuples under same-stack representation erasure.
+`Fact` returns the accepted `EffectRequest` token or an equivalent sufficient correlation identity when completion needs portable evidence. On a portable command path, `commandSource` identifies accepted source work and `resultSource` identifies the accepted target result frame as specified in §§6.8–6.9. An immediate same-build call uses the typed target, trusted binding, actual acceptance order, and return through the source's serialized handler; it needs no materialized token or reconstruction of absent tuple fields.
+
+`causalDepth` and `causalBudgetScope` appear only when the actual execution needs those bounds under §8.4. A statically finite synchronous structure can bound the whole execution, including result/refusal/failure handling, without numerical depth or reservation levels; an import DAG alone does not prove termination. When a causal budget exists, yield, continuation, asynchronous handoff, and transport retry preserve the same scope and every triggered remaining depth/work capacity. They neither reset nor double-count the budget. A transport retry changes attempt metadata, not the logical operation, semantic handle, or branch identity.
 
 <!-- pkb:pba-source:start id="PBA-18" title="Provenance-Bound Result" -->
 **Source clause for PBA-18 — Provenance-Bound Result.**
 
 - **Rule:**
   - Every result-producing Effect, Command, or accepted-subscription path binds its result to previously accepted source work with trusted provenance and correlation sufficient for that path.
-  - For a command path, the target owns one exact command/result mapping.
-  - A trusted target boundary constructs `ModuleCommandPulse` only from the verified accepted source frame.
-  - Target `decide` is the sole acceptance point.
-  - A command result is created only as `ModuleResultOutput` in an accepted target Decision.
-  - It reaches the source only as a verified `ModuleResultPulse`.
-  - It preserves the accepted source `commandSource`.
-  - It preserves the accepted target `resultSource`.
-  - It preserves the effective protocol identity.
-  - It preserves the target-owned payload.
-  - Assembly transports and does not synthesize or modify those identities or payload.
-  - Detached or reorderable results materialize stable causal identity.
-  - Same-stack erasure proves the same accepted tuples.
+  - The target owns the exact command/result mapping; the target's serialized `decide` and acceptance are the sole acceptance point for target work.
+  - An accepted command result is created as target semantic output and reaches the source through its serialized result handler. Assembly neither invents accepted work nor selects business outcomes.
+  - An immediate same-build call uses its typed target, trusted construction, call scope, and acceptance-before-return order as identity and provenance. Source dispatch follows acceptance and remains outside pure `decide`.
+  - Crossing a Ball boundary or retaining an intermediate value for the current call alone requires no handle, source/result token, issuer field, protocol identifier, or proof of equivalence to absent tuples.
+  - Detached, reordered, retryable, recoverable, or independently observed delivery preserves verified accepted-source `commandSource`, accepted-target `resultSource`, effective protocol identity, target-owned payload, and required issuer provenance.
+  - Untrusted or independently delivered messages undergo the actual provenance and authenticity checks required by their boundary.
 - **Applicability:** `P`: Effect/Command/subscription produces a result.
 - **Declaration owner:** Effect source or command source/target owns semantic mapping; result issuer owns provenance.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.
-- **Enforcement / evidence owner:** Resource/route verifier proves accepted source and, for commands, target tuples plus effective protocol identity.
+- **Enforcement / evidence owner:** Binding tests prove source acceptance before dispatch, target ownership/acceptance before accepted return, and serialized source completion; portable routes additionally verify accepted tuples, protocol identity, and required provenance.
 - **Resolution, failure, and conformance:** Resolve under §0.2; a violation is non-conforming in the stated scope unless the Rule states a stricter local failure.
-- **Reuse and absent-trigger behavior:** Verifier may be referenced; same-stack erasure proves equal tuples; omit when no result path exists.
+- **Reuse and absent-trigger behavior:** Binding/verifier evidence may be reused; immediate calls use actual execution properties without tuple reconstruction; omit when no result path exists.
 - **Primary verification route:** `§17.1`
 <!-- pkb:pba-source:end -->
 ### 9.2. Revisioned causality
@@ -170,9 +166,9 @@ When the referenced variants exist, the cross-facet invariants are:
   - Validation, admission, pre-acceptance Decision rejection, target acceptance, accepted business outcome, post-acceptance Resource failure/timeout/unknown, and delivery-policy exhaustion retain the exact §6.13 carrier/result/status meaning.
   - Those stages cannot rewrite one another.
   - A post-commit mechanical observation, including verified `CommandRejectedBeforeAcceptance`, changes Sovereign State only through its declared typed `ControlPulse` path.
-  - On a same-stack pre-acceptance command branch, that carrier path consumes the level-1 alternative-completion reservation transferred under §8.4; it creates neither a target accepted level nor a fresh causal scope.
-  - An accepted target outcome reaches the source only through `ModuleResultPulse`.
-  - Neither form may be synthesized from the other or selected dynamically by a binding.
+  - An immediate typed call may return pre-acceptance refusal directly under §6.13; it creates no accepted target frame. Statically finite execution needs no reservation levels; applicable growing-work and completion-capacity bounds remain in force.
+  - An accepted target outcome reaches the source through its serialized result input, represented by the immediate typed return or verified portable `ModuleResultPulse`.
+  - The binding cannot rewrite the acceptance meaning of either form; a concrete return type may carry their distinct variants.
 
   - An ACK answers: **was the declared acceptance point reached?**
   - A `Fact` or `ModuleResultPulse` answers: **what was the accepted business outcome?**
@@ -183,9 +179,9 @@ When the referenced variants exist, the cross-facet invariants are:
 
   For a same-identity target-command duplicate after target acceptance but before any result frame has been accepted, the only legal immediate response is verified ACK proof of the original accepted target command frame and its pending-result state. It is not a result and does not wait for one, run another target Decision, increment revision, create an Effect/Resource action, or fabricate a pending `ModuleResult`. Once the result frame exists, a duplicate may instead redeliver proof of that exact accepted result under §9.6. Conflicting fingerprint or acceptance/result evidence fails closed.
 - **Applicability:** `P`: any §6.13 validation/admission/refusal/accepted-result/Resource/delivery stage is reachable or separately observed.
-- **Declaration owner:** Ball owns typed outcome/facet meaning; binding owns legal carrier/result/status mapping and same-stack carrier slot transfer.
+- **Declaration owner:** Ball owns typed outcome/facet meaning; binding owns faithful typed return or portable carrier/result/status mapping and applicable capacity admission.
 - **Scope:** The exact scope stated by the Rule and Applicability fields.
-- **Enforcement / evidence owner:** Stage table, provenance, same-stack carrier level/slot ownership, dispatcher/result-route, duplicate-before-result ACK, exact post-result replay, later-failure, both-order, and conflict tests.
+- **Enforcement / evidence owner:** Stage table, provenance, immediate return order, applicable completion capacity, dispatcher/result-route, duplicate-before-result ACK, exact post-result replay, later-failure, both-order, and conflict tests.
 - **Resolution, failure, and conformance:** Resolve under §0.2; a violation is non-conforming in the stated scope unless the Rule states a stricter local failure.
 - **Reuse and absent-trigger behavior:** Mechanics may be shared; omit unreachable stages and never substitute one stage's carrier/status for another or create a new carrier scope.
 - **Primary verification route:** `§17.1`

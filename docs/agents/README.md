@@ -6,6 +6,8 @@ This package turns Core into a sparse workflow for project agents. It preserves 
 
 Every contract row, runbook, gate, example, index, and summary here is a projection of one or more marked Core source clauses. It has no independent normative authority and cannot strengthen or weaken Core.
 
+For focused coding workflows, [install the standalone skills with one prompt](INSTALL.md#install-skills-with-your-agent). Use the full package below when your project explicitly adopts its Core reference and agent contract.
+
 ## Start
 
 1. Verify the package files and published immutable ordered Core set against [BASELINE.md](BASELINE.md); this is an integrity check, not an architectural-quality verdict.

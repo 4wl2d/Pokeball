@@ -91,7 +91,7 @@ The State Belt IS NOT a mandatory global store, singleton API, or object availab
 
   - public read contract;
   - versioned immutable snapshot;
-  - target-owned `ModuleResult` carried by a verified `ModuleResultPulse`;
+  - target-owned result through an immediate trusted typed return or a verified `ModuleResultPulse` under §6.9;
   - observed signal/event;
   - Read Model;
   - target-side validation/reservation.
@@ -105,6 +105,8 @@ The State Belt IS NOT a mandatory global store, singleton API, or object availab
 - **Reuse and absent-trigger behavior:** Shared graph check; no `noCrossStateReads` flag.
 - **Primary verification route:** `§17.5`
 <!-- pkb:pba-source:end -->
+Observable isolation does not prescribe physical copying. For example, one Document Ball may own immutable `DocumentState(metadata, paragraphs)`. Renaming its title creates new metadata and shares unchanged immutable paragraphs; those parts need no separate Balls. A mutable text builder belongs only to the current candidate and never escapes to readers or mutates a previously accepted document. Reads see accepted values; rejecting or failing the candidate leaves the previously published document unchanged. The implementation chooses storage, structural sharing, and copying techniques under the existing acceptance rules.
+
 ### 7.5. Captured input
 
 A Flow or long-running operation may retain only the required foreign or point-in-time fields. The following is an applicability catalog, not a mandatory wrapper shape:
@@ -121,7 +123,7 @@ CapturedInput {
 }
 ```
 
-The same rule applies to a value from an earlier `Pulse` or `DecisionContext` that a later Decision needs: it becomes a bounded typed value in committed State or is explicitly reintroduced by a new trusted input. Correlation is added when several sources/operations can be confused; an explicit version when an independent protocol/schema can change or the value survives rollout/recovery; provenance when it crosses a trust/authority boundary; and a retention/deletion field when its lifetime differs from the containing state. A simple locally authoritative value in one build may be stored directly without that metadata. Inbox, outbox, runtime, or participant history is never a decision-readable substitute. Captured input does not become a second mutable authority. Before a strict action, the target may require an expected version, reservation, or current revalidation.
+The same rule applies to a value from an earlier `Pulse` or `DecisionContext` that a later Decision needs: it becomes a bounded typed value in committed State or is explicitly reintroduced by a new trusted input. Correlation is added when several sources/operations can be confused; an explicit version when an independent protocol/schema can change or the value survives rollout/recovery; portable provenance when its source cannot be established by the trusted local boundary and call scope; and a retention/deletion field when its lifetime differs from the containing state. A simple locally authoritative value in one build may be stored directly without that metadata. Inbox, outbox, runtime, or participant history is never a decision-readable substitute. Captured input does not become a second mutable authority. Before a strict action, the target may require an expected version, reservation, or current revalidation.
 
 ### 7.6. Single writer
 

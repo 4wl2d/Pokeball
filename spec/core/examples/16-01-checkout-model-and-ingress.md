@@ -225,7 +225,7 @@ CheckoutCommandDeliveryObserved {
 
 At the Checkout source, a verified carrier sets exactly `acceptance = RejectedBeforeAcceptance` and `outcome = NotExpected`. A carried `DecisionRejected(BusinessRejection)` is only the informational pre-acceptance reason and never sets `outcome = Rejected`. By contrast, a verified `ModuleResultPulse` whose accepted target result is `Rejected(...)` sets exactly `acceptance = Accepted` and `outcome = Rejected`. Carrier/result evidence for the same effective protocol identity and source tuple is conflicting evidence and fails closed.
 
-For a same-stack participant route, a pre-acceptance target attempt consumes no accepted target level. The Checkout `ControlPulse` Decision that commits this carrier projection consumes the source command's transferred level-1 alternative-completion slot under §8.4; it is not deferred into a new root and does not reset the total causal budget.
+For a same-stack participant route, a pre-acceptance attempt creates no accepted target frame. Checkout applies the refusal through its serialized `ControlPulse` Decision. This retained, recoverable workflow preserves its actual causal-work and completion-capacity bounds under §8.4; a synchronous route adds no mandatory level-1/level-2 reservation scheme and never resets an applicable budget.
 
 If `acceptanceEvidence` is forged, tampered, missing, stale, or bound to the wrong target/version/source tuple, the route constructs no trusted `CheckoutCommandDeliveryObserved`, changes no Step facet, and initiates no compensation. These aliases add or omit no semantic field required by the canonical carrier in this Checkout scope.
 
