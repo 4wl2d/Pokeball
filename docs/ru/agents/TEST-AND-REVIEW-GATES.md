@@ -2,7 +2,7 @@
 
 [Документация на русском](../README.md) · [Содержание Agent Pack](README.md) · [Оригинал на английском](../../agents/TEST-AND-REVIEW-GATES.md)
 
-> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Инструкции, команды, шаблоны и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); для установки и проверки целостности используйте его.
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Пояснения, промпты и формы отчётов переведены для людей. Пути установки, схемы и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); устанавливайте и проверяйте его точные артефакты.
 
 <a id="test-and-review-gates"></a>
 
@@ -13,10 +13,10 @@
 Тестирование следует применимости:
 
 ```text
-base invariant tests
-+ reachable path/risk tests
-+ local policy-delta tests
-+ evidence suites for claims actually made
+базовые тесты инвариантов
++ тесты достижимых путей/рисков
++ тесты локальных отличий от политики
++ наборы доказательств для фактически сделанных заявлений о гарантиях
 ```
 
 Общие механизмы и их доказательства проверяют один раз для точных ревизии/дайджеста/области. Ball проверяет семантическое подключение и своё отличие.
@@ -89,18 +89,18 @@ base invariant tests
 ## 6. Запись о заявлении гарантий
 
 ```text
-Review/claim ID and owner
-Exact Core/package/source/environment baselines plus project policy/Assembly when in scope
-Claimed scope and exact wording
-Exact named guarantee boundary
-Resolved policy references/deltas, exact WaiverRecords and conformance effects if any, trigger inventory, and every exact TriggerAbsenceProof actually relied upon
-Questions, coverage units, previous evidence, exclusions
-Applicable rules and RG-01..10 results
-Mechanisms, assumptions, retention, evidence artifacts, observed results
-For any cross-binding numeric maxTransitionSteps comparison: equal meterIdentity, meterVersion, transitionArtifactVersion, and unitDefinition; otherwise separate incomparable observations
-Explicit non-guarantees
-Proof that source durability or retained pending work alone establishes no stronger downstream guarantee
-Failed/partial units and follow-up trigger
+ID ревью/заявления о гарантиях и владелец
+Точные базовые версии Core/пакета/исходного кода/окружения, а также политики проекта/Assembly, если входят в область
+Заявленная область и точная формулировка
+Точно названная граница гарантии
+Разрешённые ссылки на политики/отличия, точные WaiverRecords и влияние на соответствие при их наличии, перечень триггеров и каждое точное TriggerAbsenceProof, на которое опирается вывод
+Вопросы, единицы покрытия, прежние доказательства, исключения из области
+Применимые правила и результаты RG-01..10
+Механизмы, допущения, хранение, артефакты доказательств, наблюдаемые результаты
+Для любого числового сравнения maxTransitionSteps между привязками: одинаковые meterIdentity, meterVersion, transitionArtifactVersion и unitDefinition; иначе отдельные несопоставимые наблюдения
+Явные негарантии
+Доказательство того, что одной долговечности источника или хранения ожидающей работы недостаточно для более сильной гарантии на последующих этапах
+Неудачные/частично проверенные единицы и условие следующей проверки
 ```
 
 Допустимая итоговая формулировка ограничена: «На точной базовой версии X и в заявленной области Y проверки A–J пройдены; в этой области нет непрошедших или частично проверенных единиц». Не говорите «идеально», «безопасно в целом», «готово к промышленной эксплуатации» и не используйте безусловное заявление о доставке/однократности.

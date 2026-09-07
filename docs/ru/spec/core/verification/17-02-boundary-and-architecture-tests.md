@@ -87,121 +87,121 @@
 Доказательство графа вызовов привязки прослеживает конкретные или сгенерированные рёбра, соответствующие:
 
 ```text
-verified origin -> Trusted Boundary verifier/constructor -> Interaction adaptation or route ingress -> Nucleus decide/read
-Nucleus Accepted Decision -> acceptor -> Resource/route
-accepted EffectRequest -> Execution Gate -> validated Fact -> Nucleus decide
-accepted ModuleCommandRequest -> target boundary -> target decide
-accepted ModuleResultOutput -> verified result route -> source decide
-committed status snapshot -> pure read authority -> typed ReadResult/payload
-Assembly/runtime/foundation -X-> business policy or direct Sovereign State mutation
+проверенное происхождение -> проверяющий/конструктор Trusted Boundary -> адаптация Interaction или вход маршрута -> Nucleus decide/read
+Nucleus Accepted Decision -> компонент принятия -> Resource/маршрут
+принятый EffectRequest -> Execution Gate -> проверенный Fact -> Nucleus decide
+принятый ModuleCommandRequest -> граница цели -> decide цели
+принятый ModuleResultOutput -> проверенный маршрут результата -> decide источника
+зафиксированный снимок статуса -> чистый владелец чтения -> типизированный ReadResult/полезная нагрузка
+Assembly/runtime/foundation -X-> бизнес-политика или прямое изменение Sovereign State
 ```
 
 Размещение в одном файле, одном стеке или сгенерированном коде может устранять представления адаптеров, только если карта ролей, граф вызовов, владение принятыми кадрами и трасса происхождения остаются механически проверяемыми. Свидетельства прослеживают каждую доверенную причину, `DecisionContext`, зависимый от субъекта `ReadContext`, `Fact`, `ModuleCommandPulse`, `ModuleResultPulse` и `ControlPulse` доставки до проверенного источника и отвергают необъявленные конструкторы, скрытые входы локатора сервисов или глобального состояния, прямые записи среды исполнения, смысл, созданный Assembly, или бизнес-коммуникации через foundation.
 
 ```text
-no interaction -> resources import
-no resources -> interaction import
-no nucleus -> platform/I/O import
-every concrete/generated implementation symbol maps to Interaction, Nucleus, Resource/route, Assembly, runtime/acceptor, status/read authority or shared-foundation role, with all permitted call edges explicit
-Interaction is classified as a logical adapter role and every present Trusted Boundary as an authorized verification/construction edge; physical overlap neither merges the classifications nor transfers Nucleus policy, interpretation, or State authority
-same-file and same-stack layouts preserve the role call graph and provenance trace; physical co-location is not accepted as separation evidence
-no direct foreign state access
-trusted binding boundary is the only constructor of non-empty DecisionContext and actor-dependent ReadContext; every field is verified, bounded and declared by the Ball-owned semantic schema
-Inline deque/continuation preserves one trusted per-item Pulse-to-DecisionContext association; root context is not reused, and remaining causal budget/execution quantum/current capacity has no call edge into decide
-Nucleus/Policy Gate is the only business-permission and business-result-selection authority; Resource/Execution Gate, Assembly, runtime and foundation cannot choose policy
-every downstream output value is present in committed State, current Pulse or a declared field-minimized DecisionContext; no free value or decision read from inbox/outbox/runtime/participant history
-every prior-Pulse value needed after a crash is retained with a bounded type and only the correlation, rollout identity, provenance and last-consumer retention required by its actual source/trust/lifetime triggers
-every retained ingress fingerprint equals the atomically accepted idempotency-record fingerprint from one declared versioned function over explicit Pulse/Context operands; key and transport metadata are excluded
-persisted state-shape change increments stateSchemaVersion without silently changing owned/imported protocolVersion
-no feature internals import
-no protocol re-export
-caller Nucleus may import the exact declared target- or producer-owned Application Surface required by its closed Query/Pulse/Decision contracts without acquiring ownership
-Checkout Nucleus imports exactly the Cart, Inventory, Payment, and Order participant-owned Application Surfaces and resolves all nine target-owned command/result mappings
-caller-owned redeclaration or structurally identical mirror of an imported type fails
-foreign mutable State, Nucleus internals, private Resource adapters, platform/I/O implementations, and protocol re-export fail
-Interaction or Assembly synthesis of an imported payload, mapping, refusal, or business meaning fails
-no raw external request -> ControlPulse path; every external mutation/cancellation enters through one declared Intent after Interaction validation
-every post-commit runtime/route observation that changes Sovereign State resolves to one declared typed ControlPulse, exact previously committed source tuple and trusted provenance, then passes through single-writer decide; source commit and direct runtime state write cannot materialize Dispatched/ACK/ambiguity/DispatchStopped facets
-closed protocol exhaustiveness
-selected state profile resolves exactly one mutation function and frame: SnapshotDecisionResult + AcceptedSnapshotDecisionFrame or EventDecisionResult + AcceptedEventCommit; Event has no independent nextState and no binding implements a mandatory cross-profile union
-representation or declared closed protocol/type invariant violation = pre-Intent ValidationFailure; valid typed value violating a State- or semantic-Context-owned rule = Nucleus BusinessRejection; promoting the rule into the type requires a new protocol identity
-Pulse union order = Intent | Fact | ModuleCommandPulse | ModuleResultPulse | ObservedSignal | ControlPulse
-SemanticOutput union order = ProjectionOutput | ReplyOutput | EffectRequest | ModuleCommandRequest | ModuleResultOutput | SignalPublication | TimerRequest
-portable ModuleCommandPulse fields = commandSource + effectiveProtocolIdentity + command + issuerProvenance
-portable ModuleResultOutput fields/invariant = semanticHandle equals commandSource.semanticHandle + target sourceOrdinal + commandSource + payload
-portable ModuleResultPulse fields = commandSource + resultSource + effectiveProtocolIdentity + result + issuerProvenance
-independent result-delivery key = (effectiveProtocolIdentity, commandSource, resultSource); an immediate typed return needs no delivery key
-portable pre-acceptance carrier preserves commandSource + effectiveProtocolIdentity + closed BoundaryResponse + targetBoundaryProvenance; immediate local refusal uses the target contract type and call scope without a mandatory carrier shape
-no bare ModuleResult is a Pulse variant; timer firing remains a declared ControlPulse and Catalog SignalPublication/ObservedSignal remain unchanged
-every non-empty Ball-owned protocol category resolves each used variant exactly once through an inline declaration or one version-pinned authoritative reference; omitted categories are empty for FeatureBall and FlowBall alike
-every routed Signal resolves exactly once in the producer-owned protocol; Assembly owns route/version/delivery binding and cannot define the producer payload
-every owned Query resolves exactly one result payload for the same effective protocol identity; triggered stamped reads use canonical ReadResult/ConsistencyStamp, same-stack getters use call-scope identity, and neither creates a Decision, revision, SemanticHandle or SemanticOutput
-every ReadDependency resolves exactly one caller + target authority + target-owned Query/result mapping + effective protocol identity + target read/status authority + caller freshness/consistency requirement + Assembly route/binding; caller/Assembly cannot redefine payload, stamp, status fact or read meaning
-wrong ReadDependency version/authority/mapping/stamp fails before semantic read and is not NotFound; pre-read failure uses an existing BoundaryResponse, while admitted read returns only the declared ReadResult, whose target-owned payload exhausts every reachable permitted/denied/redacted/non-disclosing outcome selected by the pure Policy Gate, and creates no accepted marker/Decision/revision/handle/output
-ReadDependency optional fields follow existing protocol-version, actor/authentication, cache/comparison, source-position, ordering, buffering, timeout, retry and status triggers; same-build/static erasure proves the same contract and Query alone creates no new per-Ball read-limit field
-multiple ReadDependency results are independent target snapshots and do not imply one atomic multi-source snapshot without a separate mechanism
-every operation-status result payload exhaustively distinguishes only its reachable lifecycle, acceptance, cancellation, ambiguity, delivery-stop and retention variants; any present absence/expiry result is derived from a stamped declared status-authority snapshot
-every status namespace resolves one committed revisioned single-writer authority; physical representation is project/binding-owned and creates neither a second command authority nor an unsupported freshness/atomicity claim
-Draining rejects new logical mutations but serves every available declared Query/status Query and already-accepted completion/cancellation/status input; unavailable read failure precedes read, admitted read returns only the successfully evaluated ReadResult with a total target-owned payload, and neither creates a Decision
-co-located and separate status-authority layouts each have exactly one query writer and preserve underlying command/business-fact ownership; materialization lag is reflected only by the status stamp
-every status source/observation applies in declared causal order or bounded pending; equivalent duplicate is idempotent, compatible facets merge losslessly, weaker evidence does not regress, and nonequivalent same-key evidence fails closed
-every reachable operation/pending/lifecycle/cancellation/result/marker/stop capacity is finite and reserved before its source acceptance; N+1 prevents acceptance, while accepted evidence is never evicted, truncated, silently dropped or rolled back
-every retention marker commits only after declared source positions/horizons cover the operation and pending is empty; marker precedes absence, covered late evidence cannot resurrect the operation, and marker-horizon expiry alone permits later NotFound
-accepted target ModuleResultOutput remains a target status fact across crash-before-result-dispatch; target DispatchStopped preserves the exact result-delivery tuple while source status stays Pending/Unknown until verified result/reconciliation
-Catalog protocolVersion = 2.0.0, stateSchemaVersion = 2, transitionArtifactVersion = 2.0.1, and the ProductSelectionConfirmed producer/consumer route pair = 2.0.0/2.0.0
-CatalogState revision is a Ball-owned domain revision distinct from acceptor-owned CommitRevision unless the binding proves exact equality while preserving both ownership meanings
-Catalog ProductSelected transitions are set-equal to {Idle, Searching, Ready, Failed, OutcomeUnknown, Cancelled}; each preserves its state-specific fields/facets and emits exactly one sourceOrdinal-0 ProductSelectionConfirmed SignalPublication
-CatalogState-to-CatalogView mappings are set-equal to the same six states, one case each, with no fallback/default or multiple case; GetCatalogView and every search-state Projection use that mapping
-Catalog v1 persisted state enters v2 decide only through authoritative upcast; missing rejection-reason or other required evidence routes to quarantine/manual remediation and never to an invented default
-for Checkout, the stopped-handle universe includes the initial RequestAccepted ReplyOutput and all nine command Step handles; cap/order/reservation/materialization and 10/11 tests cover the same exact set
-every imported ModuleCommand/ModuleResult resolves through exactly one target-owned command-to-result mapping and declared dependency whose effective protocol identity matches Assembly; refusal classification is static for that version, explicit producer/consumer versions are required only across independent versioning/deployment, and imported target types are not redeclared as caller-owned
-every command Assembly binding preserves target ownership, source acceptance before invocation, target acceptance before accepted result, and serialized source completion; local target access and call scope suffice, while portable routes preserve their required verified tuples
-every read-like operation requiring accepted provenance, stable command/step identity, idempotent replay, status, or reconciliation uses the command bridge; an ordinary non-recording read uses Query/ReadDependency and creates no target Decision/revision/output
-local command success has one source-to-target Direct Control Dependency and no reverse return edge; complete finite execution needs no carried scope/depth or level reservations; regenerating work and queued/external/retained work require their actual bounds and no accepted loss
-CheckoutCommandDeliveryObserved carrier aliases are set-equal to commandSource, effectiveProtocolIdentity, boundaryResponse, and targetBoundaryProvenance; all nine normal Checkout business refusals are accepted results
-every example output preserves its canonical semantic role; typed local calls need no envelope fields invented only for representation equivalence
-compile-time import and Direct Control Dependency graphs are independently and unconditionally acyclic; generated inline dispatch before async handoff/yield is included
-a WaiverRecord on either direct cycle records deliberate non-conformance and cannot make the architecture test pass
-async feedback after a bounded handoff/yield creates no direct-control edge and is tested separately for owner, identity, finite budget, escape condition and fan-out protection
-every inter-Ball edge has ReadDependency, DeclaredCommandDependency, DeclaredSignalDependency or FlowParticipation
-every physical helper import has one owner/classification: Ball-local to exactly one logical role or shared mechanical Foundation; ownerless shared domain/business utilities fail, and Ball-owned shared semantics use a declared Application Surface/protocol rather than a fifth dependency kind
-every physical import remains in the acyclic compile-time graph; a utility edge enters Direct Control Dependency only through another Ball's Application Surface or synchronous cross-authority control
-every FlowParticipation resolves exactly one Flow authority + participant authority + participant Application Surface + non-empty bounded Flow-owned coordination set + bounded references to existing read/command/signal dependencies; each reference preserves its existing owner, effective identity, route, return binding, limits, and Assembly binding
-FlowParticipation creates no protocol variant, runtime envelope, fifth route, target-type copy, participant-State authority, or duplicate dependency; Checkout has exactly four Flow participants and nine existing command routes although six authorities/roles appear in the example
-every Application Surface contains only the owning Ball's deliberate public semantic types/entrypoints and excludes mutable State, Nucleus internals, runtime/transport mechanics, private Resource adapters, and re-exported foreign contracts
-every produced command/read/effect has a declared route or private capability binding
-every boundary choice passes its §4.4 positive evidence and falsifier; Core accepts multiple decompositions only when each independently proves the same authority/invariant/lifecycle/trust/dependency rules
-decision-relevant UI/transport value is committed State or explicit trusted current Pulse/DecisionContext; EphemeralState contains only non-decision mechanics
-Flow exists exactly when it owns material lifecycle/ordering/branch-join/compensation-recovery-cancellation/reconciliation/terminal-outcome coordination; call count and one hop alone do not qualify
-every present variable dimension resolves to one finite effective bound through static proof, an exact reusable policy, or a local declaration/delta; absent dimensions need no zero or N/A row
-when maxCumulativeFanout is present, one root causal scope sums distinct accepted source-output-to-effective-route/consumer traversals across levels; terminal and converging route branches count, co-reachable branches sum, mutually exclusive alternatives share their maximum reservation, duplicate/redelivery does not increment, async handoff preserves scope, and exact N/N+1 rejects the whole over-limit Decision
-every numeric maxTransitionSteps resolves one immutable versioned Decision Work Meter; equal canonical inputs under the same binding/transition artifact version/meter identity/version consume the same non-negative integral total, one decide scope is monotonic and cannot reset, exact N may complete, N+1 accepts no frame/state/revision/output/dispatch, and unlike meter identity/version, transition artifact version, or unit-definition tuples are not compared
-every concrete fallible-admission profile/binding exposes one finite closed AdmissionFailure.reason union; unknown discriminator/open string fails before trusted construction, and a non-fallible profile has no empty union
-every §6.13 error maps from its exact stage to only its legal carrier/result/status effect; later failure cannot rewrite validation/admission/pre-acceptance rejection/accepted result/post-acceptance Resource evidence/delivery stop/programming fault into another stage
-candidate OperationId reservation followed by root validation/admission/Decision rejection creates only BoundaryResponse and no accepted operation, known status row, marker, handle, output, or reply; covered lookup may return only NotFound, while participant refusal remains an accepted source operation's step facet
-root same-key/same-fingerprint retry redelivers the exact accepted ReplyOutput(RequestAccepted) source frame with only a new AttemptId; same-key/different-fingerprint returns pre-Intent ValidationFailure(IdempotencyConflict) and creates no semantic artifact
-target duplicate before accepted result returns only verified ACK proof of the original target frame/pending result; after result it redelivers the exact accepted result frame, and neither path re-decides or re-executes
-static dependencies remain visible in types and wiring; no mandatory maxDeclaredDependenciesPerBall or maxFlowParticipants ceiling
-static routes remain visible in types and wiring; no mandatory maxRoutesPerFlow ceiling; optional project ceilings follow that project contract
-maxInputBytes unit = one exact raw-or-normalized candidate-input representation with declared boundary-metadata/Context inclusion; maxStateBytes unit = complete candidate nextState semantic representation; maxOutputBytesPerDecision unit = complete ordered Decision.outputs semantic representation; one measure tuple fixes each N/N+1 and later storage/transport mechanics are excluded
-Catalog stale SearchCancelled operationId mismatch accepts no Decision/revision/handle/projection/effect; protocolVersion 2.0.0 + stateSchemaVersion 2 + transitionArtifactVersion 2.0.1 remain distinct
-Checkout StillUnknown on its sole status slot terminates normal v1 at NeedsManualReconciliation with outputs = [] and no implicit reopening
-every policy reference is exact, acyclic, in scope, current for its selected revision, and conflict-free; wrong-version/profile/binding/environment and unauthorized overrides fail
-policy references and WaiverRecords cannot suppress an inferred trigger, weaken a law, or convert a MUST/MUST NOT violation into conformance
-every absence-dependent conformance/release verdict or accepted ambiguity-resolution decision has one exact TriggerAbsenceProof bound to class/anchor/scope/profile/inventory/digests/predicate/owner/invalidation; always and present triggers reject the proof, and invalidation blocks reliance until reevaluation
-ordinary design/adoption and a verdict not relying on absence materialize no TriggerAbsenceProof or placeholder
-adoption/pilot worksheet and selected workload/method/baseline/continue-reshape-stop thresholds are project-owned guidance only while that work exists; Core contributes no universal threshold, and negative-adoption fixtures create neither empty Balls nor conformance placeholders
-the authoritative §0.1 Core-documentation rule is projected exactly: every new or changed Mermaid diagram in Core carries a local legend for semantic cause/output, committed acceptance, route binding, and non-authoritative dependency/wiring arrows; omission blocks that documentation change, not an unadopted consuming-project binding
-when actor, tenant, issuer, realm, assurance, or delegation can change a Decision or Query/status-read authorization/result selection, PBA-44 resolves approved-issuer authenticity/integrity or fixed trusted same-stack issuer/realm proof even for typed inter-Ball input; actor-independent Decision/read paths resolve no actor artifact
-Payment trace separates pre-decide carrier, accepted Nucleus business refusal, and post-acceptance Execution-Gate/Resource failure; the last two remain accepted target result paths and cannot be downgraded
-Checkout initial Context explicitly supplies verified Interaction fingerprint artifact version IV, retained interactionArtifactVersion equals IV across retry/recovery, missing or mismatched IV fails, and transitionArtifactVersion remains distinct
-every accepted action reaches its Resource/target Execution Gate immediately before execution with the triggered proof + capability + constraints + version + freshness/revocation + endpoint + quota + sink checks and no second business decision
-no hidden cause/context/result constructor, direct runtime State write, Assembly-created semantic meaning, global service locator, mutable foundation communication, or route-selected foundation policy
-the §14.2 minimal Inline fixture resolves only always-applicable obligations and contains no absent-path placeholders
-positive and negative fixtures for path-, risk-, and claim-triggered rules respectively activate the guardrail and reject the same reachable trigger when no effective guardrail/evidence resolves
-two Balls can resolve one exact shared policy without copying it; a local delta changes only an explicitly overridable field and leaves all other effective values equal
-unsafe effect registry
-foundation domain-type quarantine
+нет импорта interaction -> resources
+нет импорта resources -> interaction
+нет импорта nucleus -> platform/I/O
+каждый конкретный/сгенерированный символ реализации сопоставлен с ролью Interaction, Nucleus, Resource/маршрута, Assembly, runtime/компонента принятия, владельца статуса/чтения или общего foundation; все разрешённые рёбра вызовов явны
+Interaction классифицируется как логическая роль адаптера, а каждая присутствующая Trusted Boundary — как авторизованное ребро проверки/построения; физическое совпадение не объединяет классификации и не переносит политику, интерпретацию или полномочия State из Nucleus
+размещение в одном файле и одном стеке сохраняет граф вызовов ролей и трассу происхождения; физическое совместное размещение не принимается как доказательство разделения
+нет прямого доступа к чужому состоянию
+доверенная граница привязки — единственный конструктор непустого DecisionContext и зависимого от субъекта ReadContext; каждое поле проверено, ограничено и объявлено семантической схемой владельца Ball
+двусторонняя очередь/продолжение Inline сохраняет одну доверенную связь Pulse-to-DecisionContext для каждого элемента; корневой контекст не используется повторно, а остаток причинного бюджета/квант исполнения/текущая ёмкость не имеют ребра вызова в decide
+Nucleus/Policy Gate — единственный владелец бизнес-разрешения и выбора бизнес-результата; Resource/Execution Gate, Assembly, runtime и foundation не могут выбирать политику
+каждое значение последующего выхода присутствует в зафиксированном State, текущем Pulse или объявленном DecisionContext с минимальным набором полей; нет свободного значения или чтения для решения из истории inbox/outbox/runtime/участника
+каждое значение прежнего Pulse, нужное после аварии, сохраняется с ограниченным типом и только той связью, идентичностью развёртывания, происхождением и хранением до последнего потребителя, которые требуются его реальными триггерами источника/доверия/времени жизни
+каждый сохранённый отпечаток входа равен отпечатку атомарно принятой записи идемпотентности из одной объявленной версионированной функции над явными операндами Pulse/Context; ключ и транспортные метаданные исключены
+изменение формы сохраняемого состояния увеличивает stateSchemaVersion, не меняя молча собственный/импортированный protocolVersion
+нет импорта внутренних частей функционального модуля
+нет реэкспорта протокола
+Nucleus вызывающего Ball может импортировать точную объявленную Application Surface цели или производителя, необходимую его закрытым контрактам Query/Pulse/Decision, не приобретая владения ею
+Checkout Nucleus импортирует ровно принадлежащие участникам Cart, Inventory, Payment и Order интерфейсы Application Surface и разрешает все девять принадлежащих целям отображений команд/результатов
+повторное объявление импортированного типа как собственного типа вызывающего Ball или его структурно идентичная копия не проходят проверку
+чужой изменяемый State, внутренние части Nucleus, приватные адаптеры Resources, реализации platform/I/O и реэкспорт протокола не проходят проверку
+синтез импортированной полезной нагрузки, отображения, отказа или бизнес-смысла в Interaction или Assembly не проходит проверку
+нет пути сырой внешний запрос -> ControlPulse; каждое внешнее изменение/отмена входит через один объявленный Intent после проверки Interaction
+каждое наблюдение runtime/маршрута после фиксации, которое меняет Sovereign State, разрешается в один объявленный типизированный ControlPulse, точный ранее зафиксированный кортеж источника и доверенное происхождение, затем проходит через decide единственного исполнителя записи; фиксация источника и прямая запись состояния средой исполнения не могут материализовать аспекты Dispatched/ACK/неоднозначности/DispatchStopped
+полнота закрытого протокола
+выбранный профиль состояния разрешает ровно одну функцию изменения и кадр: SnapshotDecisionResult + AcceptedSnapshotDecisionFrame или EventDecisionResult + AcceptedEventCommit; у Event нет независимого nextState, и ни одна привязка не реализует обязательное объединение профилей
+нарушение представления или объявленного инварианта закрытого протокола/типа = ValidationFailure до Intent; действительное типизированное значение, нарушающее правило владельца State или семантического Context, = Nucleus BusinessRejection; перенос правила в тип требует новой идентичности протокола
+порядок вариантов Pulse = Intent | Fact | ModuleCommandPulse | ModuleResultPulse | ObservedSignal | ControlPulse
+порядок вариантов SemanticOutput = ProjectionOutput | ReplyOutput | EffectRequest | ModuleCommandRequest | ModuleResultOutput | SignalPublication | TimerRequest
+поля переносимого ModuleCommandPulse = commandSource + effectiveProtocolIdentity + command + issuerProvenance
+поля/инвариант переносимого ModuleResultOutput = semanticHandle равен commandSource.semanticHandle + sourceOrdinal цели + commandSource + payload
+поля переносимого ModuleResultPulse = commandSource + resultSource + effectiveProtocolIdentity + result + issuerProvenance
+ключ независимой доставки результата = (effectiveProtocolIdentity, commandSource, resultSource); непосредственный типизированный возврат не требует ключа доставки
+переносимый носитель отказа до принятия сохраняет commandSource + effectiveProtocolIdentity + закрытый BoundaryResponse + targetBoundaryProvenance; непосредственный локальный отказ использует тип контракта цели и область вызова без обязательной формы носителя
+сам по себе ModuleResult не является вариантом Pulse; срабатывание таймера остаётся объявленным ControlPulse, а SignalPublication/ObservedSignal Catalog не меняются
+каждая непустая категория протокола владельца Ball разрешает каждый используемый вариант ровно один раз через встроенное объявление или одну авторитетную ссылку с закреплённой версией; пропущенные категории одинаково пусты для FeatureBall и FlowBall
+каждый маршрутизируемый Signal разрешается ровно один раз в протоколе производителя; Assembly владеет привязкой маршрута/версии/доставки и не может определять полезную нагрузку производителя
+каждый собственный Query разрешает ровно одну полезную нагрузку результата для той же действующей идентичности протокола; активированные чтения с метками используют канонические ReadResult/ConsistencyStamp, геттеры в одном стеке — идентичность области вызова, и ни один вариант не создаёт Decision, ревизию, SemanticHandle или SemanticOutput
+каждая ReadDependency разрешает ровно одного вызывающего + владельца цели + принадлежащее цели отображение Query/результат + действующую идентичность протокола + владельца чтения/статуса цели + требование вызывающего к свежести/согласованности + маршрут/привязку Assembly; вызывающий/Assembly не могут переопределять полезную нагрузку, метку, факт статуса или смысл чтения
+неверные версия/владелец/отображение/метка ReadDependency приводят к сбою до семантического чтения и не являются NotFound; сбой до чтения использует существующий BoundaryResponse, а допущенное чтение возвращает только объявленный ReadResult, чья принадлежащая цели полезная нагрузка исчерпывает все достижимые разрешённые/запрещённые/с удалёнными чувствительными данными/не раскрывающие сведения исходы, выбранные чистым Policy Gate, и не создаёт принятого маркера/Decision/ревизии/дескриптора/выхода
+необязательные поля ReadDependency следуют существующим триггерам версии протокола, субъекта/аутентификации, кэша/сравнения, позиции источника, упорядочивания, буферизации, тайм-аута, повтора и статуса; устранение представлений в одной сборке/статике доказывает тот же контракт, и сам Query не создаёт нового поля предела чтения для каждого Ball
+несколько результатов ReadDependency — независимые снимки целей; без отдельного механизма они не подразумевают один атомарный снимок нескольких источников
+каждая полезная нагрузка результата статуса операции исчерпывающе различает только достижимые варианты жизненного цикла, принятия, отмены, неоднозначности, остановки доставки и хранения; любой присутствующий результат отсутствия/истечения срока выводится из снимка с меткой объявленного владельца статуса
+каждое пространство имён статуса разрешает одного зафиксированного версионированного владельца с единственным исполнителем записи; физическое представление принадлежит проекту/привязке и не создаёт второго владельца команд или неподтверждённого заявления о свежести/атомарности
+Draining отклоняет новые логические изменения, но обслуживает все доступные объявленные Query/Query статуса и уже принятые входы завершения/отмены/статуса; сбой недоступного чтения предшествует чтению, допущенное чтение возвращает только успешно вычисленный ReadResult с тотальной полезной нагрузкой владельца цели, и ни один вариант не создаёт Decision
+совместное и раздельное размещение владельца статуса имеют ровно одного исполнителя записи для запросов и сохраняют исходное владение командами/бизнес-фактами; задержка материализации отражается только меткой статуса
+каждый источник/наблюдение статуса применяется в объявленном причинном порядке или хранится в ограниченном ожидании; эквивалентный дубликат идемпотентен, совместимые аспекты объединяются без потерь, более слабое доказательство не ослабляет результат, а неэквивалентное доказательство с тем же ключом отклоняется безопасным образом
+каждая достижимая ёмкость операций/ожидания/жизненного цикла/отмены/результатов/маркеров/остановки конечна и резервируется до принятия её источника; N+1 предотвращает принятие, а принятые доказательства никогда не вытесняются, не обрезаются, не отбрасываются молча и не откатываются
+каждый маркер хранения фиксируется только после того, как объявленные позиции/горизонты источников покрывают операцию, а ожидание пусто; маркер предшествует отсутствию, покрытые поздние доказательства не могут восстановить операцию, и лишь истечение горизонта маркера допускает последующий NotFound
+принятый ModuleResultOutput цели остаётся фактом статуса цели при аварии до отправки результата; DispatchStopped цели сохраняет точный кортеж доставки результата, а статус источника остаётся Pending/Unknown до проверенного результата/сверки
+у Catalog protocolVersion = 2.0.0, stateSchemaVersion = 2, transitionArtifactVersion = 2.0.1, а пара маршрута производителя/потребителя ProductSelectionConfirmed = 2.0.0/2.0.0
+ревизия CatalogState — доменная ревизия владельца Ball, отличная от CommitRevision компонента принятия, если только привязка не доказывает точное равенство с сохранением обоих смыслов владения
+переходы Catalog ProductSelected равны по множеству {Idle, Searching, Ready, Failed, OutcomeUnknown, Cancelled}; каждый сохраняет поля/аспекты своего состояния и выпускает ровно один ProductSelectionConfirmed SignalPublication с sourceOrdinal-0
+отображения CatalogState-to-CatalogView равны по множеству тем же шести состояниям, по одному случаю для каждого, без резервного/умолчательного или множественного случая; GetCatalogView и каждая Projection состояния поиска используют это отображение
+сохраняемое состояние Catalog v1 входит в decide v2 только через авторитетное преобразование версии; отсутствие причины отказа или иного обязательного доказательства ведёт в карантин/ручное исправление, а не к выдуманному значению по умолчанию
+для Checkout множество остановленных дескрипторов включает исходный RequestAccepted ReplyOutput и все девять дескрипторов команд Step; предел/порядок/резервирование/материализация и тесты 10/11 покрывают одно и то же точное множество
+каждый импортированный ModuleCommand/ModuleResult разрешается через ровно одно принадлежащее цели отображение команды в результат и объявленную зависимость, действующая идентичность протокола которой совпадает с Assembly; классификация отказа статична для этой версии, явные версии производителя/потребителя нужны только при независимом версионировании/развёртывании, а импортированные типы цели не объявляются заново как собственные типы вызывающего
+каждая привязка команды в Assembly сохраняет владение цели, принятие источника до вызова, принятие цели до принятого результата и последовательное завершение источника; локального доступа к цели и области вызова достаточно, а переносимые маршруты сохраняют требуемые проверенные кортежи
+каждая операция, похожая на чтение, но требующая принятого происхождения, стабильной идентичности команды/шага, идемпотентного повтора, статуса или сверки, использует командный мост; обычное чтение без записи использует Query/ReadDependency и не создаёт Decision/ревизию/выход цели
+успех локальной команды имеет одну Direct Control Dependency от источника к цели и не имеет обратного ребра возврата; полное конечное выполнение не требует переносимой области/глубины или резервов уровней; возобновляемая работа и работа в очереди/внешняя/сохраняемая требуют своих реальных ограничений и сохранности принятого
+псевдонимы носителя CheckoutCommandDeliveryObserved равны по множеству commandSource, effectiveProtocolIdentity, boundaryResponse и targetBoundaryProvenance; все девять обычных бизнес-отказов Checkout — принятые результаты
+каждый выход примера сохраняет каноническую семантическую роль; типизированным локальным вызовам не нужны поля конверта, придуманные только ради эквивалентности представлений
+графы импортов времени компиляции и Direct Control Dependency независимо и безусловно ацикличны; сгенерированная встроенная отправка до асинхронной передачи/приостановки тоже учитывается
+WaiverRecord для любого из прямых циклов фиксирует осознанное несоответствие и не может сделать архитектурный тест успешным
+асинхронная обратная связь после ограниченной передачи/приостановки не создаёт ребра прямого управления и отдельно проверяется на владельца, идентичность, конечный бюджет, условие выхода и защиту от разветвления
+каждое ребро между Ball имеет ReadDependency, DeclaredCommandDependency, DeclaredSignalDependency или FlowParticipation
+каждый физический импорт вспомогательного кода имеет одного владельца/классификацию: локален ровно одной логической роли Ball либо относится к общему механическому Foundation; общие доменные/бизнес-утилиты без владельца не проходят проверку, а общий смысл владельца Ball использует объявленную Application Surface/протокол, а не пятый вид зависимости
+каждый физический импорт остаётся в ацикличном графе времени компиляции; ребро утилиты входит в Direct Control Dependency только через Application Surface другого Ball или синхронное управление между владельцами полномочий
+каждая FlowParticipation разрешает ровно одного владельца Flow + владельца участника + Application Surface участника + непустой ограниченный набор координации владельца Flow + ограниченные ссылки на существующие зависимости чтения/команд/сигналов; каждая ссылка сохраняет существующих владельца, действующую идентичность, маршрут, привязку возврата, пределы и привязку Assembly
+FlowParticipation не создаёт вариант протокола, конверт времени исполнения, пятый маршрут, копию типа цели, полномочия над State участника или дубликат зависимости; у Checkout ровно четыре участника Flow и девять существующих командных маршрутов, хотя в примере шесть владельцев/ролей
+каждая Application Surface содержит только намеренно публичные семантические типы/точки входа владеющего Ball и исключает изменяемый State, внутренности Nucleus, механику runtime/транспорта, приватные адаптеры Resources и реэкспорт чужих контрактов
+каждая порождённая команда/чтение/внешнее действие имеет объявленный маршрут или привязку приватной capability
+каждый выбор границы проходит положительное доказательство и критерий опровержения из §4.4; Core допускает несколько декомпозиций, только если каждая независимо доказывает те же правила полномочий/инвариантов/жизненного цикла/доверия/зависимостей
+значение UI/транспорта, влияющее на решение, находится в зафиксированном State или явном доверенном текущем Pulse/DecisionContext; EphemeralState содержит только механику вне решений
+Flow существует ровно тогда, когда владеет существенной координацией жизненного цикла/порядка/ветвления-объединения/компенсации-восстановления-отмены/сверки/конечного исхода; одного числа вызовов или одного перехода недостаточно
+каждое присутствующее переменное измерение разрешается в один конечный действующий предел через статическое доказательство, точную повторно используемую политику или локальное объявление/отличие; отсутствующие измерения не требуют строки с нулём или N/A
+при наличии maxCumulativeFanout одна корневая причинная область суммирует отдельные принятые проходы от выхода источника к действующему маршруту/потребителю по уровням; конечные и сходящиеся ветви считаются, совместно достижимые суммируются, взаимоисключающие альтернативы делят максимальный резерв, дубликат/повторная доставка не увеличивают счётчик, асинхронная передача сохраняет область, а точный N/N+1 отклоняет весь превышающий предел Decision
+каждый числовой maxTransitionSteps разрешает один неизменяемый версионированный Decision Work Meter; равные канонические входы при одинаковых привязке/версии артефакта переходов/идентичности/версии измерителя расходуют одинаковую неотрицательную целую сумму, одна область decide монотонна и не допускает сброса, точный N может завершиться, N+1 не принимает кадр/state/ревизию/выход/отправку, а разные кортежи идентичности/версии измерителя, версии артефакта переходов или определения единиц не сравниваются
+каждый конкретный профиль/привязка с возможным отказом допуска предоставляет один конечный закрытый набор AdmissionFailure.reason; неизвестный дискриминатор/открытая строка отвергаются до доверенного построения, а профиль без отказа не содержит пустого объединения
+каждая ошибка §6.13 отображается из своей точной стадии только в допустимый носитель/результат/влияние на статус; позднейший сбой не может переписать проверку/допуск/отказ до принятия/принятый результат/доказательство Resources после принятия/остановку доставки/программную ошибку в другую стадию
+резервирование кандидата OperationId с последующим отказом проверки/допуска/Decision корня создаёт только BoundaryResponse и не создаёт принятой операции, известной строки статуса, маркера, дескриптора, выхода или ответа; покрытый поиск может вернуть только NotFound, а отказ участника остаётся аспектом шага принятой операции источника
+повтор корня с тем же ключом/отпечатком повторно доставляет точный принятый исходный кадр ReplyOutput(RequestAccepted) только с новым AttemptId; тот же ключ/другой отпечаток возвращает ValidationFailure(IdempotencyConflict) до Intent и не создаёт семантического артефакта
+дубликат цели до принятого результата возвращает только проверенное доказательство ACK исходного кадра цели/ожидающего результата; после результата повторно доставляет точный принятый кадр результата, и ни один путь не вызывает решение или выполнение заново
+статические зависимости остаются видны в типах и связях; обязательного предела maxDeclaredDependenciesPerBall или maxFlowParticipants нет
+статические маршруты остаются видны в типах и связях; обязательного предела maxRoutesPerFlow нет; необязательные пределы проекта следуют его контракту
+единица maxInputBytes = одно точное сырое или нормализованное представление кандидата входа с объявленным включением метаданных границы/Context; единица maxStateBytes = полное семантическое представление кандидата nextState; единица maxOutputBytesPerDecision = полное упорядоченное семантическое представление Decision.outputs; один кортеж меры фиксирует каждый N/N+1, последующая механика хранения/транспорта исключена
+несовпадение operationId устаревшего SearchCancelled Catalog не принимает Decision/ревизию/дескриптор/проекцию/внешнее действие; protocolVersion 2.0.0 + stateSchemaVersion 2 + transitionArtifactVersion 2.0.1 остаются различными
+Checkout StillUnknown на единственном слоте статуса завершает обычный v1 в NeedsManualReconciliation с outputs = [] и без неявного повторного открытия
+каждая ссылка на политику точна, ациклична, находится в области действия, актуальна для выбранной ревизии и бесконфликтна; неверные версия/профиль/привязка/окружение и неразрешённые переопределения отвергаются
+ссылки на политики и WaiverRecords не могут подавить выведенный триггер, ослабить закон или превратить нарушение MUST/MUST NOT в соответствие
+каждый вывод о соответствии/выпуске или принятое решение по неоднозначности, зависящие от отсутствия, имеют одно точное TriggerAbsenceProof, связанное с классом/якорем/областью/профилем/перечнем/дайджестами/предикатом/владельцем/условием утраты силы; безусловные и присутствующие триггеры отвергают такое доказательство, а утрата силы блокирует опору на него до повторной оценки
+обычное проектирование/внедрение и вывод, не опирающийся на отсутствие, не материализуют TriggerAbsenceProof или заполнитель
+рабочая форма внедрения/пилота и выбранные нагрузка/метод/базовая версия/пороги продолжения-переработки-остановки — инструкции владельца проекта только на время этой работы; Core не задаёт универсального порога, а отрицательные сценарии внедрения не создают пустых Ball или заполнителей соответствия
+авторитетное правило документации Core из §0.1 проецируется точно: каждая новая или изменённая диаграмма Mermaid в Core имеет локальную легенду семантической причины/выхода, зафиксированного принятия, привязки маршрута и ненормативных стрелок зависимостей/связей; отсутствие легенды блокирует это изменение документации, а не привязку принимающего проекта, не принявшего это требование
+когда actor, tenant, issuer, realm, assurance или delegation могут изменить Decision либо авторизацию/выбор результата Query/чтения статуса, PBA-44 разрешает доказательство подлинности/целостности одобренного издателя или фиксированного доверенного издателя/realm в одном стеке даже для типизированного входа между Ball; независимые от субъекта пути Decision/чтения не разрешают артефакт субъекта
+трасса Payment разделяет носитель до decide, принятый бизнес-отказ Nucleus и сбой Execution Gate/Resources после принятия; последние два остаются путями принятого результата цели и не могут быть понижены до более ранней стадии
+исходный Context Checkout явно передаёт проверенную версию IV артефакта отпечатка Interaction, сохранённый interactionArtifactVersion равен IV при повторах/восстановлении, отсутствие или несовпадение IV отвергается, а transitionArtifactVersion остаётся отдельной идентичностью
+каждое принятое действие достигает Execution Gate своего Resources/цели непосредственно перед выполнением с активированными проверками доказательства + capability + ограничений + версии + свежести/отзыва + конечной точки + квоты + приёмника и без второго бизнес-решения
+нет скрытого конструктора причины/контекста/результата, прямой записи State средой исполнения, семантического смысла от Assembly, глобального локатора сервисов, изменяемых коммуникаций через foundation или политики foundation, выбранной маршрутом
+минимальный сценарий Inline из §14.2 разрешает только безусловные обязанности и не содержит заполнителей отсутствующих путей
+положительные и отрицательные сценарии правил с триггерами пути, риска и заявления о гарантиях соответственно активируют ограничение и отвергают тот же достижимый триггер, если действующее ограничение/доказательство не разрешается
+два Ball могут разрешить одну точную общую политику без копирования; локальное отличие меняет только явно разрешённое к переопределению поле и оставляет все остальные действующие значения равными
+реестр небезопасных внешних действий
+карантин доменных типов в foundation
 ```
 
 Результат линтера импортов не доказывает семантическое владение или изоляцию безопасности. Он доказывает только проверяемое структурное свойство.

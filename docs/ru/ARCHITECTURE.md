@@ -23,14 +23,14 @@
 
 ```mermaid
 flowchart LR
-    X["External input"] -->|"raw bytes / platform event"| I["Interaction Hemisphere<br/>parse · authenticate · validate · bound"]
-    I -->|"validated Intent"| N["Protocol Nucleus<br/>Sovereign State<br/>pure bounded decide"]
-    N -->|"Accepted Decision<br/>state mutation / event decision + bounded outputs"| A["Atomic acceptance / commit"]
+    X["Внешний ввод"] -->|"сырые байты / событие платформы"| I["Полусфера Interaction<br/>разбор · аутентификация · проверка · ограничение"]
+    I -->|"проверенный Intent"| N["Протокольное ядро Nucleus<br/>Sovereign State<br/>чистый ограниченный decide"]
+    N -->|"Accepted Decision<br/>изменение состояния / решение по событиям + ограниченные выходы"| A["Атомарное принятие / фиксация"]
     N -->|"Rejected(BusinessRejection)"| I
     A -->|"ProjectionOutput / ReplyOutput"| I
-    A -->|"EffectRequest<br/>only after acceptance"| R["Resource Hemisphere<br/>minimum capability + triggered checks"]
-    R -->|"validated Fact when a result path exists"| N
-    I -->|"encoded view / response"| X
+    A -->|"EffectRequest<br/>только после принятия"| R["Полусфера Resources<br/>минимальная capability + активированные проверки"]
+    R -->|"проверенный Fact при наличии пути результата"| N
+    I -->|"закодированное представление / ответ"| X
 ```
 
 **Обозначения стрелок.** Сплошные стрелки показывают направление семантических входов и выходов между логическими ролями; ни одна не передаёт полномочия над состоянием, правилами, ресурсами или бизнес-решениями.
@@ -89,19 +89,19 @@ SemanticOutput =
 
 ```mermaid
 flowchart LR
-    S["Committed State"] --> D["pure bounded decide"]
-    P["current Pulse"] --> D
-    C["field-minimized DecisionContext"] --> D
-    D -->|"Accepted"| F["state mutation / event decision<br/>+ complete bounded output batch"]
-    D -->|"Rejected"| B["BusinessRejection<br/>no accepted Decision"]
-    F --> G["preflight + atomic acceptance"]
-    G -->|"accepted"| K["publish / commit state or events<br/>and all source outputs"]
-    G -->|"not accepted"| Z["no partial state<br/>no output dispatch"]
-    K --> O["dispatch SemanticOutputs by kind"]
-    O --> L["Projection / Reply<br/>delivery only"]
-    O --> W["Effect / Command / declared observation path"]
-    W --> V["validated completion / observation<br/>with causal identity"]
-    V -. "matching Pulse at its owning Ball" .-> P
+    S["Зафиксированный State"] --> D["чистый ограниченный decide"]
+    P["текущий Pulse"] --> D
+    C["DecisionContext с минимальным набором полей"] --> D
+    D -->|"Accepted"| F["изменение состояния / решение по событиям<br/>+ полный ограниченный пакет выходов"]
+    D -->|"Rejected"| B["BusinessRejection<br/>нет принятого Decision"]
+    F --> G["предварительная проверка + атомарное принятие"]
+    G -->|"принято"| K["публикация / фиксация состояния или событий<br/>и всех выходов источника"]
+    G -->|"не принято"| Z["нет частичного состояния<br/>нет отправки выходов"]
+    K --> O["отправка SemanticOutputs по виду"]
+    O --> L["Projection / Reply<br/>только доставка"]
+    O --> W["Effect / Command / объявленный путь наблюдения"]
+    W --> V["проверенное завершение / наблюдение<br/>с причинной идентичностью"]
+    V -. "соответствующий Pulse у владеющего им Ball" .-> P
 ```
 
 **Обозначения стрелок.** Сплошные стрелки показывают текущий переход, принятие и отправку после принятия; пунктир — последующий проверенный соответствующий `Pulse`, а не откат или вложенный повторный вход в переход.

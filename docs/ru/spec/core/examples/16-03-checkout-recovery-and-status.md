@@ -29,21 +29,21 @@ SemanticHandle(operationId, Cart.Unlock, "cart-unlock")
 Значения целей выводятся только из зафиксированного состояния Checkout:
 
 ```text
-Payment.Refund target
+цель Payment.Refund
     = {
         paymentRef = state.retained.paymentCapture.value,
         originalPaymentHandle = state.steps.paymentCapture.handle,
         operationId = state.operationId
       }
 
-Inventory.Release target
+цель Inventory.Release
     = {
         reservationRef = state.retained.inventoryReservation.value,
         originalReservationHandle = state.steps.inventoryReservation.handle,
         operationId = state.operationId
       }
 
-Cart.Unlock target
+цель Cart.Unlock
     = {
         cartId = state.cartSnapshot.value.cartId,
         originalLockHandle = state.steps.cartLock.handle,
@@ -106,7 +106,7 @@ ModuleCommandRequest {
 Одна из возможных последовательностей:
 
 ```text
-PaymentCaptured result
+результат PaymentCaptured
 CancellationTooLate
 ```
 
@@ -143,10 +143,10 @@ SemanticHandle(operationId, Inventory.Reserve, "inventory-reservation")
 Каждый Decision источника атомарно принимает:
 
 ```text
-next workflow state
-new EffectRequest/ModuleCommandRequest outputs
-idempotency markers
-operation status changes
+следующее состояние рабочего процесса
+новые выходы EffectRequest/ModuleCommandRequest
+маркеры идемпотентности
+изменения статуса операции
 ```
 
 Если текущий Pulse впервые вводит значимое для решения значение M/S/I/P, его `CapturedCheckoutInput` или `VerifiedStepValue` и каждый новый выход, который от него зависит, входят в один принятый кадр. Ни одна точка сбоя не может опубликовать выход без сохранённого исходного значения или сохранить значение без полного пакета выходов. Защищённая запись выхода хранит точное неизменное разрешение с ограниченной областью, с которым выход был принят; текущее состояние хранит только цепочку происхождения субъекта и значения из §§16.3–16.4.
@@ -253,19 +253,19 @@ Checkout применяет монотонное правило конфликт
 Для этого запроса объявленным владельцем полномочий статуса операции является зафиксированный `CheckoutStatusAuthority` с собственной ревизией и одним логическим писателем в аутентифицированном пространстве имён. Это проекция Checkout канонического владельца полномочий из §9.11; физическая форма хранилища и процесса остаётся в ведении проекта или привязки к среде исполнения. Он материализует изменения статуса Flow и доверенные наблюдения доставки среды исполнения, не становясь владельцем полномочий команд рабочего процесса. Его записи переходят следующим образом:
 
 ```text
-absent + accepted Checkout operation record -> CheckoutKnownStatus
-CheckoutKnownStatus + workflow commit -> updated CheckoutKnownStatus
-CheckoutKnownStatus + trusted terminal delivery observation
-    -> same lifecycle/cancellation + idempotent merge by semanticHandle
-delivery observation before its causal accepted/workflow record
-    -> bounded pending by operationId/semanticHandle; no lossy status commit
-causal record + pending observations
-    -> one CheckoutKnownStatus update with canonical stop merge
-CheckoutKnownStatus + covered sources + no pending + retention expiry
-    -> CheckoutExpiredFromStatusRetention marker
-expired marker + observation at/before covered source position
-    -> unchanged expired marker
-expired marker + marker-horizon expiry -> absent / CheckoutNotFound
+отсутствие + принятая запись операции Checkout -> CheckoutKnownStatus
+CheckoutKnownStatus + фиксация рабочего процесса -> обновлённый CheckoutKnownStatus
+CheckoutKnownStatus + доверенное наблюдение конечного исхода доставки
+    -> те же жизненный цикл/отмена + идемпотентное объединение по semanticHandle
+наблюдение доставки до причинно предшествующей принятой записи/записи рабочего процесса
+    -> ограниченное ожидание по operationId/semanticHandle; нет фиксации статуса с потерями
+причинная запись + ожидающие наблюдения
+    -> одно обновление CheckoutKnownStatus с каноническим объединением остановок
+CheckoutKnownStatus + покрытые источники + пустое ожидание + истечение срока хранения
+    -> маркер CheckoutExpiredFromStatusRetention
+маркер истечения срока + наблюдение на покрытой позиции источника или до неё
+    -> неизменённый маркер истечения срока
+маркер истечения срока + истечение горизонта маркера -> отсутствие / CheckoutNotFound
 ```
 
 Наблюдение доставки причинно ссылается на ранее зафиксированный выход источника, для которого возможна остановка доставки. Для командного Step тот же факт среды исполнения поступает во Flow через `CheckoutCommandDeliveryObserved(CommandDispatchStopped)`, а владельцу полномочий статуса — через его объявленный типизированный вход наблюдения доставки. Для `initialAcceptanceReply` применяется только путь владельца полномочий статуса: его доверенный `ControlPulse` согласно §6.11 привязан к точному зафиксированному кортежу источника `ReplyOutput` и не выдаёт себя за Pulse команды или бизнес-результат, поскольку доставка ответа не меняет `CheckoutState`. Конкретная привязка протокола и происхождения владельца полномочий статуса записывается в проектном наложении.

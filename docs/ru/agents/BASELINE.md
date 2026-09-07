@@ -2,7 +2,7 @@
 
 [Документация на русском](../README.md) · [Содержание Agent Pack](README.md) · [Оригинал на английском](../../agents/BASELINE.md)
 
-> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Инструкции, команды, шаблоны и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); для установки и проверки целостности используйте его.
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Пояснения, промпты и формы отчётов переведены для людей. Пути установки, схемы и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); устанавливайте и проверяйте его точные артефакты.
 
 <a id="agent-pack-integrity-manifest"></a>
 
@@ -108,12 +108,12 @@ PY
 ## Отчёт потребителя о целостности
 
 ```text
-Immutable snapshot provenance: present | absent
-Core entrypoint and manifest paths: ...
-Declared version/status: ...
-Exact Core file count/set digest/bytes match: yes | no
-Exact package count/digest match: yes | no
-Project policy or overlay used by this task: exact reference | absent
-Task scope: ...
-Applicable PKB-AR rules: ...
+Происхождение из неизменяемого снимка: подтверждено | отсутствует
+Точка входа Core и пути из манифеста: ...
+Объявленные версия и статус: ...
+Точное совпадение числа файлов, дайджеста и байтов Core: да | нет
+Точное совпадение числа файлов и дайджеста пакета: да | нет
+Политика проекта или overlay, используемые задачей: точная ссылка | отсутствуют
+Область задачи: ...
+Применимые правила PKB-AR: ...
 ```

@@ -42,13 +42,13 @@ Core намеренно не является спецификацией обл�
 Следующие отдельные будущие спецификации остаются вне Core:
 
 ```text
-Durable Runtime and Recovery
-Distributed Delivery and Executors
-Event Sourcing and Replay
-Secure Isolation and Audit
-Read Models and Subscriptions
-Tooling, Schema and Conformance
-Dynamic Extensions and Ownership Transfer
+Долговечная среда исполнения и восстановление
+Распределённая доставка и исполнители
+Хранение событий и повторное воспроизведение
+Безопасная изоляция и аудит
+Модели чтения и подписки
+Инструменты, схемы и соответствие
+Динамические расширения и передача владения
 ```
 
 Отсутствие этих спецификаций расширений не мешает использовать базовую архитектуру. Оно лишь запрещает приписывать Core более сильные гарантии, если они требуют отдельного формального протокола.
@@ -135,14 +135,14 @@ Dynamic Extensions and Ownership Transfer
 
   ```text
   owner
-  policyId + revision + content digest
-  covered guardrail IDs
-  exact project/Ball/profile/Assembly/binding/environment scope
-  effective values or mechanisms
-  allowed override fields, if any
-  enforcement owner
-  evidence references and their scope, if evidence is required
-  review or expiry condition, if one exists
+  policyId + revision + дайджест содержимого
+  идентификаторы покрываемых ограничений
+  точная область проекта/Ball/профиля/Assembly/привязки/окружения
+  действующие значения или механизмы
+  разрешённые поля переопределения, если есть
+  владелец обеспечения
+  ссылки на доказательства и их область, если доказательства нужны
+  условие ревью или истечения срока, если есть
   ```
 
   Разрешение проходит по замкнутому графу ссылок до реализации или ревью. Отсутствующая, изменяемая, устаревшая, циклическая, конфликтующая ссылка, ссылка неверной версии, профиля, привязки или среды недопустима. Локальное отличие допустимо только для поля, явно разрешённого к переопределению в объявлении по ссылке, и даёт одно уникальное действующее значение. Повторное использование никогда не создаёт реестр runtime, локатор сервисов, неявное значение по умолчанию или скрытое наследование.
@@ -317,12 +317,12 @@ Core — полный нормативный справочник, а не од�
 Каждый `Ball` содержит три логические зоны:
 
 ```text
-Interaction Hemisphere     <- Projection / Reply
+Полусфера Interaction     <- Projection / Reply
         ↓ Intent / Query
-Protocol Nucleus
+Протокольное ядро Nucleus
         ↑ Fact / Command Pulse / Result Pulse / Observed Signal / Control
         ↓ Effect / Command / Result / Signal / Timer
-Resource Hemisphere and explicit routes
+Полусфера Resources и явные маршруты
 ```
 
 `ProjectionOutput` и `ReplyOutput` возвращаются в Interaction для представления или кодирования ответа. `EffectRequest`, `ModuleCommandRequest`, `ModuleResultOutput`, `SignalPublication` и `TimerRequest` выходят через Resources или явный маршрут. Команда достигает владельца цели, а её результат возвращается владельцу источника. Это логические направления: непосредственный типизированный вызов и возврат в одной сборке сохраняют их через фактический доступ к цели, порядок принятия и сериализованное завершение источника без восстановления отсутствующих полей конверта (§6.9). Независимо доставляемые сообщения сохраняют необходимое проверенное причинное представление.
@@ -334,10 +334,10 @@ State + Pulse + DecisionContext
               ↓
            decide
               ↓
-SnapshotDecision = NextState + bounded semantic outputs
-            or
-EventDecision = nonempty DomainEvents or NoDomainChange
-                + bounded semantic outputs
+SnapshotDecision = NextState + ограниченные семантические выходы
+            или
+EventDecision = непустые DomainEvents или NoDomainChange
+                + ограниченные семантические выходы
 ```
 
 Выбранный профиль состояния выбирает ровно одну из этих форм изменения. Query вместо этого использует неизменяющую форму чтения из §§3.3 и 6.3.
@@ -345,15 +345,15 @@ EventDecision = nonempty DomainEvents or NoDomainChange
 Для локального цикла ресурса:
 
 ```text
-External input
-  -> Interaction: parse / normalize / authenticate / validate
+Внешний ввод
+  -> Interaction: разбор / нормализация / аутентификация / проверка
   -> Intent
   -> Nucleus: decide
-  -> commit Decision
+  -> зафиксировать Decision
   -> Effect
-  -> Resource: execute through capability and safe sink
-  -> validated Fact
-  -> next Nucleus decision
+  -> Resource: выполнить через capability и безопасный приёмник
+  -> проверенный Fact
+  -> следующее решение Nucleus
 ```
 
 Каноническое положение:
@@ -472,13 +472,13 @@ Pokeball не определяет вторую архитектуру «Lite».
 Минимальный Ball сохраняет:
 
 ```text
-one state authority
-explicit input validation
-no Interaction -> Resources business shortcut
-pure bounded decision
-atomic acceptance
-closed used protocol
-no ambient global authority
+один владелец полномочий над состоянием
+явная проверка входа
+нет обходного бизнес-пути Interaction -> Resources
+чистое ограниченное решение
+атомарное принятие
+закрытый используемый протокол
+нет неявных глобальных полномочий
 ```
 
 Внешняя операция, асинхронная идентичность, повторы, отмена, статус, долговечность, изоляция, разрешение или артефакт доказательств заявления добавляются, когда впервые становится истинным точное условие в их исходной записи; §20.1 помогает её найти. Отсутствие в замкнутом типе доказывает неиспользуемый путь; оно не требует объявления нуля или `N/A`.

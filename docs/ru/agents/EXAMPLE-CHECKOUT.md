@@ -2,7 +2,7 @@
 
 [Документация на русском](../README.md) · [Содержание Agent Pack](README.md) · [Оригинал на английском](../../agents/EXAMPLE-CHECKOUT.md)
 
-> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Инструкции, команды, шаблоны и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); для установки и проверки целостности используйте его.
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Пояснения, промпты и формы отчётов переведены для людей. Пути установки, схемы и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); устанавливайте и проверяйте его точные артефакты.
 
 <a id="checkout-example-crosswalk"></a>
 
@@ -35,11 +35,11 @@
 
 ```text
 CheckoutStarted + DecisionContext(actorContext=A, artifactVersion=IV)
-  retains M + ingress fingerprint + IV + actor binding
-CartLocked retains S
-InventoryReserved retains I -> Capture(S, M, current grant)
-PaymentCaptured retains P -> Confirm(S, I, P)
-Order rejection -> Refund(P) + Release(I) + Unlock(original cart/lock)
+  сохраняет M + отпечаток входа + IV + привязку субъекта
+CartLocked сохраняет S
+InventoryReserved сохраняет I -> Capture(S, M, текущий grant)
+PaymentCaptured сохраняет P -> Confirm(S, I, P)
+Отказ Order -> Refund(P) + Release(I) + Unlock(исходная корзина/блокировка)
 ```
 
 Начальная доверенная привязка проверяет и ограничивает `IV` как точную версию артефакта отпечатка Interaction, выбранную для этого входа. Checkout сохраняет `interactionArtifactVersion = IV`; она отличается от `transitionArtifactVersion` Nucleus и никогда не берётся из отсутствующего общего поля Context или неявного состояния сборки. Отсутствующая, устаревшая, несовпадающая или недоверенная `IV` отклоняется до принятия. В пределах объявленного допустимого горизонта повтора охватываемый повтор с тем же ключом/отпечатком повторно доставляет доказательство исходного принятого кадра `ReplyOutput(RequestAccepted(operationId))` с неизменными `BallInstanceId`, `CommitRevision`, материализованным `OutputId`, `semanticHandle`, `sourceOrdinal`, полезной нагрузкой, `OperationId` и сохранённой `IV`; меняется только `AttemptId`, второго Decision Checkout, принятого кадра, выхода, команды или источника статуса нет. Пока охватывающая запись идемпотентности хранится, тот же ключ с другим отпечатком возвращает до Intent `BoundaryResponse(ValidationFailure(IdempotencyConflict))`, но никогда `DecisionRejected`, и не создаёт сопоставление операции Checkout, Decision, ревизию, дескриптор, Reply, выход или источник статуса. Принятый кадр и запись хранятся не меньше горизонта повтора; после исчезновения записи ни воспроизведение, ни конфликт не подразумеваются. Восстановление, миграция и карантин используют исходно сохранённое происхождение.
@@ -49,13 +49,13 @@ Order rejection -> Refund(P) + Release(I) + Unlock(original cart/lock)
 Каждая команда Checkout проходит один и тот же мост принятой цели:
 
 ```text
-accepted Checkout ModuleCommandRequest
--> verified target ModuleCommandPulse(commandSource, effectiveProtocolIdentity,
+принятый ModuleCommandRequest Checkout
+-> проверенный ModuleCommandPulse цели(commandSource, effectiveProtocolIdentity,
                                        command: ModuleCommand, issuerProvenance)
--> target decide
--> accepted target ModuleResultOutput(sourceOrdinal, commandSource,
+-> decide цели
+-> принятый ModuleResultOutput цели(sourceOrdinal, commandSource,
                                       payload: ModuleResult)
--> verified Checkout ModuleResultPulse(commandSource, resultSource,
+-> проверенный ModuleResultPulse Checkout(commandSource, resultSource,
                                        effectiveProtocolIdentity,
                                        result: ModuleResult, issuerProvenance)
 ```

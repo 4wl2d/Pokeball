@@ -47,13 +47,13 @@ scope OrderDraft on its enforced owning thread:
     private committed = State(quantity = 1)
 
     selectQuantity(value: UInt8):
-        // Interaction: this trusted typed entry point accepts a UInt8.
+        // Interaction: эта доверенная типизированная точка входа принимает UInt8.
         candidate = decide(committed, QuantitySelected(value))
         match candidate:
             Rejected(reason):
                 return QuantityNotAccepted(reason)
             Accepted(decision):
-                // Acceptor: the only state publication, with no suspension.
+                // Компонент принятия: единственная публикация состояния, без приостановки.
                 committed = decision.nextState
                 return normally
 
@@ -79,14 +79,14 @@ scope OrderDraft on its enforced owning thread:
 original = State(quantity = 1)
 assert decide(original, QuantitySelected(20))
        == Accepted(SnapshotDecision(State(quantity = 20)))
-assert original == State(quantity = 1)   // decide did not mutate its input
+assert original == State(quantity = 1)   // decide не изменил вход
 
 draft.selectQuantity(20)
 assert draft.quantity() == 20
 
 assert draft.selectQuantity(21)
        == QuantityNotAccepted(QuantityOutsideRange)
-assert draft.quantity() == 20          // rejection published nothing
+assert draft.quantity() == 20          // отказ ничего не опубликовал
 
 assert draft.selectQuantity(0)
        == QuantityNotAccepted(QuantityOutsideRange)
@@ -143,7 +143,7 @@ next = DocumentState(Metadata(title = newTitle), current.paragraphs)
 assert next.paragraphs is current.paragraphs
 assert current.metadata.title == previousTitle
 
-builder = mutableList(current.paragraphs)  // Private to this candidate.
+builder = mutableList(current.paragraphs)  // Доступно только этому кандидату.
 builder.append(newText)
 if exceedsDocumentLimit(builder): return NotAccepted(DocumentSize)
 next = DocumentState(current.metadata, immutableTuple(builder))
@@ -165,8 +165,8 @@ next = DocumentState(current.metadata, immutableTuple(builder))
 4. Проверьте опоздавшее завершение A по запросу A. Оно подлинное, но устарело: `decide` сравнивает полный дескриптор и поколение с текущим поиском и сохраняет результаты B.
 
 ```text
-accepted A → accepted B → result B → result A
-current view:                 B          B
+принят A → принят B → результат B → результат A
+текущее представление:             B             B
 ```
 
 Теперь хост или привязка к среде исполнения должны обеспечить атомарное принятие состояния и выходов, сохранение выходов для отправки после принятия, последовательную обработку завершений, стабильную идентичность и проверку происхождения, а также конечные пределы запроса, ответа, работы и числа незавершённых операций. Для каждого завершения нужно строить его собственный доверенный Context, а не наследовать Context вызова, который начал работу. Достижимые сбои и неоднозначные исходы выбранного адаптера требуют закрытых путей результатов. Явно задавайте повторы, крайние сроки или отмену лишь там, где такие пути есть; изменение этих правил может включить новые обязанности.

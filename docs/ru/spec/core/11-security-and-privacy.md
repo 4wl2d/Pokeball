@@ -53,19 +53,19 @@
 Обе внешние стороны Nucleus считаются недоверенными:
 
 ```text
-User / HTTP / UI / OS        -> untrusted input
-Network / DB / File / SDK    -> untrusted resource output
+Пользователь / HTTP / UI / ОС -> недоверенный вход
+Сеть / БД / файл / SDK -> недоверенный выход ресурса
 ```
 
 Путь данных:
 
 ```text
-Untrusted bytes
-  -> parse
-  -> normalize by field contract
-  -> validate and bound
-  -> validated semantic value + trusted DecisionContext/ReadContext when required
-  -> Nucleus Policy Gate or pure semantic read
+Недоверенные байты
+  -> разобрать
+  -> нормализовать по контракту поля
+  -> проверить и ограничить
+  -> проверенное семантическое значение + доверенный DecisionContext/ReadContext, когда требуется
+  -> Nucleus Policy Gate или чистое семантическое чтение
 ```
 
 Ответ Resource проходит аналогичный путь разбора, валидации и проверки происхождения до создания `Fact`.
@@ -98,13 +98,13 @@ Untrusted bytes
   ```text
   AuthenticatedActorContext {
       stableSubjectId
-      issuer?                # issuer is not fixed by trusted enclosing scope
-      namespaceOrRealm?      # more than one realm/namespace is possible
-      authenticationMethod? # method affects policy or evidence
-      assuranceLevel?        # assurance affects policy
-      authenticatedAt?       # authentication time affects validity/audit
-      expiresAt?             # context can expire
-      delegation?            # delegation exists
+      issuer?                # издатель не фиксирован охватывающей доверенной областью
+      namespaceOrRealm?      # возможны несколько realm/пространств имён
+      authenticationMethod? # метод влияет на политику или доказательства
+      assuranceLevel?        # уровень уверенности влияет на политику
+      authenticatedAt?       # время аутентификации влияет на действительность/аудит
+      expiresAt?             # контекст может утратить силу по сроку
+      delegation?            # есть делегирование
   }
   ```
 
@@ -352,10 +352,10 @@ AccessToken
   reason
   scope
   capability
-  isolation decision
-  security review
+  решение об изоляции
+  ревью безопасности
   tests
-  expiry/remediation
+  истечение срока/исправление
   ```
 
   Обходной путь не должен выдаваться за обычный `Effect`.

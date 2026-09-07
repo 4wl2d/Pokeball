@@ -2,7 +2,7 @@
 
 [Документация на русском](../README.md) · [Содержание Agent Pack](README.md) · [Оригинал на английском](../../agents/ASYNC-STATUS-RUNBOOK.md)
 
-> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Инструкции, команды, шаблоны и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); для установки и проверки целостности используйте его.
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Пояснения, промпты и формы отчётов переведены для людей. Пути установки, схемы и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); устанавливайте и проверяйте его точные артефакты.
 
 <a id="async-and-status-runbook"></a>
 
@@ -23,15 +23,15 @@
 Когда работа переживает вызов, может завершиться позднее, повториться, сменить порядок, быть независимо отменена, восстановлена, сверена или наблюдаема, разрешите:
 
 ```text
-logical OperationId when an independent operation lifecycle exists
-SemanticHandle for the addressable work
-accepted source ordinal or equivalent sequence identity
-source Ball/revision when that identity crosses call scope or is observed
-OutputId and AttemptId only after materialization
-result issuer and accepted-operation proof only across the corresponding trust/acceptance boundary
-generation and stale policy only for late/reorderable generations
-duplicate identity and retention only for duplicate/redelivery risk
-causal depth/budget only when growing work needs those bounds
+логический OperationId — при независимом жизненном цикле операции
+SemanticHandle — для адресуемой работы
+порядковый номер принятого выхода источника или равноценная идентичность последовательности
+Ball/ревизия источника — когда эта идентичность выходит за область вызова или наблюдается
+OutputId и AttemptId — только после материализации
+издатель результата и доказательство принятой операции — только при пересечении соответствующей границы доверия/принятия
+поколение и политика устаревания — только для поколений с поздним приходом или изменением порядка
+идентичность дубликата и хранение — только при риске дублирования/повторной доставки
+причинная глубина/бюджет — только когда растущая работа требует этих ограничений
 ```
 
 Повтор меняет идентичность попытки, но не логическую операцию или дескриптор. На входе корневого изменения в пределах объявленного допустимого горизонта повтора тот же ключ и отпечаток повторно доставляет доказательство исходного принятого кадра `ReplyOutput(RequestAccepted(operationId))`, сохраняя `BallInstanceId`, `CommitRevision`, материализованный `OutputId`, `semanticHandle`, `sourceOrdinal`, полезную нагрузку, `OperationId` и происхождение принятого артефакта/отпечатка Interaction; меняется только `AttemptId`, а второго `decide`, ревизии, принятого кадра, семантического выхода, команды или источника статуса нет. Пока охватывающая запись идемпотентности хранится, тот же ключ с другим отпечатком отклоняется до создания Intent как `BoundaryResponse(ValidationFailure(IdempotencyConflict))`. Принятый корневой кадр и запись идемпотентности хранятся не меньше объявленного допустимого горизонта повтора; после исчезновения записи поведение воспроизведения или конфликта не подразумевается. Зарезервированный `OperationId` остаётся кандидатом до принятия корня: проверка корня, допуск, конфликт или отказ `decide` создаёт только свой типизированный `BoundaryResponse`, но никогда операцию, авторитетный дескриптор, выход, источник статуса, известную строку или маркер хранения. Синхронное завершение в том же стеке может использовать принятую позицию в области вызова и не нуждается в вымышленном происхождении операции/транспорта.
@@ -78,16 +78,16 @@ Runtime/acceptor выполняет только применимую перед
 Когда жизненному циклу нужны переносимые свидетельства, принятый полный путь таков:
 
 ```text
-accepted source ModuleCommandRequest frame
--> trusted target boundary verifies source tuple, effective protocol identity,
-   target-owned payload, bounds, issuer provenance, and triggered actor/grant evidence
+принятый кадр ModuleCommandRequest источника
+-> доверенная граница цели проверяет кортеж источника, действующую идентичность протокола,
+   принадлежащую цели полезную нагрузку, пределы, происхождение издателя и активированные доказательства субъекта/grant
 -> ModuleCommandPulse(commandSource, effectiveProtocolIdentity, command, issuerProvenance)
--> target decide as the sole acceptance point
--> accepted target Decision containing ModuleResultOutput
--> verified result route derives resultSource from the accepted target frame
+-> decide цели как единственная точка принятия
+-> принятый Decision цели, содержащий ModuleResultOutput
+-> проверенный маршрут результата выводит resultSource из принятого кадра цели
 -> ModuleResultPulse(commandSource, resultSource, effectiveProtocolIdentity,
                      result, issuerProvenance)
--> source decide
+-> decide источника
 ```
 
 `ModuleResultOutput` имеет `sourceOrdinal` кадра цели, несёт `commandSource` и `payload: ModuleResult` и использует `semanticHandle = commandSource.semanticHandle` только для корреляции. Он остаётся собственностью цели, учитывается в числе её выходов и каноническом `maxOutputBytesPerDecision` и, если сохраняется, повторяется или наблюдается независимо, занимает один слот доставки/статуса цели, допускающий остановку. Измерение `DecisionOutputs` в `BoundedByteMeasure` привязки к среде исполнения охватывает полное упорядоченное семантическое представление `Decision.outputs`: считаются структура последовательности, каждое обязательное поле конверта выхода, токен корреляции, `sourceOrdinal` и полезная нагрузка; не считаются `nextState`, поля принятого кадра вне конверта выхода и последующее транспортное кадрирование, сжатие, шифрование, заголовки повторов и `AttemptId`. Ключ доставки результата — ровно безымянный кортеж `(effectiveProtocolIdentity, commandSource, resultSource)`.

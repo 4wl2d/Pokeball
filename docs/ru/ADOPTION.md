@@ -96,7 +96,7 @@ features/
       transition/
       policy/
     resources/
-    ball.yaml            # optional/generated resolved view
+    ball.yaml            # необязательное/сгенерированное разрешённое представление
 
 flows/
   checkout/
@@ -105,7 +105,7 @@ flows/
       protocol/
       state/
       transition/
-    ball.yaml            # optional/generated resolved view
+    ball.yaml            # необязательное/сгенерированное разрешённое представление
 
 application/
   assembly/

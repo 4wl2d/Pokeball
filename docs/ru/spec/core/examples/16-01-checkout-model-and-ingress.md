@@ -25,13 +25,13 @@
 ### 16.1. Роли и участники Flow
 
 ```text
-Flow authority:
+Владелец полномочий Flow:
 CheckoutFlowBall
 
-Supporting context authority (not a Flow participant):
+Вспомогательный владелец контекста (не участник Flow):
 AuthBall
 
-Flow participants:
+Участники Flow:
 CartBall
 InventoryBall
 PaymentBall
@@ -220,7 +220,7 @@ Step {
 
 ```text
 CheckoutCommandDeliveryObserved {
-    source: CausalToken   # Checkout projection of commandSource
+    source: CausalToken   # представление commandSource в Checkout
     observationId
     observation:
         CommandDispatched(attemptId, deliveryEvidence)
@@ -286,10 +286,10 @@ AuthorizationGrant {
     issuer
     audience = PaymentBall
     action = Payment.Capture
-    objectRef = checkout operation / payment method reference
+    objectRef = ссылка на операцию оформления заказа / способ оплаты
     operationId
     constraints {
-        amount = exact total
+        amount = точная итоговая сумма
         currency = snapshot.currency
         paymentMethodRef
     }

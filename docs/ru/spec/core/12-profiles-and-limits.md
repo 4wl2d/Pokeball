@@ -51,7 +51,7 @@ composition: Static
 ### 12.2. Inline
 
 ```text
-Interaction -> decide -> atomically publish AcceptedSnapshotDecisionFrame | AcceptedEventCommit -> dispatch retained outputs
+Interaction -> decide -> атомарно опубликовать AcceptedSnapshotDecisionFrame | AcceptedEventCommit -> отправить сохранённые выходы
 ```
 
 Свойства:
@@ -68,9 +68,9 @@ Interaction -> decide -> atomically publish AcceptedSnapshotDecisionFrame | Acce
 ### 12.3. BoundedConcurrent
 
 ```text
-bounded mailbox
-  -> single-writer decision loop
-  -> bounded effect/command workers
+ограниченная входящая очередь
+  -> цикл принятия решений с единственным исполнителем записи
+  -> ограниченные исполнители внешних действий/команд
 ```
 
 Требуется:
@@ -218,14 +218,14 @@ businessDeadline
 
 ```text
 CPU
-wall time
-memory
-mailbox
-IPC bytes
-storage bytes
-parallel workers
-delivery attempts per output
-outbox and operation-status retention
+астрономическое время
+память
+входящая очередь
+байты IPC
+байты хранилища
+параллельные исполнители
+попытки доставки одного выхода
+хранение outbox и статусов операций
 ```
 
 Их обеспечивает runtime; они могут вызвать отказ допуска или fault, но не переписывают бизнес-решение. Проект/привязка может один раз объявить и проверить ограничение; Ball повторяет его, только если переопределяет общее значение или нуждается в другой смысловой реакции на сбой.
@@ -261,7 +261,7 @@ StoragePressure
 
 `DispatchStopped` после уже принятого долговечного выхода — не отказ допуска и не бизнес-отказ. Это конечное наблюдение доставки: источник хранит выход и статус по объявленной политике хранения и передаёт следующее решение политике сверки или ручной обработки.
 
-### 13.3. Zero Mandatory Runtime Tax
+### 13.3. Отсутствие обязательных накладных расходов среды исполнения
 
 <!-- pkb-translation:pba-source:start id="PBA-40" title="Zero Mandatory Runtime Tax" -->
 **Исходное положение PBA-40 — Отсутствие обязательных накладных расходов runtime.**
@@ -270,13 +270,13 @@ StoragePressure
   Семантика Core не требует:
 
   ```text
-  runtime handler lookup
-  reflection discovery
-  in-process serialization
-  mandatory queue
-  mandatory thread hop
-  object message hierarchy
-  service locator
+  поиск обработчика во время исполнения
+  обнаружение через рефлексию
+  сериализация внутри процесса
+  обязательная очередь
+  обязательная передача на другой поток
+  иерархия объектов сообщений
+  локатор сервисов
   ```
 
   Только конкретная привязка Inline с замером на точной цепочке инструментов может заявлять `maxStructuralAllocationsPerDecision = 0`.
@@ -332,16 +332,16 @@ ClaimRecord {
 Его метрики и доказательства могут включать:
 
 ```text
-transition p50/p95/p99
-structural allocations
-payload copies
-state bytes
-mailbox occupancy
-outbox age
-max effects/commands
-external response bytes
-CPU/wall limits
-binary contribution
+переход: p50/p95/p99
+выделения памяти для структур
+копирования полезной нагрузки
+байты состояния
+заполненность входящей очереди
+возраст записей outbox
+максимум внешних действий/команд
+байты внешнего ответа
+пределы процессорного/астрономического времени
+вклад в размер бинарного файла
 ```
 
 Абсолютное число без нагрузки, оборудования, компилятора и runtime, распределения полезных данных и метода измерения не является обоснованным заявлением. Без доказательств заявление запрещено; обычная работа над реализацией не требует пустого пакета доказательств.
@@ -353,13 +353,13 @@ binary contribution
 Архитектурные издержки не ограничены runtime:
 
 ```text
-manifest size
-number of artifacts
-routes per operation
-manual review hours
-waiver count
-schema/evidence maintenance
-flow-to-feature ratio
+размер манифеста
+число артефактов
+маршруты на операцию
+часы ручного ревью
+число исключений
+сопровождение схем/доказательств
+отношение числа Flow к числу функциональных модулей
 ```
 
 Простой Ball не должен платить формальностями за неиспользуемые распределённые гарантии.
