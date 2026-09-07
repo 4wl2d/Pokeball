@@ -466,8 +466,8 @@ ReconcilingPaymentAcceptance | ReconcilingPaymentOutcome
       result = StillUnknown(originalAcceptanceFacet, evidence)
   )
 
--> preserve cart snapshot, inventory reservation, original payment Step facets,
-            original capture unknown evidence, and accepted status-result source
+-> сохранить снимок корзины, резерв товара, исходные аспекты Step платежа,
+            исходное доказательство неизвестного списания и источник принятого результата статуса
    steps.paymentReconciliation = Accepted + Succeeded
    terminalOutcome = NeedsManualReconciliation
    outputs = []
@@ -508,7 +508,7 @@ with derived currentResultAliases {
     )
 }
 
-or
+или
 
 ReconcilingPaymentAcceptance | ReconcilingPaymentOutcome(
     cartSnapshot = RS,

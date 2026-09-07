@@ -2,7 +2,7 @@
 
 [Документация на русском](../README.md) · [Содержание Agent Pack](README.md) · [Оригинал на английском](../../agents/INSTALL.md)
 
-> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Инструкции, команды, шаблоны и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); для установки и проверки целостности используйте его.
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Пояснения, промпты и формы отчётов переведены для людей. Пути установки, схемы и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); устанавливайте и проверяйте его точные артефакты.
 
 <a id="installing-and-updating-the-agent-pack"></a>
 
@@ -19,40 +19,40 @@
 Для обычных задач разработки начните с самостоятельных skills. Откройте проект приложения в ИИ-агенте с доступом к файлам и сети и вставьте этот промпт. Он установит все пять skills в текущий проект; удалите лишние имена из списка, если нужен меньший набор.
 
 ```text
-Install the official Pokeball skills into the current project only.
+Установи официальные скиллы Pokeball только в текущий проект.
 
-Source: https://github.com/4wl2d/Pokeball, branch master.
-Resolve master to one commit and use that exact snapshot for all directories:
+Источник: https://github.com/4wl2d/Pokeball, ветка master.
+Разреши master в один коммит и используй этот точный снимок для всех каталогов:
 skills/pokeball
 skills/pokeball-async
 skills/pokeball-composition
 skills/pokeball-binding
 skills/pokeball-review
 
-Use this coding agent's supported project skill directory. For Codex, use
-.agents/skills at the project root. For another host, establish its documented
-project location first; if project skills are unsupported, explain and stop.
-Do not install globally.
+Используй каталог скиллов проекта, поддерживаемый этим ИИ-агентом. Для Codex —
+.agents/skills в корне проекта. Для другой среды сначала установи её документированное
+расположение; если скиллы проекта не поддерживаются, объясни это и остановись.
+Не устанавливай скиллы глобально.
 
-Use an available skill installer or Git with temporary staging outside the
-project. Copy only the selected complete directories, retaining SKILL.md,
-LICENSE and NOTICE.md. Do not copy the source repository, Core, Agent Pack,
-runtime, or installation helpers into the project.
+Используй доступный установщик скиллов или Git с временной подготовкой вне проекта.
+Копируй только выбранные полные каталоги, сохраняя SKILL.md, LICENSE и NOTICE.md.
+Не копируй в проект исходный репозиторий, Core, Agent Pack, среду исполнения
+или вспомогательные средства установки.
 
-Preserve existing project instructions, application code, dependencies and
-accepted Pokeball contracts. Inspect existing skill names and destinations:
-leave identical installations unchanged; report differing installations or
-name collisions without overwriting them or following destination symlinks.
+Сохрани существующие инструкции проекта, код приложения, зависимости и принятые
+контракты Pokeball. Проверь существующие имена скиллов и пути назначения:
+одинаковые установки оставь без изменений; сообщи об отличающихся установках
+или совпадениях имён, не перезаписывая их и не переходя по символическим ссылкам назначения.
 
-Verify the installed files match the chosen commit. Report the source commit,
-installed paths, skipped conflicts, and how to invoke a skill in this host.
-Check discovery if the host exposes it; otherwise say it is unverified and
-whether a new session is needed. Installation alone is not a conformance claim.
+Проверь соответствие установленных файлов выбранному коммиту. Сообщи коммит источника,
+пути установки, пропущенные конфликты и способ вызова скилла в этой среде.
+Проверь обнаружение скиллов, если среда позволяет; иначе укажи, что оно не проверено,
+и нужна ли новая сессия. Сама установка не является заявлением о соответствии.
 ```
 
 Каталог проекта и обнаружение skills в Codex соответствуют [официальной документации](https://developers.openai.com/codex/skills#where-to-save-skills), проверенной 2026-09-07. Установщик агента может по умолчанию выбирать личную область; промпт явно задаёт каталог проекта. Установка не включает рефакторинг приложения или автоматическое обновление skills.
 
-[Ручное руководство установки полных каталогов skills](https://github.com/4wl2d/Pokeball/blob/master/docs/SKILLS.md#download-once) остаётся доступно для проектной или личной области. Разделы ниже устанавливают полный Core и Agent Pack для проектов, которые явно выбирают этот справочный контракт; для самостоятельных skills это не требуется.
+[Ручное руководство установки полных каталогов скиллов](../SKILLS.md#download-once) доступно на русском для проектной или личной области. Сами устанавливаемые `SKILL.md` остаются на английском. Разделы ниже устанавливают полный Core и Agent Pack для проектов, которые явно выбирают этот справочный контракт; для самостоятельных скиллов это не требуется.
 
 <a id="target-layout"></a>
 
@@ -60,10 +60,10 @@ whether a new session is needed. Installation alone is not a conformance claim.
 
 ```text
 target-repo/
-├── spec/pokeball-architecture-core.md # stable Core entrypoint and ordered manifest
-├── spec/core/**                       # every manifest-listed Core chapter
-├── docs/agents/                    # exact portable package
-├── docs/pokeball-project-overlay.md # optional accepted shared project policy
+├── spec/pokeball-architecture-core.md # стабильная точка входа Core и упорядоченный манифест
+├── spec/core/**                     # каждая глава Core из манифеста
+├── docs/agents/                     # точная копия переносимого пакета
+├── docs/pokeball-project-overlay.md  # необязательная принятая общая политика проекта
 └── AGENTS.md
 ```
 
@@ -88,36 +88,38 @@ target-repo/
 Рекомендуемый блок маршрутизации:
 
 ```markdown
-## Pokeball Architecture
+## Архитектура Pokeball
 
-For Pokeball-scoped work, verify `docs/agents/BASELINE.md`, then read
-`docs/agents/AGENT-CONTRACT.md` and only the runbooks activated by the closed
-source/profile/route/risk/claim inventory. If the affected source references
-`docs/pokeball-project-overlay.md`, read that exact accepted policy too.
+Для работы в области Pokeball проверь `docs/agents/BASELINE.md`, затем прочитай
+`docs/agents/AGENT-CONTRACT.md` и только руководства, активированные закрытым
+перечнем источников, профилей, маршрутов, рисков и заявлений о гарантиях.
+Если затронутый источник ссылается на `docs/pokeball-project-overlay.md`,
+прочитай и эту точную принятую политику.
 
-Use `ASYNC-STATUS-RUNBOOK.md` for root idempotency, an inter-Ball command/result
-round trip, retry, or cancellation, and continue to `STATUS-AND-ASYNC-TESTS.md`
-only for operation status or its async test catalogue. Use
-`COMPOSITION-PROFILES.md` for an ordinary cross-authority ReadDependency,
-utility ownership, a Nucleus import of an owner-authored Application Surface,
-FlowParticipation, dependency/Flow-route counting, or cumulative fan-out;
-continue to `COMPOSITION-PROFILES-AND-CLAIMS.md` only for profile, claim, or
-Foundation work.
+Используй `ASYNC-STATUS-RUNBOOK.md` для идемпотентности корня, полного обмена
+командой и результатом между Ball, повтора или отмены; переходи к
+`STATUS-AND-ASYNC-TESTS.md` только для статуса операции или его каталога асинхронных тестов.
+Используй `COMPOSITION-PROFILES.md` для обычной ReadDependency между владельцами
+полномочий, владения утилитой, импорта в Nucleus созданной владельцем Application Surface,
+FlowParticipation, подсчёта зависимостей и маршрутов Flow или суммарного разветвления;
+переходи к `COMPOSITION-PROFILES-AND-CLAIMS.md` только для профиля,
+заявления о гарантиях или работы с Foundation.
 
-Use `DESIGN-RUNBOOK.md` for boundary and State, then
-`PROTOCOL-DESIGN-RUNBOOK.md` for the selected Snapshot/Event mutation,
-accepted frame, protocol, output, lifecycle, or read. Use
-`SECURITY-LIMITS-RUNBOOK.md` for protocol-validation versus State/Context
-business-stage ownership, capabilities, sinks, secrets, or unsafe paths; use
-`LIMITS-AND-EVIDENCE-RUNBOOK.md` for any numeric input/State/output byte limit,
-a triggered Decision Work Meter, runtime-enforced fan-out ceiling, admission,
-or evidence reuse. Use the absence-proof gate only when a claim or accepted
-ambiguity decision relies on absence.
+Используй `DESIGN-RUNBOOK.md` для границы и State, затем
+`PROTOCOL-DESIGN-RUNBOOK.md` для выбранной формы изменения Snapshot/Event,
+принятого кадра, протокола, выхода, жизненного цикла или чтения.
+Используй `SECURITY-LIMITS-RUNBOOK.md` для разделения проверки протокола
+и бизнес-этапа State/Context, capability, приёмников, секретов или небезопасных путей;
+используй `LIMITS-AND-EVIDENCE-RUNBOOK.md` для любого числового предела байтов
+ввода/State/выходов, активированного Decision Work Meter, обеспеченного средой
+исполнения предела разветвления, допуска или повторного использования доказательств.
+Применяй проверку доказательства отсутствия только тогда, когда на отсутствие
+опирается заявление о гарантиях или принятое решение по неоднозначности.
 
-Canonical Core set: `spec/pokeball-architecture-core.md` plus every exact
-ordered manifest-listed path under `spec/core/**`.
-Core prevails. Shared policies are exact static references; Balls record only
-allowed deltas. Absent paths create no placeholder artifacts.
+Канонический набор Core: `spec/pokeball-architecture-core.md` и каждый точный
+путь из упорядоченного манифеста под `spec/core/**`.
+Приоритет имеет Core. Общие политики задаются точными статическими ссылками;
+Ball записывают только разрешённые отличия. Отсутствующие пути не создают артефактов-заполнителей.
 ```
 
 <a id="routine-dry-run"></a>

@@ -1,5 +1,7 @@
 # Pokeball skills
 
+[Russian version](ru/SKILLS.md)
+
 Install the official Pokeball skills to give a coding agent practical instructions for your project. Each skill contains direct implementation or review steps and task-specific checks. You can install only the workflows you need.
 
 The skills are derived guidance. The [ordered Core set](../spec/pokeball-architecture-core.md) remains authoritative. Installation supplies neither a runtime nor evidence that your application conforms to Pokeball.

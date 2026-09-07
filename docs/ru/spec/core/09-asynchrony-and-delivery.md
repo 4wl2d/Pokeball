@@ -49,14 +49,14 @@
 
 ```text
 CausalToken {
-    operationId?            # independently tracked operation lifecycle
-    semanticHandle          # detached/addressable work
-    sourceBallInstanceId?   # source identity crosses call scope
-    sourceCommitRevision?   # accepted source revision is observed
-    sourceOrdinal           # position in the accepted source Decision
-    operationGeneration?    # late or reorderable generations exist
-    causalDepth?            # growing causal work needs a depth bound
-    causalBudgetScope?      # growing causal work needs a shared budget
+    operationId?            # независимо отслеживаемый жизненный цикл операции
+    semanticHandle          # отделённая/адресуемая работа
+    sourceBallInstanceId?   # идентичность источника выходит за область вызова
+    sourceCommitRevision?   # наблюдается принятая ревизия источника
+    sourceOrdinal           # позиция в принятом Decision источника
+    operationGeneration?    # есть поколения с поздним приходом или изменением порядка
+    causalDepth?            # растущая причинная работа требует предела глубины
+    causalBudgetScope?      # растущая причинная работа требует общего бюджета
 }
 ```
 
@@ -102,10 +102,10 @@ CausalToken {
   Пример:
 
   ```text
-  Search A: operationGeneration = 7, query = "phone"
-  Search B: operationGeneration = 8, query = "laptop"
+  Поиск A: operationGeneration = 7, query = "phone"
+  Поиск B: operationGeneration = 8, query = "laptop"
 
-  Result A arrives after Result B.
+  Результат A приходит после результата B.
   ```
 
   `Nucleus` применяет явное правило:
@@ -134,16 +134,16 @@ CausalToken {
 Когда отправка, принятие целью, бизнес-результат, отмена или неоднозначность могут меняться независимо, одно плоское перечисление не должно их смешивать. Представляйте явно только достижимые аспекты и варианты из этого каталога:
 
 ```text
-Dispatch facet:
+Аспект отправки:
     NotDispatched | Dispatched | DispatchStopped
 
-Acceptance facet:
+Аспект принятия:
     NotAccepted | Accepted | RejectedBeforeAcceptance | AcceptanceUnknown
 
-Business outcome facet:
+Аспект бизнес-исхода:
     NotExpected | Pending | Succeeded | Rejected | Failed | Cancelled | OutcomeUnknown
 
-Cancellation facet:
+Аспект отмены:
     NotRequested
   | Requested
   | CancellationAcceptedBeforeStart
@@ -218,9 +218,9 @@ cancellation = Requested
   Если запрос мог покинуть процесс, а цель или провайдер могли его принять, отсутствие ответа не доказывает неисполнение.
 
   ```text
-  Timeout after possible send
-      -> AcceptanceUnknown or OutcomeUnknown
-      -> status query / reconciliation / manual decision
+  Тайм-аут после возможной отправки
+      -> AcceptanceUnknown или OutcomeUnknown
+      -> запрос статуса / сверка / ручное решение
   ```
 
   Слепой повтор допустим, только когда:
@@ -348,11 +348,11 @@ Nucleus использует доверенное наблюдение врем�
 Слои повторов должны объявляться отдельно:
 
 ```text
-semantic retry      # new decision under business policy
-transport retry     # repeat of the same delivery
-executor retry      # repeat of execution before/after acceptance
-SDK retry           # low-level retry by the client library
-reconciliation      # status/check operation after unknown outcome
+семантический повтор # новое решение по бизнес-политике
+транспортный повтор  # повтор той же доставки
+повтор исполнителя  # повтор выполнения до/после принятия
+повтор SDK          # низкоуровневый повтор клиентской библиотеки
+сверка              # операция статуса/проверки после неизвестного исхода
 ```
 
 <!-- pkb-translation:pba-source:start id="PBA-24" title="Owned Retry Policy" -->
@@ -402,24 +402,24 @@ GetOperationStatus(OperationId)
 Статус — закрытая алгебра только достижимых вариантов жизненного цикла/аспектов. Ниже каталог применимости, а не обязательный базовый наднабор:
 
 ```text
-NotFound                       # absence is observable in the declared namespace
-Accepted                       # accepted state is independently observable
-InProgress                     # progress is independently observable
-Completed                      # successful terminal outcome is retained
-Rejected                       # business rejection is retained
-Failed                         # failure is retained
-RejectedBeforeAcceptance       # an accepted source operation separately tracks downstream target nonacceptance
-Cancelled                      # cancellation exists
-OutcomeUnknown                 # ambiguous execution exists
-DispatchStopped(               # independently delivered output can exhaust
-    stopped: one-or-more bounded records {
+NotFound                       # отсутствие наблюдаемо в объявленном пространстве имён
+Accepted                       # принятое состояние независимо наблюдаемо
+InProgress                     # ход выполнения независимо наблюдаем
+Completed                      # успешный конечный исход сохраняется
+Rejected                       # бизнес-отказ сохраняется
+Failed                         # сбой сохраняется
+RejectedBeforeAcceptance       # принятая операция источника отдельно отслеживает непринятие у последующей цели
+Cancelled                      # есть отмена
+OutcomeUnknown                 # возможно выполнение с неоднозначным исходом
+DispatchStopped(               # доставка независимого выхода может исчерпаться
+    stopped: одна или несколько ограниченных записей {
         semanticHandle,
         reason,
         attempts,
         lastObservation
     }
 )
-ExpiredFromStatusRetention     # a known record can age out of status retention
+ExpiredFromStatusRetention     # известная запись может выйти за срок хранения статуса
 ```
 
 Включаются только варианты, чьи комментарии верны для операции; обязательного наднабора жизненного цикла нет. `RejectedBeforeAcceptance` достижим лишь как аспект уже принятой исходной операции, которая отдельно отслеживает, приняла ли нижестоящая цель её команду. Он никогда не является корневым жизненным циклом непринятой операции с запрошенным `OperationId`. `Rejected`, `Failed` и `Cancelled` остаются разными конечными исходами; `DispatchStopped` сообщает только об исчерпании политики доставки и остаётся отдельным от бизнес-исхода и `OutcomeUnknown`. Доставка Reply не является единственным источником конечного исхода.

@@ -2,7 +2,7 @@
 
 [Документация на русском](../README.md) · [Содержание Agent Pack](README.md) · [Оригинал на английском](../../agents/EXAMPLE-CROSSWALK.md)
 
-> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Инструкции, команды, шаблоны и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); для установки и проверки целостности используйте его.
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Пояснения, промпты и формы отчётов переведены для людей. Пути установки, схемы и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); устанавливайте и проверяйте его точные артефакты.
 
 <a id="example-crosswalk"></a>
 
@@ -32,12 +32,12 @@ Resources каталога получает только ограниченну�
 Каноническая причинная трасса:
 
 ```text
-SearchRequested generation N
--> accepted state + detached FindProducts handle N
--> provenance-bound result
--> apply current / ignore stale / retain typed failure or OutcomeUnknown
--> map committed state through one total CatalogView function
--> publish output only after acceptance
+SearchRequested поколения N
+-> принятое состояние + дескриптор N отделённого FindProducts
+-> результат с привязкой к происхождению
+-> применить текущий / проигнорировать устаревший / сохранить типизированный сбой или OutcomeUnknown
+-> отобразить зафиксированное состояние одной тотальной функцией CatalogView
+-> опубликовать выход только после принятия
 ```
 
 Когда поколение `N+1` начинается до результата `N`, §15.7 Core намеренно опускает промежуточный блок повторного запуска, но предполагает, что его отдельный Decision принят и установил новое поколение и дескриптор до сопоставления устаревшего результата.

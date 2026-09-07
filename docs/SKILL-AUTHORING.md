@@ -1,5 +1,7 @@
 # Authoring Pokeball skills
 
+[Russian version](ru/SKILL-AUTHORING.md)
+
 Use this guide to edit `skills/<name>/SKILL.md` directly. Each installed skill contains final, concise work instructions plus the existing `LICENSE` and `NOTICE.md`. The legal files are not task context. Skills remain derived guidance; the [ordered Core set](../spec/pokeball-architecture-core.md) owns the architecture.
 
 Apply the host's `skill-creator` when available, together with the [Agent Skills specification](https://agentskills.io/specification) and [authoring practices](https://agentskills.io/skill-creation/best-practices), checked on 2026-09-05. Follow the concrete requirements below when general skill patterns would add unnecessary infrastructure.

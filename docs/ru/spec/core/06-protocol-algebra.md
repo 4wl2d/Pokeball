@@ -82,14 +82,14 @@ GetCheckoutStatus(operationId)
 ```text
 CommittedStateSnapshot<State> {
     commitRevision
-    ballInstanceId?        # instance identity crosses scope
-    stateSchemaVersion?    # persisted/migrated schema identity is observed
+    ballInstanceId?        # идентичность экземпляра выходит за область
+    stateSchemaVersion?    # наблюдается идентичность сохраняемой/мигрируемой схемы
     state: State
 }
 
 ReadContext {
-    protocolVersion?       # independently versioned boundary
-    actorContext?          # read authorization/result selection depends on actor context
+    protocolVersion?       # независимо версионируемая граница
+    actorContext?          # авторизация чтения/выбор результата зависит от контекста субъекта
 }
 
 ConsistencyStamp {
@@ -404,15 +404,15 @@ SemanticOutput =
   | ModuleCommandRequest
   | ModuleResultOutput
   | SignalPublication
-  | TimerRequest           # only if the Ball uses timers
+  | TimerRequest           # только если Ball использует таймеры
 ```
 
 Все варианты имеют типизированную полезную нагрузку и порядковый номер в принятой последовательности выходов. Стабильный дескриптор присутствует только при условии отделённой работы из §3.5; §20.1 — маршрут навигации к нему:
 
 ```text
 SemanticOutputEnvelope<Payload> {
-    semanticHandle: SemanticHandle?   # required for detached/addressable work
-    sourceOrdinal: UInt32             # semantic position; may be representation-erased in call scope
+    semanticHandle: SemanticHandle?   # обязательно для отделённой/адресуемой работы
+    sourceOrdinal: UInt32             # семантическая позиция; её представление может быть устранено в области вызова
     payload: Payload
 }
 
@@ -420,7 +420,7 @@ ProjectionOutput     = SemanticOutputEnvelope<Projection>
 ReplyOutput          = SemanticOutputEnvelope<Reply>
 EffectRequest        = SemanticOutputEnvelope<Effect>
 ModuleCommandRequest = SemanticOutputEnvelope<ModuleCommand>
-ModuleResultOutput   = accepted target-result envelope defined in §6.9
+ModuleResultOutput = конверт принятого результата цели, определённый в §6.9
 SignalPublication    = SemanticOutputEnvelope<Signal>
 TimerRequest         = SemanticOutputEnvelope<TimerIntent>
 ```
@@ -434,14 +434,14 @@ TimerRequest         = SemanticOutputEnvelope<TimerIntent>
 Ошибки разделяются на:
 
 ```text
-BusinessRejection       # intent is valid but prohibited by state/policy
-ValidationFailure       # Interaction does not create an Intent
-AdmissionFailure        # runtime capacity unavailable; Decision not accepted
-ResourceFailure         # external operation failed with known outcome
-Cancelled               # cancellation outcome is known
-TimedOut                 # local wait/deadline elapsed; action outcome may differ
-OutcomeUnknown          # action may have happened; reconciliation required
-ProgrammingFault        # bug, invariant violation, trap, nontermination
+BusinessRejection       # намерение допустимо, но запрещено состоянием/политикой
+ValidationFailure       # Interaction не создаёт Intent
+AdmissionFailure        # нет доступной ёмкости среды исполнения; Decision не принят
+ResourceFailure         # внешняя операция завершилась сбоем с известным исходом
+Cancelled               # исход отмены известен
+TimedOut                 # истёк срок локального ожидания/выполнения; исход действия может отличаться
+OutcomeUnknown          # действие могло произойти; требуется сверка
+ProgrammingFault        # ошибка программы, нарушение инварианта, аварийное прерывание, незавершение
 ```
 
 Это каталог ошибок Core, а не обязательное объединение для каждого Ball. Конкретная граница открывает только достижимые варианты: например, `OutcomeUnknown` появляется только при неоднозначном исполнении, а `QueueFull`/варианты допуска — только при соответствующем пути вместимости. Опущенные недостижимые варианты не требуют заглушек.

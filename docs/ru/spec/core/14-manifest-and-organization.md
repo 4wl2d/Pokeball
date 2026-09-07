@@ -34,12 +34,12 @@
 На раннем этапе контракт МОЖЕТ быть небольшим YAML- или JSON-файлом либо типизированным объявлением в исходном коде. Полный пакет схем не входит в Core. Авторитетный источник каждого факта должен быть однозначным:
 
 ```text
-owned protocol/state       -> typed Ball source or one manifest
-inter-Ball routes          -> Assembly
-Flow participation         -> Flow source + participant Application Surface + existing dependency references
-shared profiles/limits     -> exact project/binding policy
-Ball-specific differences  -> local policy delta
-claim evidence             -> claim record
+собственные протокол/состояние -> типизированный исходный код Ball или один манифест
+маршруты между Ball -> Assembly
+участие во Flow -> исходный код Flow + Application Surface участника + ссылки на существующие зависимости
+общие профили/пределы -> точная политика проекта/привязки
+отличия конкретного Ball -> локальное отличие от политики
+доказательства заявленной гарантии -> запись о ней
 ```
 
 Обычный локальный Ball не нуждается в отдельном манифесте, если его используемый замкнутый протокол, владелец состояния, точка входа решения, ресурсы и действующее разрешение через конструирование/локальную область/политику статически восстанавливаются из исходников и охватывающей области. Инструмент выпуска или проверки соответствия может сгенерировать полностью разрешённое представление.
@@ -323,8 +323,8 @@ Assembly отвечает за конкретные связи. Строка `Re
 
 ```text
 features/
-  order_draft.ext        # owned types, pure decision/read, serial binding
-  order_draft_test.ext   # behavior and the binding's actual acceptance boundary
+  order_draft.ext        # собственные типы, чистое решение/чтение, последовательная привязка
+  order_draft_test.ext   # поведение и реальная граница принятия привязки
 ```
 
 Расширение приведено для примера. Имена исходников и физические файлы выбирает проект; замкнутый смысл протокола и логические роли остаются доступными для проверки по §5. Отдельный файл Resource, интерфейс, манифест или пустой каталог не нужны, если соответствующего пути нет. Разделяйте файл, когда этого требуют реальные адаптеры, зависимости от платформы, владение или читаемость. Более крупный проект может использовать следующую структуру; это не каркас, который надо заполнить до первой функции:
@@ -346,7 +346,7 @@ features/
     resources/
       search/
 
-    ball.yaml            # optional/generated resolved view
+    ball.yaml            # необязательное/сгенерированное разрешённое представление
 
 flows/
   checkout/
@@ -355,7 +355,7 @@ flows/
       protocol/
       state/
       transition/
-    ball.yaml            # optional/generated resolved view
+    ball.yaml            # необязательное/сгенерированное разрешённое представление
 
 application/
   assembly/
@@ -372,10 +372,10 @@ foundation/
 Физические каталоги не нормативны. Направление зависимостей нормативно:
 
 ```text
-interaction -> own public interaction protocol
-resources   -> own private resource protocol
-nucleus     -> own state + own protocols + Ball-local Nucleus utilities + exact declared target/producer-owned Application Surfaces required by closed Query/Pulse/Decision contracts + mechanical foundation
-assembly    -> public protocols + explicit routes + resolved contract views
+interaction -> собственный публичный протокол взаимодействия
+resources -> собственный приватный протокол ресурсов
+nucleus -> собственный State + собственные протоколы + локальные утилиты Nucleus этого Ball + точные объявленные Application Surface цели/производителя, необходимые закрытым контрактам Query/Pulse/Decision + механический foundation
+assembly -> публичные протоколы + явные маршруты + разрешённые представления контрактов
 ```
 
 Строка Nucleus разрешает только собственные локальные утилиты Ball и публичные смысловые типы/точки входа, созданные владельцем. Импорты локальных утилит Ball и механического Foundation остаются обычными рёбрами графа времени компиляции, а не пятым смысловым видом зависимостей. Строка не передаёт владение и исключает чужой изменяемый State, внутренности, частные адаптеры Resource, реализации платформы/I/O, общие доменные утилиты без владельца, зеркала или повторные объявления вызывающей стороны и реэкспорт протокола. Interaction и Assembly не могут создавать импортированный контракт или бизнес-смысл.
@@ -388,8 +388,8 @@ assembly    -> public protocols + explicit routes + resolved contract views
 interaction -> resources
 resources   -> interaction
 nucleus     -> UI / HTTP / SQL / filesystem / platform SDK
-feature A   -> feature B internals
-feature A   -> mutable state of feature B
+функциональный модуль A -> внутренние части функционального модуля B
+функциональный модуль A -> изменяемое состояние функционального модуля B
 ```
 
 <a id="146-interfaces-di-and-code-generation"></a>
@@ -440,13 +440,13 @@ Pokeball не требует интерфейса для каждого клас
 
 ```text
 BoundedString / BoundedList
-checked numeric operations
+числовые операции с проверками
 Revision / Deadline / Cancellation
 SemanticHandle / TraceId
-Secret wrapper
-validation helpers
-pure proof/encoding primitives
-small result/error primitives
+обёртка Secret
+вспомогательные функции проверки
+чистые примитивы доказательства/кодирования
+небольшие примитивы результата/ошибки
 ```
 
 Доменные владельцы полномочий и универсальные бизнес-модели не относятся к foundation:

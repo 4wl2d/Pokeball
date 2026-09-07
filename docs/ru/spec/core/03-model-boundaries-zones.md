@@ -45,7 +45,7 @@ BallInstanceId {
 Принятые изменения полностью упорядочены внутри одного экземпляра. Материализованный монотонный `CommitRevision` требуется, когда этот порядок используется для оптимистической конкурентности, асинхронного упорядочивания, долговечного принятия, чтения/статуса с отметкой, переносимого владения, воспроизведения или внешне наблюдаемой идентичности снимка. Последовательная локальная привязка без этих путей может доказать порядок областью вызовов единственного писателя и не добавлять видимое домену поле ревизии.
 
 ```text
-CommitRevision: UInt64 or wider monotonic value
+CommitRevision: UInt64 или более широкое монотонное значение
 ```
 
 Если ревизия есть, она растёт даже тогда, когда байты смыслового состояния не меняются, но вход принят, состояние операции обновлено или результат доставки либо отмены записан. Ревизия не является отметкой реального времени.
@@ -120,9 +120,9 @@ Cause:
   | ObservedSignal | ControlPulse
 
 Decision:
-    SnapshotDecision(nextState + semantic outputs)
-  | EventMutation(nonempty events + semantic outputs)
-  | NoDomainChange(semantic outputs)
+    SnapshotDecision(nextState + семантические выходы)
+  | EventMutation(непустые события + семантические выходы)
+  | NoDomainChange(семантические выходы)
 
 Consequence:
     ProjectionOutput | ReplyOutput | EffectRequest
@@ -588,11 +588,11 @@ Resources   --X--> Interaction
 ### 5.5. Разрешённый граф зависимостей
 
 ```text
-interaction -> own external protocol
-resources   -> own resource protocol
-nucleus     -> own state + own protocols + Ball-local Nucleus utilities + exact declared target/producer-owned Application Surfaces required by closed Query/Pulse/Decision contracts + mechanical foundation
-assembly    -> public protocols + routes
-runtime     -> Ball integration points, not business internals
+interaction -> собственный внешний протокол
+resources -> собственный протокол ресурсов
+nucleus -> собственный State + собственные протоколы + локальные утилиты Nucleus этого Ball + точные объявленные Application Surface цели/производителя, необходимые закрытым контрактам Query/Pulse/Decision + механический foundation
+assembly -> публичные протоколы + маршруты
+runtime -> точки интеграции Ball, без внутренних бизнес-механизмов
 ```
 
 Таблица задаёт и зависимости ролей внутри Ball, включая локальные утилиты Ball, принадлежащие одной роли, и единственный разрешённый смысловой импорт между Ball. Импорт локальной утилиты остаётся в графе времени компиляции, но не создаёт маршрута между владельцами полномочий или строки зависимости. Импорт Application Surface не передаёт владение. Nucleus НЕ ДОЛЖЕН импортировать чужой изменяемый State, внутренности, частные адаптеры Resource, реализации платформы/I/O, общие доменные утилиты без владельца или зеркала вызывающей стороны; он НЕ ДОЛЖЕН повторно объявлять или реэкспортировать импортированный протокол. Interaction и Assembly НЕ ДОЛЖНЫ создавать импортированную полезную нагрузку, сопоставление, отказ или другой бизнес-смысл.
@@ -600,11 +600,11 @@ runtime     -> Ball integration points, not business internals
 Запрещено:
 
 ```text
-interaction -> concrete resource adapter
-resource adapter -> UI/controller
-nucleus -> platform SDK
-Ball A -> internals/state of Ball B
-business code -> global service locator
+interaction -> конкретный адаптер ресурса
+адаптер ресурса -> UI/контроллер
+nucleus -> SDK платформы
+Ball A -> внутренности/состояние Ball B
+бизнес-код -> глобальный локатор сервисов
 ```
 
 <a id="definition-source-records-for-5"></a>

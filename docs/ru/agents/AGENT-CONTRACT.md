@@ -2,7 +2,7 @@
 
 [Документация на русском](../README.md) · [Содержание Agent Pack](README.md) · [Оригинал на английском](../../agents/AGENT-CONTRACT.md)
 
-> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Инструкции, команды, шаблоны и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); для установки и проверки целостности используйте его.
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Пояснения, промпты и формы отчётов переведены для людей. Пути установки, схемы и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); устанавливайте и проверяйте его точные артефакты.
 
 <a id="pokeball-agent-contract"></a>
 
@@ -88,15 +88,15 @@ TriggerAbsenceProof {
 Когда жизненному циклу команды/результата нужны переносимые причинные свидетельства, `PKB-AR-PRT-004` сохраняет эти принадлежащие получателю фреймы и идентичность доставки:
 
 ```text
-accepted source ModuleCommandRequest
-  -> verified ModuleCommandPulse(commandSource, effectiveProtocolIdentity, command, issuerProvenance)
-  -> target decide / accepted target Decision
+принятый ModuleCommandRequest источника
+  -> проверенный ModuleCommandPulse(commandSource, effectiveProtocolIdentity, command, issuerProvenance)
+  -> decide цели / принятый Decision цели
   -> ModuleResultOutput(semanticHandle = commandSource.semanticHandle,
-                        target-frame sourceOrdinal, commandSource, payload)
-  -> verified ModuleResultPulse(commandSource, resultSource,
+                        sourceOrdinal кадра цели, commandSource, payload)
+  -> проверенный ModuleResultPulse(commandSource, resultSource,
                                 effectiveProtocolIdentity, result, issuerProvenance)
 
-result-delivery key = (effectiveProtocolIdentity, commandSource, resultSource)
+ключ доставки результата = (effectiveProtocolIdentity, commandSource, resultSource)
 
 CommandRejectedBeforeAcceptance {
     commandSource

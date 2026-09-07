@@ -62,9 +62,9 @@
   ```text
   semanticId
   namespace / tenant / realm
-  stateKey or key range
-  region or jurisdiction
-  validity interval
+  stateKey или диапазон ключей
+  регион или юрисдикция
+  интервал действительности
   ```
 
   Внешний провайдер или база данных может быть авторитетным первоисточником. Тогда локальный `Ball` владеет состоянием решения, состоянием операции или репликой, но не присваивает себе владение внешним каноническим фактом.
@@ -84,10 +84,10 @@
 
 ```text
 StateBelt {
-    AuthBall owns auth.session
-    CatalogBall owns catalog.searchSession
-    CartBall owns cart.contents
-    CheckoutFlow owns checkout.operation
+    AuthBall владеет auth.session
+    CatalogBall владеет catalog.searchSession
+    CartBall владеет cart.contents
+    CheckoutFlow владеет checkout.operation
 }
 ```
 
@@ -169,11 +169,11 @@ CapturedInput {
 Ball может объявить коммутативный или подобный CRDT контракт слияния для конкурентного входа или независимо подготовленных значений обновления с доказанными свойствами:
 
 ```text
-associative
-commutative
-idempotent or duplicate-aware
-deterministic conflict handling
-bounded metadata
+ассоциативность
+коммутативность
+идемпотентность или учёт дубликатов
+детерминированная обработка конфликтов
+ограниченные метаданные
 ```
 
 Такой контракт меняет семантику конфликтов и слияния, но не отменяет принятие единственным писателем: один логический писатель упорядочивает слияния и назначает `CommitRevision`. Два независимых писателя, одновременно принимающих изменение одного `BallInstance`, выходят за рамки Core, даже если алгебраические свойства соблюдены. Настоящий профиль с несколькими писателями требует отдельной спецификации; без неё всегда действуют §7.6 и PBA-12.

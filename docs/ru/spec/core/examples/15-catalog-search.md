@@ -181,11 +181,11 @@ pageSize = "100"
 Interaction выполняет:
 
 ```text
-UTF-8 validation
-NFC normalization according to field contract
+проверка UTF-8
+нормализация NFC по контракту поля
 SearchText.parse(maxUtf8Bytes = 128)
 PageSize.parse(range = 1..100)
-request deadline construction
+построение срока выполнения запроса
 ```
 
 Строка допустима как буквальный пользовательский текст. Специальные символы не удаляются ради «безопасности».
@@ -248,7 +248,7 @@ searchHandle = SemanticHandle {
          search-88,
          Searching(generation = 1, query, pageSize),
          NotRequested
-     ) # exactly toCatalogView(nextState)
+     ) # в точности toCatalogView(nextState)
   }
 + EffectRequest {
      semanticHandle = searchHandle
@@ -362,7 +362,7 @@ or OutcomeUnknown(generation = 1, pendingSearch = searchHandle, cancellation)
          operationId,
          Ready(generation = 1, products),
          cancellation
-     ) # exactly toCatalogView(nextState)
+     ) # в точности toCatalogView(nextState)
   }
 ```
 
@@ -418,7 +418,7 @@ cancelHandle = SemanticHandle {
     localOrdinalOrName = "cancel-generation-2"
 }
 
--> same lifecycle and search fields,
+-> те же жизненный цикл и поля поиска,
    pendingCancellation = cancelHandle,
    cancellation = Requested
 + ProjectionOutput {
@@ -468,8 +468,8 @@ ProductSearchCancelled
 
 ProductSearchCancelled
 -> Cancelled(cancellation = CancellationAcceptedInProgress)
-late ProductSearchCancellationAcceptedInProgress
--> corroboration; no new semantic state/output
+поздний ProductSearchCancellationAcceptedInProgress
+-> подтверждение; нет нового семантического состояния/выхода
 ```
 
 `ProductSearchFailed` следует тем же правилам совместимого порядка. Из них не следует ни доставка AIP первой, ни неограниченная буферизация.
@@ -492,10 +492,10 @@ CancellationRejected(reason-R)
 
 ```text
 ProductSearchCancelled -> Cancelled
-ProductsFound          -> invariant/provenance fault; no Decision; Cancelled remains accepted
+ProductsFound -> нарушение инварианта/происхождения; нет Decision; Cancelled остаётся принятым
 
 ProductsFound          -> Ready
-ProductSearchCancelled -> invariant/provenance fault; no Decision; Ready remains accepted
+ProductSearchCancelled -> нарушение инварианта/происхождения; нет Decision; Ready остаётся принятым
 ```
 
 `ProductSearchFailed` следует тому же правилу конфликта конечных исходов. Это не правило «побеждает последнее поступление» и не неявное преобразование типизированного `ProductSearchCancelled` в `CancellationTooLate`. Catalog v2 закрепляет это закрытое семейство переходов, включая допуск устаревшей отмены, за `transitionArtifactVersion: 2.0.1`; `protocolVersion = 2.0.0`, `stateSchemaVersion = 2`, версии маршрутов и граница миграции версии 2 в §§14.4/15.1–15.2 остаются прежними.
@@ -525,10 +525,10 @@ ProductSearchOutcomeUnknown
 не преобразуется в `ProductSearchFailed`. Для текущего совпадающего поиска:
 
 ```text
-Searching(all search fields, cancellation)
+Searching(все поля поиска, cancellation)
 + ProductSearchOutcomeUnknown(searchHandle, generation, provenance)
 
--> OutcomeUnknown(the same operation/search/pending fields, cancellation)
+-> OutcomeUnknown(те же поля операции/поиска/ожидания, cancellation)
 + ProjectionOutput(
      sourceOrdinal = 0,
      payload = toCatalogView(nextState)

@@ -238,10 +238,10 @@ DecisionContext {
   ```text
   handle(owner, pulse, context):
       candidate = owner.decide(owner.acceptedState, pulse, context)
-      preflight(candidate)                 # only applicable capacity/limit checks
-      accepted = owner.accept(candidate)   # State and complete outputs together
-      dispatch(accepted.outputs)           # transition has ended
-      process completions through their owner's serialized handler
+      preflight(candidate)                 # только применимые проверки ёмкости/пределов
+      accepted = owner.accept(candidate)   # State и полные выходы вместе
+      dispatch(accepted.outputs)           # переход завершён
+      обработать завершения через последовательный обработчик их владельца
   ```
 
   Это псевдокод порядка, а не обязательный диспетчер, очередь, библиотека или рекурсивная реализация. Повторный вход в переход по-прежнему запрещён. Реализация с уступкой сохраняет незавершённые элементы в ограниченном `RetainedContinuation` с одним владельцем и политикой возобновления/статуса. Полностью непосредственной конечной цепочке артефакт продолжения не нужен.
@@ -269,7 +269,7 @@ DecisionContext {
 
   ```text
   AcceptedSnapshotDecisionFrame<State> {
-      commitRevision? # materialized when §3.2 trigger applies; otherwise accepted call scope
+      commitRevision? # материализуется при триггере §3.2; иначе область принятого вызова
       nextState
       outputs: BoundedSequence<SemanticOutput>
   }
@@ -279,7 +279,7 @@ DecisionContext {
       acceptedInputMarker
       idempotencyMarker?
       operationStatusChanges?
-      decision: EventDecision # EventMutation or NoDomainChange + complete ordered outputs
+      decision: EventDecision # EventMutation или NoDomainChange + полные упорядоченные выходы
   }
   ```
 

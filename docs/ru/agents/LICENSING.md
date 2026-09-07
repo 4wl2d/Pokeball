@@ -2,7 +2,7 @@
 
 [Документация на русском](../README.md) · [Содержание Agent Pack](README.md) · [Оригинал на английском](../../agents/LICENSING.md)
 
-> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Инструкции, команды, шаблоны и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); для установки и проверки целостности используйте его.
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Пояснения, промпты и формы отчётов переведены для людей. Пути установки, схемы и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); устанавливайте и проверяйте его точные артефакты.
 
 <a id="portable-materials-license"></a>
 
@@ -30,7 +30,7 @@ Vladislav Tomilov — автор и правообладатель этих ма
 
 Рекомендуемое указание авторства:
 
-> Pokeball Architecture by Vladislav Tomilov (4wl2d).
+> Архитектура Pokeball. Автор: Vladislav Tomilov (4wl2d).
 > Copyright © 2026 Vladislav Tomilov (4wl2d).
 > Источник: https://github.com/4wl2d/Pokeball
 > Лицензия CC BY 4.0: https://creativecommons.org/licenses/by/4.0/

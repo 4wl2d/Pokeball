@@ -2,7 +2,7 @@
 
 [Документация на русском](../README.md) · [Содержание Agent Pack](README.md) · [Оригинал на английском](../../agents/BOUNDS-AND-CHANGE-DESIGN.md)
 
-> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Инструкции, команды, шаблоны и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); для установки и проверки целостности используйте его.
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Пояснения, промпты и формы отчётов переведены для людей. Пути установки, схемы и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); устанавливайте и проверяйте его точные артефакты.
 
 <a id="bounds-and-change-design"></a>
 
@@ -90,12 +90,12 @@ BoundedByteMeasure {
 Для обычной работы сообщите:
 
 ```text
-baseline and affected authority
-semantic delta
-new/removed triggers
-effective declaration or policy ref/delta, if present
-tests run
-remaining decision, if one blocks the triggered path
+базовая версия и затронутый владелец полномочий
+семантическое изменение
+новые/удалённые триггеры
+действующее объявление или ссылка на политику/отличие от неё, если есть
+выполненные тесты
+нерешённый вопрос, если он блокирует активированный путь
 ```
 
 Используйте полную запись ревью из [TEST-AND-REVIEW-GATES.md](TEST-AND-REVIEW-GATES.md) только для заявления о соответствии или выпуске.

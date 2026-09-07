@@ -21,10 +21,10 @@
 Проект не копирует каждый набор тестов этого раздела в каждый Ball. Его план тестов выводится так:
 
 ```text
-always-applicable invariant tests
-+ tests for reachable path/risk triggers
-+ local policy-delta tests
-+ evidence suites for claims actually made
+тесты безусловных инвариантов
++ тесты достижимых триггеров пути/риска
++ тесты локальных отличий от политики
++ наборы доказательств для фактически сделанных заявлений о гарантиях
 ```
 
 Точный общий парсер, примитив принятия, привязку профиля, политику ограничений, адаптер возможностей или правило foundation можно тестировать один раз в объявленной области. Ball тестирует свои семантические связи и локальные отличия. Ревью соответствия разрешает все ссылки и один раз доказывает отсутствие условий по закрытому перечню; обычная работа над реализацией не требует повторной матрицы свидетельств или строк `N/A`.
@@ -36,12 +36,12 @@ always-applicable invariant tests
 Nucleus тестируется без имитаций внешних объектов фреймворка:
 
 ```text
-Given committed State
-And Pulse
-And DecisionContext
-Expect Accepted(mode-specific Decision) or Rejected(BusinessRejection)
-Expect next State for SnapshotDecision or events/NoDomainChange for EventDecision
-Expect ordered SemanticOutputs
+Дано: зафиксированный State
+И Pulse
+И DecisionContext
+Ожидается Accepted(Decision выбранной формы) или Rejected(BusinessRejection)
+Ожидается следующий State для SnapshotDecision или события/NoDomainChange для EventDecision
+Ожидаются упорядоченные SemanticOutputs
 ```
 
 Базовые тесты переходов покрывают:
@@ -123,57 +123,57 @@ Expect ordered SemanticOutputs
 Полезные свойства выбираются из активных условий применения; свойства Catalog и Checkout ниже не копируются в посторонний Ball:
 
 ```text
-state invariant preserved after every Accepted Decision
-outputs and every present dimension <= effective bounds
-forbidden actor produces no privileged output
-stale generation cannot replace current generation
-same state+pulse+context+artifact gives same Decision
-same state+pulse+valid per-Pulse context+artifact gives the same candidate Decision under different remaining runtime causal budgets; only admission/continuation may differ
-Inline deque/continuation preserves each Pulse-to-Context association; later causes do not inherit root context fields
-same state+pulse+valid context+transition artifact version+binding+meter identity/version gives the same transition-step count
-one decide meter scope is monotonic and cannot reset; exact N may complete and first-unit N+1 accepts no frame/state/revision/output/dispatch
-different meter identities or transition artifact versions are not numerically comparable
-every active numeric maxInputBytes | maxStateBytes | maxOutputBytesPerDecision resolves one BoundedByteMeasure dimension/identity/version/representation/limit tuple; equal canonical values under one tuple count equally, alternate representations map exactly, erasure preserves the count, different tuples are incomparable, and stage-specific N+1 accepts no forbidden semantic artifact
-maxCumulativeFanout counts each distinct accepted source-output-to-effective-route/consumer branch once across one causal scope; terminal and converging traversals count, duplicate/redelivery does not, async handoff preserves scope, and N+1 accepts no partial Decision
-adding an allowed static consumer preserves target operation/result types and domain behavior; no mandatory global dependency ceiling
-static finite wiring resolves actual target operations without a mandatory route/participant count or manually synchronized route table
-rejected input does not change state
-fault does not publish partial output
-compensation never reuses original action identity
-every example output maps to one canonical SemanticOutput envelope and full SemanticHandle
-every outgoing payload field has one explicit State | current Pulse | declared DecisionContext lineage
-CheckoutStartFingerprintV1(P, A1) != CheckoutStartFingerprintV1(P, A2) for different stable subject/issuer/realm scope
-CheckoutStartFingerprintV1(P with key/transport metadata X, A) = CheckoutStartFingerprintV1(P with key/transport metadata Y, A)
-retained Checkout ingress fingerprint = atomically accepted Interaction idempotency-record fingerprint
-retained Checkout interactionArtifactVersion = verified current Context artifactVersion IV != transitionArtifactVersion identity; retry never replaces the accepted IV
-same root key+fingerprint within horizon redelivers the exact original accepted ReplyOutput frame with only a new AttemptId and no Decision/revision/output; different fingerprint returns pre-Intent ValidationFailure(IdempotencyConflict) and changes nothing
-retained workflow value is not cleared while a dependent transition remains reachable
-same authority action cannot bind different retained value/authority version/conflicting proof; alternate valid observation of the same value only corroborates
-Catalog ProductSelected source-state set = {Idle, Searching, Ready, Failed, OutcomeUnknown, Cancelled}
-every Catalog ProductSelected Decision has outputs = [SignalPublication(ProductSelectionConfirmed(productId), sourceOrdinal = 0)]
-CatalogState-to-CatalogView source-state set = {Idle, Searching, Ready, Failed, OutcomeUnknown, Cancelled}, with one case per state and no fallback
-CatalogView preserves lifecycle/result + cancellation + CancellationRejected(reason) for every reachable state
-ProductSearchOutcomeUnknown cannot regress Ready, Failed, or proven Cancelled; a later proven result may refine OutcomeUnknown
-nonterminal cancellation acceptance commutes with a legitimate matching result and preserves its lifecycle in both observation orders
-too-late, rejected(reason), and cancellation-unknown commute with legitimate result without information loss
-terminal cancellation proof subsumes a delayed accepted-in-progress observation; a later weaker proof does not change terminal state or publish duplicate output
-mutually exclusive terminal result/cancellation proofs never overwrite an accepted terminal frame in either arrival order
-stale SearchCancelled(A) against current operation B accepts no Decision/revision/handle/output/Effect and can never target B; exact B follows the cancellation matrix
-ModuleCommandPulse commandSource always resolves to its accepted source ModuleCommandRequest frame
-independently delivered ModuleResultPulse preserves accepted commandSource + target-derived resultSource + effectiveProtocolIdentity
-ModuleResultOutput semanticHandle = commandSource.semanticHandle without changing target payload ownership
-verified pre-acceptance carrier implies RejectedBeforeAcceptance + NotExpected
-root pre-acceptance rejection implies no authoritative OperationId/status row/handle/output; participant carrier remains a facet of an already accepted source operation
-local pre-acceptance refusal leaves target accepted state unchanged and returns through source serialized completion
-post-acceptance executor failure preserves target acceptance and is never reclassified as NotAccepted
-accepted target Rejected result implies Accepted + Rejected
-same command identity within idempotency horizon has at most one target Decision/revision and one accepted result frame
-same target command duplicate before result returns only verified accepted-frame ACK/pending proof; after result it redelivers the exact result frame; neither path waits, re-decides, revises, fabricates a result, or repeats Resource work
-accepted Checkout StillUnknown on the sole status slot yields terminal NeedsManualReconciliation with no output or automatic generation; duplicate replay adds no Decision and later proof requires a separately declared recovery artifact
-equivalent status observation redelivery is idempotent
-compatible status evidence order preserves the same lifecycle + cancellation + result + delivery-stop facets
-weaker status evidence cannot regress a proven facet; conflicting same causal key never overwrites by arrival order
-retention marker implies covered source positions/horizons + empty pending and prevents covered late-evidence resurrection
+инвариант состояния сохраняется после каждого Accepted Decision
+выходы и каждое присутствующее измерение <= действующие пределы
+субъект без разрешения не порождает привилегированный выход
+устаревшее поколение не может заменить текущее
+одинаковые state+pulse+context+artifact дают одинаковый Decision
+одинаковые state+pulse+действительный контекст данного Pulse+artifact дают одинаковый кандидат Decision при разных остатках причинного бюджета среды исполнения; различаться могут только допуск/продолжение
+двусторонняя очередь/продолжение Inline сохраняет каждую связь Pulse-to-Context; последующие причины не наследуют поля корневого контекста
+одинаковые state+pulse+действительный контекст+версия артефакта переходов+привязка+идентичность/версия измерителя дают одинаковое число шагов перехода
+одна область измерителя decide монотонна и не допускает сброса; точный N может завершиться, а первая единица N+1 не принимает кадр/state/ревизию/выход/отправку
+разные идентичности измерителя или версии артефакта переходов численно несопоставимы
+каждый действующий числовой maxInputBytes | maxStateBytes | maxOutputBytesPerDecision разрешает один кортеж BoundedByteMeasure из измерения/идентичности/версии/представления/предела; равные канонические значения в одном кортеже считаются одинаково, альтернативные представления отображаются точно, устранение представления сохраняет счётчик, разные кортежи несопоставимы, а N+1 на соответствующей стадии не принимает запрещённого семантического артефакта
+maxCumulativeFanout считает каждую отдельную принятую ветвь от выхода источника к действующему маршруту/потребителю один раз в одной причинной области; конечные и сходящиеся проходы считаются, дубликат/повторная доставка — нет, асинхронная передача сохраняет область, а N+1 не принимает частичный Decision
+добавление разрешённого статического потребителя сохраняет типы операции/результата цели и доменное поведение; обязательного глобального предела зависимостей нет
+статические конечные связи разрешают реальные целевые операции без обязательного числа маршрутов/участников или синхронизируемой вручную таблицы маршрутов
+отклонённый вход не меняет состояние
+сбой не публикует частичный выход
+компенсация никогда не использует повторно идентичность исходного действия
+каждый выход примера отображается в один канонический конверт SemanticOutput и полный SemanticHandle
+каждое поле исходящей полезной нагрузки имеет одно явное происхождение из State | текущего Pulse | объявленного DecisionContext
+CheckoutStartFingerprintV1(P, A1) != CheckoutStartFingerprintV1(P, A2) для разных стабильных областей субъекта/издателя/realm
+CheckoutStartFingerprintV1(P с ключом/транспортными метаданными X, A) = CheckoutStartFingerprintV1(P с ключом/транспортными метаданными Y, A)
+сохранённый отпечаток входа Checkout = отпечаток атомарно принятой записи идемпотентности Interaction
+сохранённый interactionArtifactVersion Checkout = проверенный artifactVersion IV текущего Context != идентичность transitionArtifactVersion; повтор никогда не заменяет принятый IV
+одинаковые ключ+отпечаток корня в пределах горизонта повторно доставляют точный исходный принятый кадр ReplyOutput только с новым AttemptId и без Decision/ревизии/выхода; другой отпечаток возвращает ValidationFailure(IdempotencyConflict) до Intent и ничего не меняет
+сохранённое значение рабочего процесса не очищается, пока достижим зависимый переход
+одно действие владельца полномочий не может связываться с другим сохранённым значением/версией владельца/противоречащим доказательством; другое действительное наблюдение того же значения лишь подтверждает его
+множество исходных состояний Catalog ProductSelected = {Idle, Searching, Ready, Failed, OutcomeUnknown, Cancelled}
+каждый Decision Catalog ProductSelected имеет outputs = [SignalPublication(ProductSelectionConfirmed(productId), sourceOrdinal = 0)]
+множество исходных состояний CatalogState-to-CatalogView = {Idle, Searching, Ready, Failed, OutcomeUnknown, Cancelled}, по одному случаю на состояние, без резервной ветви
+CatalogView сохраняет жизненный цикл/результат + отмену + CancellationRejected(reason) для каждого достижимого состояния
+ProductSearchOutcomeUnknown не может ослабить Ready, Failed или доказанное Cancelled; позднейший доказанный результат может уточнить OutcomeUnknown
+принятие отмены без конечного исхода коммутирует с допустимым соответствующим результатом и сохраняет его жизненный цикл при обоих порядках наблюдений
+слишком поздняя отмена, rejected(reason) и неизвестный исход отмены коммутируют с допустимым результатом без потери информации
+конечное доказательство отмены включает в себя запоздалое наблюдение принятия в ходе выполнения; последующее более слабое доказательство не меняет конечное состояние и не публикует повторный выход
+взаимоисключающие конечные доказательства результата/отмены никогда не перезаписывают принятый конечный кадр при любом порядке прихода
+устаревший SearchCancelled(A) при текущей операции B не принимает Decision/ревизию/дескриптор/выход/Effect и никогда не может адресовать B; точный B следует матрице отмены
+commandSource в ModuleCommandPulse всегда разрешается в его принятый исходный кадр ModuleCommandRequest
+независимо доставляемый ModuleResultPulse сохраняет принятый commandSource + выведенный из цели resultSource + effectiveProtocolIdentity
+semanticHandle в ModuleResultOutput = commandSource.semanticHandle без изменения владения полезной нагрузкой цели
+проверенный носитель отказа до принятия означает RejectedBeforeAcceptance + NotExpected
+отказ корня до принятия означает отсутствие авторитетного OperationId/строки статуса/дескриптора/выхода; носитель участника остаётся аспектом уже принятой операции источника
+локальный отказ до принятия оставляет принятое состояние цели неизменным и возвращается через последовательную обработку завершения источника
+сбой исполнителя после принятия сохраняет принятие цели и никогда не переклассифицируется в NotAccepted
+принятый результат Rejected цели означает Accepted + Rejected
+одна идентичность команды в пределах горизонта идемпотентности имеет не более одного Decision/ревизии цели и одного принятого кадра результата
+дубликат той же команды цели до результата возвращает только проверенное доказательство ACK принятого кадра/ожидания; после результата повторно доставляет точный кадр результата; ни один путь не ждёт, не вызывает новое решение, не меняет ревизию, не выдумывает результат и не повторяет работу Resources
+принятый Checkout StillUnknown на единственном слоте статуса даёт конечный NeedsManualReconciliation без выхода или автоматического поколения; повтор не добавляет Decision, а позднейшее доказательство требует отдельно объявленного артефакта восстановления
+повторная доставка эквивалентного наблюдения статуса идемпотентна
+порядок совместимых доказательств статуса сохраняет те же аспекты жизненного цикла + отмены + результата + остановки доставки
+более слабое доказательство статуса не может ослабить доказанный аспект; конфликт по одному причинному ключу никогда не перезаписывается по порядку прихода
+маркер хранения означает покрытие позиций/горизонтов источников + пустое ожидание и не позволяет покрытым поздним доказательствам восстановить удалённую операцию
 ```
 
 Для машины состояний полезно генерировать последовательности Pulse, а не только отдельные примеры.

@@ -47,10 +47,10 @@ handle(input):
     candidate = runPureDecisionWithoutReentry(committed.state, input)
     if candidate is NotAccepted: return candidate
     requireExecutorForPresentOutputs(candidate)
-    committed = candidate                 // State and all outputs together.
+    committed = candidate                 // State и все выходы вместе.
     try:
-        for output in candidate.outputs:  // Retained by this immediate call.
-            execute(output)               // After acceptance, outside decide.
+        for output in candidate.outputs:  // Сохраняется этим непосредственным вызовом.
+            execute(output)               // После принятия, вне decide.
     catch UnhandledExecutorFault:
         retainFrameAndStopNewMutations(candidate)
         throw
@@ -83,7 +83,7 @@ counter = SerialOwner(0, counterDecide)
 reader = CounterRead(counter.read)
 commands = CounterCommands(() => counter.handle(Increment))
 source = makeSource(commands)
-additionalConsumer = makeSource(commands)  // Assembly-only addition.
+additionalConsumer = makeSource(commands)  // Добавление только в Assembly.
 ```
 
 Исполнитель запускается только для принятого выхода источника. Counter принимает собственное изменение, затем источник принимает обновление отображения через тот же сериализованный механизм. Текущий вызов связывает непосредственный возврат с запросом; для доказательства этого порядка не нужно восстанавливать отсутствующие поля tuple. Отображаемое число источника — захваченное значение, а не второй записываемый источник полномочий Counter.

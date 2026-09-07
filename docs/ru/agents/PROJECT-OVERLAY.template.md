@@ -2,7 +2,7 @@
 
 [Документация на русском](../README.md) · [Содержание Agent Pack](README.md) · [Оригинал на английском](../../agents/PROJECT-OVERLAY.template.md)
 
-> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Инструкции, команды, шаблоны и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); для установки и проверки целостности используйте его.
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Пояснения, промпты и формы отчётов переведены для людей. Пути установки, схемы и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); устанавливайте и проверяйте его точные артефакты.
 
 <a id="pokeball-project-policy--template"></a>
 
@@ -20,80 +20,80 @@
 schema: pokeball-project-policy/v2
 
 metadata:
-  project: <project name>
-  revision: <immutable revision>
+  project: <название проекта>
+  revision: <неизменяемая ревизия>
   contentDigest: <sha256>
-  owner: <accountable owner>
-  acceptedBy: <project owner or review body>
-  acceptedAt: <date>
+  owner: <ответственный владелец>
+  acceptedBy: <владелец проекта или орган ревью>
+  acceptedAt: <дата>
   coreBaseline: docs/agents/BASELINE.md
 
 sources:
-  ballContracts: [<typed-source path or manifest glob>]
-  # Include only when an inter-Ball edge exists.
-  assembly: <sole route/composition source>
+  ballContracts: [<путь типизированного исходного кода или glob-шаблон манифеста>]
+  # Включайте только при наличии ребра между Ball.
+  assembly: <единственный источник маршрутов/композиции>
 
 policies:
-  <policy id>:
-    revision: <immutable revision>
+  <идентификатор политики>:
+    revision: <неизменяемая ревизия>
     digest: <sha256>
-    owner: <policy owner>
+    owner: <владелец политики>
     scope:
-      ballsOrBindings: [<exact scope>]
-      bindingsProfilesOrEnvironments: [<exact applicable scope>]
-    coveredGuardrails: [<PBA or PKB-AR ids>]
+      ballsOrBindings: [<точная область>]
+      bindingsProfilesOrEnvironments: [<точная область применимости>]
+    coveredGuardrails: [<идентификаторы PBA или PKB-AR>]
     effective:
-      # Keep only non-empty categories and present dimensions.
+      # Оставьте только непустые категории и присутствующие измерения.
       profiles:
-        <present profile dimension>: <exact choice>
+        <присутствующее измерение профиля>: <точный выбор>
       limits:
-        <present dimension>: <finite value and unit>
+        <присутствующее измерение>: <конечное значение и единица>
       mechanisms:
-        <triggered guardrail>: <exact mechanism or binding reference>
-    overridableFields: [<exact allowlist>]
+        <активированное ограничение>: <точная ссылка на механизм или привязку>
+    overridableFields: [<точный разрешённый список>]
     enforcement:
-      owner: <enforcement owner>
-      # Include only concrete enforcement/evidence artifacts.
-      artifacts: [<path or exact artifact reference>]
-    # Include only when review or expiry exists for this declaration/evidence.
+      owner: <владелец обеспечения>
+      # Включайте только конкретные артефакты обеспечения/доказательства.
+      artifacts: [<путь или точная ссылка на артефакт>]
+    # Включайте только при наличии ревью или срока действия этого объявления/доказательства.
     reviewOrExpiry:
-      condition: <exact date, event, or invalidation condition>
-      owner: <review owner>
+      condition: <точная дата, событие или условие утраты силы>
+      owner: <владелец ревью>
 
-# Add only when the project graph contains them.
+# Добавляйте только при наличии в графе проекта.
 compositionCeilings:
-  <present graph dimension>:
-    value: <finite value and unit>
-    policyRef: <exact revision and digest>
+  <присутствующее измерение графа>:
+    value: <конечное значение и единица>
+    policyRef: <точные ревизия и дайджест>
 
 sharedBindings:
-  <binding id>:
-    policyRef: <exact revision and digest>
-    source: <path>
+  <идентификатор привязки>:
+    policyRef: <точные ревизия и дайджест>
+    source: <путь>
 
-# Add only when a deliberate deviation exists. Keep exactly the eight Core fields.
+# Добавляйте только при осознанном отступлении. Сохраните ровно восемь полей Core.
 waivers:
-  - owner: <accountable owner>
-    approvedBy: <accepting authority>
-    governingAnchor: <exact Core, extension, or project-policy anchor>
-    exactScope: <exact nonconforming scope>
-    reason: <why the deviation is accepted>
-    constraintsAndCompensatingControls: [<constraint or control>]
-    testsAndEvidence: [<test or evidence reference>]
+  - owner: <ответственный владелец>
+    approvedBy: <полномочный участник, принимающий решение>
+    governingAnchor: <точный якорь Core, расширения или политики проекта>
+    exactScope: <точная область несоответствия>
+    reason: <почему отступление принято>
+    constraintsAndCompensatingControls: [<ограничение или мера контроля>]
+    testsAndEvidence: [<ссылка на тест или доказательство>]
     review:
-      expiryOrReviewAt: <date, event, or review condition>
-      remediation: <required remediation>
-      conformanceEffect: <exact effect on claims and conformance>
+      expiryOrReviewAt: <дата, событие или условие ревью>
+      remediation: <необходимое исправление>
+      conformanceEffect: <точное влияние на заявленные гарантии и соответствие>
 
-# Add only as a non-empty reference list.
-claims: [<claim record path>]
+# Добавляйте только как непустой список ссылок.
+claims: [<путь записи о заявленной гарантии>]
 
 acceptance:
-  decision: <accepted or rejected>
-  revision: <policy revision>
-  acceptedBy: <owner or review body>
-  acceptedAt: <date>
-  review: <accepted project record or path>
+  decision: <accepted или rejected>
+  revision: <ревизия политики>
+  acceptedBy: <владелец или орган ревью>
+  acceptedAt: <дата>
+  review: <принятая запись проекта или путь>
 ```
 
 Оставьте только действующие измерения и механизмы в области каждой политики. Добавляйте `evidence: {scope, artifacts}` в политику, только если её активированный механизм или конкретное заявление о гарантиях требует доказательств. Общие доказательства записываются один раз с точными дайджестом/областью артефакта.
@@ -107,7 +107,7 @@ acceptance:
 ```yaml
 policyDelta:
   overrides:
-    <allowlisted field>: <local effective value>
+    <поле из разрешённого списка>: <локальное действующее значение>
 ```
 
 Опускайте пустой `policyDelta`. Точный локальный `policySelection` Ball добавляют, только если он намеренно выбирает другую политику, а не наследует охватывающую принятую область. Статическое разрешение отвергает изменяемые/устаревшие ссылки, циклы, конфликты, несовпадение области/профиля/привязки к среде исполнения/окружения, непокрытые триггеры и поля вне `overridableFields`.

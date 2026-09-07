@@ -44,22 +44,22 @@
 Для `SnapshotOutbox` и `EventJournal` выберите точки аварии из существующих путей:
 
 ```text
-before transaction
-inside transaction
-commit acknowledged but response lost
-root accepted ReplyOutput committed but response lost     # exact root replay path
-before dispatch                                      # output path
-request sent but ACK lost                            # ACK path
-after target acceptance before source update         # detached result path
-after target acceptance before target result exists  # pending-result duplicate ACK path
-after accepted ModuleResultOutput before result dispatch # target result path
-target result delivery exhausted                     # target stop tuple path
-post-commit observation before/after ControlPulse    # delivery-observation path
-before/after result commit                           # result path
-recovery with pending outbox                         # output path
-recovery after accepted NoDomainChange               # EventJournal path
-delivery exhaustion persisted as DispatchStopped     # terminal delivery/status path
-initial ReplyOutput exhaustion in status authority   # detached reply/status path
+до транзакции
+внутри транзакции
+фиксация подтверждена, но ответ потерян
+принятый ReplyOutput корня зафиксирован, но ответ потерян # путь точного повтора ответа корня
+до отправки # путь выхода
+запрос отправлен, но ACK потерян # путь ACK
+после принятия цели до обновления источника # путь отделённого результата
+после принятия цели до появления результата цели # путь ACK дубликата при ожидающем результате
+после принятого ModuleResultOutput до отправки результата # путь результата цели
+доставка результата цели исчерпана # путь кортежа остановки цели
+наблюдение после фиксации до/после ControlPulse # путь наблюдения доставки
+до/после фиксации результата # путь результата
+восстановление с ожидающим outbox # путь выхода
+восстановление после принятого NoDomainChange # путь EventJournal
+исчерпание доставки сохранено как DispatchStopped # путь конечного исхода доставки/статуса
+исчерпание исходного ReplyOutput у владельца статуса # путь отделённого ответа/статуса
 ```
 
 При наличии долговечного материализатора статуса операции тесты сбоев и гонок также покрывают наблюдение до его причинного источника, аварию с ограниченным ожиданием до и после применения источника, повторные и противоречащие свидетельства с тем же ключом, независимые порядки аспектов жизненного цикла, отмены, результата и остановки, резервирование `N/N+1` до принятия источника, давление после принятия без вытеснения или обрезания, попытку записать маркер при отстающей позиции источника или непустом ожидании, зафиксированный маркер до исчезновения записи, покрытый поздний дубликат, истечение срока маркера и отсутствие воскрешения. Зарезервированный ID кандидата, чей корневой запрос отклонён при валидации, допуске или Decision, не имеет принятого источника статуса для восстановления и не может быть синтезирован в известную запись или маркер хранения. Авария после принятого `ModuleResultOutput` цели, но до отправки результата сохраняет источник принятого результата цели; исчерпание маршрута цели добавляет `DispatchStopped` цели, а источник остаётся Pending/Unknown до проверенного результата или сверки.
@@ -69,22 +69,22 @@ initial ReplyOutput exhaustion in status authority   # detached reply/status pat
 Канонический пример Checkout дополнительно проверяет:
 
 ```text
-Checkout recovery after accepted CheckoutStarted/CartLocked before InventoryReserved
-Checkout recovery after accepted CheckoutStarted preserves exact equality of retained ingress fingerprint and atomic idempotency record
-Checkout recovery after accepted InventoryReserved before PaymentCaptured
-Checkout recovery after direct or reconciled PaymentCaptured before Order result
-Checkout recovery after Order rejection before/between Refund, Release and Unlock
-Checkout recovery after accepted StillUnknown preserves the terminal NeedsManualReconciliation frame and creates no new status generation
+восстановление Checkout после принятых CheckoutStarted/CartLocked до InventoryReserved
+восстановление Checkout после принятого CheckoutStarted сохраняет точное равенство сохранённого отпечатка входа и атомарной записи идемпотентности
+восстановление Checkout после принятого InventoryReserved до PaymentCaptured
+восстановление Checkout после прямого или подтверждённого сверкой PaymentCaptured до результата Order
+восстановление Checkout после отказа Order до/между Refund, Release и Unlock
+восстановление Checkout после принятого StillUnknown сохраняет конечный кадр NeedsManualReconciliation и не создаёт нового поколения статуса
 ```
 
 Канонический пример Catalog v2 дополнительно проверяет развёртывание сохранённого состояния:
 
 ```text
-each v1 Idle/Searching/Ready/Failed/Cancelled variant -> exact authoritative v2 upcast
-v1 CancellationRejected + authoritative bounded reason evidence -> v2 CancellationRejected(reason)
-v1 CancellationRejected without that evidence -> quarantine/manual remediation
-pending v1 output or Fact retains its v1 protocol/artifact meaning and is not decoded as v2
-no schema-v1 record enters normal v2 decide and no missing field receives a null/default substitute
+каждый вариант v1 Idle/Searching/Ready/Failed/Cancelled -> точное авторитетное преобразование в v2
+v1 CancellationRejected + авторитетное ограниченное доказательство причины -> v2 CancellationRejected(reason)
+v1 CancellationRejected без такого доказательства -> карантин/ручное исправление
+ожидающий выход v1 или Fact сохраняет смысл протокола/артефакта v1 и не декодируется как v2
+ни одна запись schema-v1 не входит в обычный decide v2, ни одно отсутствующее поле не заменяется null/значением по умолчанию
 ```
 
 Минимальные свойства также зависят от условий применения. Пункты о Checkout ниже — свидетельства для §16, а не шаблон для другого долговечного Ball:
@@ -157,25 +157,25 @@ no schema-v1 record enters normal v2 decide and no missing field receives a null
 При заявлении о производительности отчёт дополнительно записывает:
 
 ```text
-hardware and OS
-language/runtime/compiler version
-optimization flags
-allocator/GC mode
-payload sizes and distribution
-warmup and sample method
-instrumentation overhead
-profile combination
-latency distribution
-allocation/copy counts
+оборудование и ОС
+версия языка/среды исполнения/компилятора
+флаги оптимизации
+режим распределителя памяти/GC
+размеры и распределение полезной нагрузки
+прогрев и метод выборки
+накладные расходы измерительных инструментов
+сочетание профилей
+распределение задержек
+число выделений памяти/копирований
 ```
 
 Как проекция свидетельств заявления из отмеченного исходного положения `PBA-41`, такой замер сравнивает следующие базовые варианты там, где они применимы:
 
 ```text
-direct hand-written call
-Pokeball Inline binding
-concurrent binding where applicable
-existing framework baseline
+прямой вызов, написанный вручную
+привязка Pokeball Inline
+конкурентная привязка, где применима
+базовая реализация на существующем фреймворке
 ```
 
 Если заявление сравнивает числовые счётчики `maxTransitionSteps` между привязками к среде исполнения, отчёт записывает `meterIdentity`, `meterVersion`, `transitionArtifactVersion` и `unitDefinition` для каждого сравниваемого счётчика и доказывает равенство всех четырёх значений до числового сравнения. Иначе счётчики остаются явно несравнимыми и могут приводиться только как отдельные наблюдения, локальные для каждой привязки.
@@ -195,7 +195,7 @@ commitRevision
 pulseType
 semanticHandle
 operationId
-outputId when available
+outputId, когда доступен
 stateRevisionBefore/After
 attemptId
 outcome

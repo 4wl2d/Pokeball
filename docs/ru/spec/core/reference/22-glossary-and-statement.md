@@ -221,18 +221,18 @@
 Краткие формулы:
 
 ```text
-One mutable fact — one authority.
-One instance — one writer.
-One stateful workflow — one coordinator.
-Only the Nucleus creates a semantic effect.
-Commit first, then dispatch.
-Timeout does not prove failure.
-Cancellation does not prove stop.
-Dependencies and resources are always bounded.
-The mechanism is proportional to the guarantee.
-Absent path — absent ceremony.
-Present trigger — one effective guardrail.
-Declare once; reference exactly.
+Один изменяемый факт — один владелец полномочий.
+Один экземпляр — один исполнитель записи.
+Один рабочий процесс с состоянием — один координатор.
+Только Nucleus создаёт семантическое внешнее действие.
+Сначала фиксация, затем отправка.
+Тайм-аут не доказывает сбой.
+Отмена не доказывает остановку.
+Зависимости и ресурсы всегда ограничены.
+Механизм соразмерен гарантии.
+Нет пути — нет формальностей.
+Есть триггер — одно действующее ограничение.
+Объявляйте один раз; ссылайтесь точно.
 ```
 
 ---

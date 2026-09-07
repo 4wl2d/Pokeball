@@ -148,10 +148,10 @@
   reason
   scope
   capability
-  isolation decision
-  security review
+  решение об изоляции
+  ревью безопасности
   tests
-  expiry/remediation
+  истечение срока/исправление
   ```
 
   Обходной путь не должен выдаваться за обычный `Effect`.
@@ -311,14 +311,14 @@
 
   ```text
   owner
-  policyId + revision + content digest
-  covered guardrail IDs
-  exact project/Ball/profile/Assembly/binding/environment scope
-  effective values or mechanisms
-  allowed override fields, if any
-  enforcement owner
-  evidence references and their scope, if evidence is required
-  review or expiry condition, if one exists
+  policyId + revision + дайджест содержимого
+  идентификаторы покрываемых ограничений
+  точная область проекта/Ball/профиля/Assembly/привязки/окружения
+  действующие значения или механизмы
+  разрешённые поля переопределения, если есть
+  владелец обеспечения
+  ссылки на доказательства и их область, если доказательства нужны
+  условие ревью или истечения срока, если есть
   ```
 
   Разрешение проходит по замкнутому графу ссылок до реализации или ревью. Отсутствующая, изменяемая, устаревшая, циклическая, конфликтующая ссылка, ссылка неверной версии, профиля, привязки или среды недопустима. Локальное отличие допустимо только для поля, явно разрешённого к переопределению в объявлении по ссылке, и даёт одно уникальное действующее значение. Повторное использование никогда не создаёт реестр runtime, локатор сервисов, неявное значение по умолчанию или скрытое наследование.
@@ -371,13 +371,13 @@
   Семантика Core не требует:
 
   ```text
-  runtime handler lookup
-  reflection discovery
-  in-process serialization
-  mandatory queue
-  mandatory thread hop
-  object message hierarchy
-  service locator
+  поиск обработчика во время исполнения
+  обнаружение через рефлексию
+  сериализация внутри процесса
+  обязательная очередь
+  обязательная передача на другой поток
+  иерархия объектов сообщений
+  локатор сервисов
   ```
 
   Только конкретная привязка Inline с замером на точной цепочке инструментов может заявлять `maxStructuralAllocationsPerDecision = 0`.
@@ -461,13 +461,13 @@
   ```text
   AuthenticatedActorContext {
       stableSubjectId
-      issuer?                # issuer is not fixed by trusted enclosing scope
-      namespaceOrRealm?      # more than one realm/namespace is possible
-      authenticationMethod? # method affects policy or evidence
-      assuranceLevel?        # assurance affects policy
-      authenticatedAt?       # authentication time affects validity/audit
-      expiresAt?             # context can expire
-      delegation?            # delegation exists
+      issuer?                # издатель не фиксирован охватывающей доверенной областью
+      namespaceOrRealm?      # возможны несколько realm/пространств имён
+      authenticationMethod? # метод влияет на политику или доказательства
+      assuranceLevel?        # уровень уверенности влияет на политику
+      authenticatedAt?       # время аутентификации влияет на действительность/аудит
+      expiresAt?             # контекст может утратить силу по сроку
+      delegation?            # есть делегирование
   }
   ```
 

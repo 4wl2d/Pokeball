@@ -60,9 +60,9 @@
   Если запрос мог покинуть процесс, а цель или провайдер могли его принять, отсутствие ответа не доказывает неисполнение.
 
   ```text
-  Timeout after possible send
-      -> AcceptanceUnknown or OutcomeUnknown
-      -> status query / reconciliation / manual decision
+  Тайм-аут после возможной отправки
+      -> AcceptanceUnknown или OutcomeUnknown
+      -> запрос статуса / сверка / ручное решение
   ```
 
   Слепой повтор допустим, только когда:

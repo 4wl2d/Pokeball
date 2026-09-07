@@ -2,7 +2,7 @@
 
 [Документация на русском](../README.md) · [Содержание Agent Pack](README.md) · [Оригинал на английском](../../agents/SECURITY-LIMITS-RUNBOOK.md)
 
-> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Инструкции, команды, шаблоны и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); для установки и проверки целостности используйте его.
+> Русский перевод для чтения. Нормативный источник — [английский Core](../../../spec/pokeball-architecture-core.md). Пояснения, промпты и формы отчётов переведены для людей. Пути установки, схемы и контрольные суммы относятся к [исходному английскому Agent Pack](../../agents/README.md); устанавливайте и проверяйте его точные артефакты.
 
 <a id="security-and-limits-runbook"></a>
 
@@ -73,17 +73,17 @@ Capability — минимальные явные технические полн
 Небезопасное место с намеренным отступлением имеет один авторитетный `WaiverRecord` ровно с восемью полями верхнего уровня:
 
 ```yaml
-owner: <accountable owner>
-approvedBy: <authority permitted to accept the project risk>
-governingAnchor: <exact Core law, clause, extension, or project rule>
-exactScope: <exact nonconforming scope>
-reason: <deliberate rationale>
-constraintsAndCompensatingControls: [<constraint or control>]
-testsAndEvidence: [<immutable or version-pinned evidence>]
+owner: <ответственный владелец>
+approvedBy: <полномочный участник, вправе принять риск проекта>
+governingAnchor: <точный закон, пункт Core, расширение или правило проекта>
+exactScope: <точная область несоответствия>
+reason: <обоснование осознанного решения>
+constraintsAndCompensatingControls: [<ограничение или мера контроля>]
+testsAndEvidence: [<неизменяемое доказательство или доказательство с закреплённой версией>]
 review:
-  expiryOrReviewAt: <date, event, or review condition>
-  remediation: <required remediation>
-  conformanceEffect: <literal effect on claims and conformance>
+  expiryOrReviewAt: <дата, событие или условие ревью>
+  remediation: <необходимое исправление>
+  conformanceEffect: <дословное влияние на заявленные гарантии и соответствие>
 ```
 
 Эта запись не является политикой или прецедентом и не обеспечивает ограничение. Отступление от `SHOULD` может оставаться соответствующим, только если Core допускает записанное осознанное обоснование; нарушение `MUST` или `MUST NOT` блокирует заявление о соответствии Pokeball для `exactScope` до исправления. Цикл прямого управления или импортов времени компиляции остаётся осознанным несоответствием даже при наличии исключения.
