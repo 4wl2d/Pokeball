@@ -12,6 +12,48 @@
 
 Установка переносит проекцию Core, а не второй нормативный источник. Если установленные указания расходятся с отмеченным исходным положением Core, приоритет имеет Core, а пакет нужно заменить синхронизированным снимком.
 
+<a id="install-skills-with-your-agent"></a>
+
+## Установка skills через ИИ-агента
+
+Для обычных задач разработки начните с самостоятельных skills. Откройте проект приложения в ИИ-агенте с доступом к файлам и сети и вставьте этот промпт. Он установит все пять skills в текущий проект; удалите лишние имена из списка, если нужен меньший набор.
+
+```text
+Install the official Pokeball skills into the current project only.
+
+Source: https://github.com/4wl2d/Pokeball, branch master.
+Resolve master to one commit and use that exact snapshot for all directories:
+skills/pokeball
+skills/pokeball-async
+skills/pokeball-composition
+skills/pokeball-binding
+skills/pokeball-review
+
+Use this coding agent's supported project skill directory. For Codex, use
+.agents/skills at the project root. For another host, establish its documented
+project location first; if project skills are unsupported, explain and stop.
+Do not install globally.
+
+Use an available skill installer or Git with temporary staging outside the
+project. Copy only the selected complete directories, retaining SKILL.md,
+LICENSE and NOTICE.md. Do not copy the source repository, Core, Agent Pack,
+runtime, or installation helpers into the project.
+
+Preserve existing project instructions, application code, dependencies and
+accepted Pokeball contracts. Inspect existing skill names and destinations:
+leave identical installations unchanged; report differing installations or
+name collisions without overwriting them or following destination symlinks.
+
+Verify the installed files match the chosen commit. Report the source commit,
+installed paths, skipped conflicts, and how to invoke a skill in this host.
+Check discovery if the host exposes it; otherwise say it is unverified and
+whether a new session is needed. Installation alone is not a conformance claim.
+```
+
+Каталог проекта и обнаружение skills в Codex соответствуют [официальной документации](https://developers.openai.com/codex/skills#where-to-save-skills), проверенной 2026-09-07. Установщик агента может по умолчанию выбирать личную область; промпт явно задаёт каталог проекта. Установка не включает рефакторинг приложения или автоматическое обновление skills.
+
+[Ручное руководство установки полных каталогов skills](https://github.com/4wl2d/Pokeball/blob/master/docs/SKILLS.md#download-once) остаётся доступно для проектной или личной области. Разделы ниже устанавливают полный Core и Agent Pack для проектов, которые явно выбирают этот справочный контракт; для самостоятельных skills это не требуется.
+
 <a id="target-layout"></a>
 
 ## Целевая структура

@@ -30,14 +30,15 @@ Change affected skill instructions and behavioral cases in the same pull request
 
 ## Validate behavior and packaging
 
-From the Pokeball checkout, run the structural checks used by [CI](../.github/workflows/skills.yml):
+Before publishing a skill change, check:
 
-```sh
-python3 -m unittest discover -s tests -p 'test_skill_tools.py' -v
-python3 scripts/check_skills.py
-```
+1. Frontmatter uses unique `name` and `description` fields, with only `license` and `compatibility` as optional fields. Values are single-line strings. The name matches its lowercase, hyphenated directory and is at most 64 characters; the description is 30–600 characters.
+2. The complete `SKILL.md`, including frontmatter, contains at most 800 whitespace-separated words.
+3. Each skill directory contains exactly three ordinary files: `SKILL.md`, `LICENSE`, and `NOTICE.md`. It contains no symlinks, subdirectories, or helpers; `SKILL.md` contains no source-reading references.
+4. Each directory can be copied alone and its instructions remain usable without the source checkout, sibling skills, or network access.
+5. The ordered Core-set count, byte count and digest, declared version/status, and Agent Pack count and digest match the declarations in [BASELINE.md](agents/BASELINE.md#verification), using its verification instructions.
 
-Check frontmatter, word budget, permitted files, and each skill copied alone. There is no generation step. Format and packaging checks cannot establish semantic completeness or useful agent behavior.
+There is no generation step. Format and packaging checks cannot establish semantic completeness or useful agent behavior.
 
 For a substantial edit, give an independent agent only the copied skill, a realistic task, and the necessary application artifacts in an isolated project. Keep the source checkout, sibling skills, and network unavailable. Do not provide the intended answer or suspected bug. Inspect its actions, code, tests, and final response.
 

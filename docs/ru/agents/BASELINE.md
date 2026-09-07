@@ -14,7 +14,7 @@
 
 ```yaml
 schema: pokeball-agent-pack/v3
-packRevision: 14
+packRevision: 15
 status: derived-noncanonical
 canonicalCore:
   entrypointFromRepositoryRoot: spec/pokeball-architecture-core.md
@@ -27,7 +27,7 @@ canonicalCore:
 packageIntegrity:
   fileCountIncludingBaseline: 25
   digestScope: lexicographic filename + NUL + exact bytes + NUL for every sibling Markdown file except BASELINE.md
-  sha256: 6f1531f4ad89504daf0d8910d652915160e03c92703ae4046d31319ef0d0eccb
+  sha256: 736220908debbb93a84dd971ce5943efb79b957cb3c6d7c04ad6eba97ae1aa97
 readinessRequirements:
   sameImmutablePublishedSnapshot: true
   exactIntegrityMatch: true

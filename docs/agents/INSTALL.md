@@ -4,6 +4,46 @@
 
 Installation transfers a projection of Core, never a second normative source. If installed guidance differs from the marked Core source clause, Core prevails and the package must be replaced by a synchronized snapshot.
 
+## Install skills with your agent
+
+For everyday coding workflows, start with the standalone skills. Open your application project in a coding agent with file and network access, then paste this prompt. It installs all five skills in that project; remove names from the list if you want a smaller selection.
+
+```text
+Install the official Pokeball skills into the current project only.
+
+Source: https://github.com/4wl2d/Pokeball, branch master.
+Resolve master to one commit and use that exact snapshot for all directories:
+skills/pokeball
+skills/pokeball-async
+skills/pokeball-composition
+skills/pokeball-binding
+skills/pokeball-review
+
+Use this coding agent's supported project skill directory. For Codex, use
+.agents/skills at the project root. For another host, establish its documented
+project location first; if project skills are unsupported, explain and stop.
+Do not install globally.
+
+Use an available skill installer or Git with temporary staging outside the
+project. Copy only the selected complete directories, retaining SKILL.md,
+LICENSE and NOTICE.md. Do not copy the source repository, Core, Agent Pack,
+runtime, or installation helpers into the project.
+
+Preserve existing project instructions, application code, dependencies and
+accepted Pokeball contracts. Inspect existing skill names and destinations:
+leave identical installations unchanged; report differing installations or
+name collisions without overwriting them or following destination symlinks.
+
+Verify the installed files match the chosen commit. Report the source commit,
+installed paths, skipped conflicts, and how to invoke a skill in this host.
+Check discovery if the host exposes it; otherwise say it is unverified and
+whether a new session is needed. Installation alone is not a conformance claim.
+```
+
+For Codex, the project directory and discovery behavior follow the [official skills documentation](https://developers.openai.com/codex/skills#where-to-save-skills), checked on 2026-09-07. A host's installer may default to personal scope; the prompt explicitly requests the project destination. No application refactoring or automatic skill updater is part of installation.
+
+The complete-directory [manual skills guide](https://github.com/4wl2d/Pokeball/blob/master/docs/SKILLS.md#download-once) remains available for project or personal installation. The sections below install the full Core and Agent Pack for projects that explicitly want that reference contract; standalone skill installation does not require it.
+
 ## Target layout
 
 ```text
