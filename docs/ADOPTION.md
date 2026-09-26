@@ -7,7 +7,7 @@
 
 Use this guide to select only the profiles and guarantees a project needs, choose a readable project shape, and pilot one bounded vertical slice.
 
-For a first implementation, use the [human quickstart](QUICKSTART.md). For the adoption decision, use the [equal-scope comparison](EVALUATION.md) to decide whether the extra contracts pay for themselves. The tables below are reference choices for actual paths, not a checklist to populate before writing a feature.
+For a first implementation, use the [human quickstart](QUICKSTART.md). If the project has no binding yet, implement that quickstart owner (or the shared serial accept/dispatch pattern in [Composition](COMPOSITION.md)) once; then Core's everyday workflow in §21.7 applies. For the adoption decision, use the [equal-scope comparison](EVALUATION.md) to decide whether the extra contracts pay for themselves. The tables below are reference choices for actual paths, not a checklist to populate before writing a feature. After the first `decide` compiles, inventory paths/profiles (steps 5–6) only for triggers that are present.
 
 ## Adopt Pokeball
 
@@ -30,6 +30,21 @@ For a suitable candidate, start with one vertical slice rather than redesigning 
 
 For agent-assisted adoption in another repository, start with the [Agent Pack](agents/README.md). It can guide ordinary design without a fully populated overlay. Its [installation guide](agents/INSTALL.md) explains how to select exact reusable project policies and Ball deltas; an accepted resolved project contract and claim evidence are required before making a Pokeball conformance claim.
 
+
+## Updating an earlier 1.5.0-draft adoption
+
+The draft version label alone does not identify exact bytes. Compare your adopted snapshot with the complete replacement Core and Agent Pack using [BASELINE](agents/BASELINE.md); keep the original snapshot identity with your project contract. The following clarifications may require re-resolving an existing binding or evidence claim. Apply only rows whose paths or claims exist in your project, and reuse evidence only within its recorded scope.
+
+| Change | What to check in your implementation | Required confirmation |
+|---|---|---|
+| [Callee programming fault after source acceptance, §6.9](../spec/core/06-protocol-algebra.md#69-moduleresult) | Retain the accepted source command and any accepted target facts. The caller sees declared operational/quarantine evidence, or `OutcomeUnknown` only when execution may have occurred. | A fault-injection trace after source acceptance preserves the frames and returns neither `NotAccepted` nor a fabricated business result. |
+| [Direct control and instance grain, §10.2](../spec/core/10-system-composition.md#102-permitted-inter-module-dependencies) | Graph nodes are `BallInstance` authorities. An awaited call stays a direct-control edge until return or an explicit Assembly handoff; an independent import edge remains. | Classify awaited, enqueued, and same-type instance calls using the actual wiring; check both required graphs for cycles. |
+| [Compensation-risk acceptance, §10.5](../spec/core/10-system-composition.md#105-compensation) | If conflicting compensation can start under `OutcomeUnknown`, identify its Flow/project-policy owner and immutable record using the eight-field `WaiverRecord` discipline. | The exact scope, approval, controls, evidence, review and conformance effect are inspectable. Risk acceptance never cancels a Core requirement. |
+| [Migration and rollout, §10.11](../spec/core/10-system-composition.md#1011-versioning-and-compatibility) and [§21.6](../spec/core/reference/21-adoption.md#216-documentation-evolution) | Re-resolve producer/consumer pairs, retained-output meaning and the coexistence interval wherever independent versions or persistence exist. | The handoff names its owner, migration/rollout artifact, retained guarantees and unsupported stronger claims; compatibility tests cover the declared interval. |
+| [Merge evidence, §7.7](../spec/core/07-state-and-authority.md#77-commutative-updates-under-single-writer-acceptance) and [finite checks, §17](../spec/core/verification/17-01-transition-and-property-tests.md#17-testing-review-and-operational-verification) | Name an algebraic argument, fixture suite, or both for each merge property; bound growing metadata and retain one writer. Review the scope of verification and scheduling claims. | Evidence records assumptions, bounds and cases. Finite/sample checks do not establish an unbounded theorem; starvation or priority claims follow the performance claim contract. |
+| [Examples, §17.1](../spec/core/verification/17-01-transition-and-property-tests.md#171-transition-tests), [first slice, §21.1](../spec/core/reference/21-adoption.md#211-start-with-one-vertical-slice) and [quickstart](QUICKSTART.md) | Keep unwalked Checkout deadline transitions and the abbreviated Catalog restart outside mandatory example coverage. A first local slice may have no effects; implement or reuse its serial binding once. Catalog SQL parameterization depends on the driver/API binding. | The first slice demonstrates atomic publication and applicable accept-before-dispatch behavior; example tests use explicit Core oracles and label omissions; adapter tests substantiate any parameterization claim. |
+
+Changing an operation's refusal from a pre-acceptance return to an accepted result changes protocol meaning: follow §10.11 rather than relabeling retained evidence. These clarifications introduce no new Core profile or public protocol. Matching documentation digests and passing research fixtures do not establish production readiness for a consuming system.
 
 ## Profiles: pay only for the guarantees you use
 

@@ -57,7 +57,7 @@ Root idempotency remains at its real ingress stage. Within the declared legal re
 
 ## 4. Command/result round trip
 
-Resolve one target-owned closed command/result mapping and fixed refusal semantics. For an immediate same-build call, typed target and trusted call scope suffice: dispatch accepted source output outside pure `decide`, let the target serialize and accept its own change/result, and deliver the return through the source's serialized handler. `Changed(value)` and pre-acceptance `NotAccepted(reason)` may share one operation-specific return type; post-acceptance failure never becomes `NotAccepted`. No new carrier, source/result token, issuer type, or absent-tuple proof is required.
+Resolve one target-owned closed command/result mapping and fixed refusal semantics. For an immediate same-build call, typed target and trusted call scope suffice: dispatch accepted source output outside pure `decide`, let the target serialize and accept its own change/result, and deliver the return through the source's serialized handler. `Changed(value)` and pre-acceptance `NotAccepted(reason)` may share one operation-specific return type; post-acceptance failure never becomes `NotAccepted`. A callee programming fault after that source acceptance retains accepted facts and returns only declared operational/quarantine evidence or `OutcomeUnknown` when execution may have occurred. No new carrier, source/result token, issuer type, or absent-tuple proof is required.
 
 When the lifecycle requires portable evidence, the accepted round trip is:
 

@@ -14,7 +14,7 @@
 
 ```yaml
 schema: pokeball-agent-pack/v3
-packRevision: 15
+packRevision: 16
 status: derived-noncanonical
 canonicalCore:
   entrypointFromRepositoryRoot: spec/pokeball-architecture-core.md
@@ -22,12 +22,12 @@ canonicalCore:
   declaredStatus: canonical draft
   fileCountIncludingEntrypoint: 25
   digestScope: manifest order + repository-relative path + NUL + exact bytes + NUL
-  sha256: 2ac605e4ff4db406b661356ea9c15a1b2d1683f68e515cd7cfc136c41c28daad
-  bytes: 733764
+  sha256: bdd29a2040510ebc953d8bb5d56cd0d882665559e950a41430dff6e115a30602
+  bytes: 741350
 packageIntegrity:
   fileCountIncludingBaseline: 25
   digestScope: lexicographic filename + NUL + exact bytes + NUL for every sibling Markdown file except BASELINE.md
-  sha256: 736220908debbb93a84dd971ce5943efb79b957cb3c6d7c04ad6eba97ae1aa97
+  sha256: b14eab3cc4348fd84982b72a44481d4592fa4f301d17195ee6b2c05eb7d01c0d
 readinessRequirements:
   sameImmutablePublishedSnapshot: true
   exactIntegrityMatch: true
@@ -108,12 +108,12 @@ PY
 ## Отчёт потребителя о целостности
 
 ```text
-Происхождение из неизменяемого снимка: подтверждено | отсутствует
-Точка входа Core и пути из манифеста: ...
-Объявленные версия и статус: ...
-Точное совпадение числа файлов, дайджеста и байтов Core: да | нет
-Точное совпадение числа файлов и дайджеста пакета: да | нет
-Политика проекта или overlay, используемые задачей: точная ссылка | отсутствуют
-Область задачи: ...
-Применимые правила PKB-AR: ...
+Immutable snapshot provenance: present | absent
+Core entrypoint and manifest paths: ...
+Declared version/status: ...
+Exact Core file count/set digest/bytes match: yes | no
+Exact package count/digest match: yes | no
+Project policy or overlay used by this task: exact reference | absent
+Task scope: ...
+Applicable PKB-AR rules: ...
 ```

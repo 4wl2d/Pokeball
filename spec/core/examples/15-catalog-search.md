@@ -301,7 +301,7 @@ The following are mandatory:
 - row and response-byte bounds;
 - schema validation of the external result.
 
-Parameterization prevents SQL interpretation. Escaping `%` and `_` defines literal-search semantics specifically. These are separate responsibilities.
+Correct parameterization—when the driver and statement API bind values rather than concatenating SQL text—prevents SQL interpretation of those values; concatenation or driver misuse does not. Escaping `%` and `_` defines literal-search semantics specifically. These are separate responsibilities.
 
 ### 15.6. Successful result
 

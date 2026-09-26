@@ -7,7 +7,9 @@ description: Implement or debug a Pokeball application's writer, acceptance, adm
 
 ## Establish the mechanism
 
-Locate the application's selected profiles, acceptance site, scheduler/transaction, adapters and tests. Reuse accepted contracts and mechanisms. For a new binding, resolve actual visibility, workload and failure requirements. Omit unused categories and adapters. Reproduce the changed failure trace.
+Locate the application's selected profiles, acceptance site, scheduler/transaction, adapters and tests. Reuse accepted contracts and mechanisms. For a new binding, start with the Transient Inline path below; add durable/status/Hardened only when triggered. Omit unused categories and adapters. Reproduce the changed failure trace.
+
+Default Transient Inline `handle`: under one writer/reentry guard, validate → duplicate lookup when identities exist → `decide` → reject returns without publish → atomic publish of `nextState` plus ordered outputs (omit empty output lists) → dispatch after publish → return the accepted frame to the caller. Host confinement may be an owning thread, exclusive mutex, or single-threaded event loop that never re-enters decisions.
 
 ## Implement acceptance
 

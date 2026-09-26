@@ -93,6 +93,7 @@ Applicability checks:
 - [ ] A policy reference or `WaiverRecord` never suppresses a trigger or weakens a law; any violated `MUST`/`MUST NOT` keeps its exact scope non-conforming.
 - [ ] Performance, durability, delivery, recovery, receipt, acceptance, once-only, RPO, RTO, isolation, security, or conformance language is used only with an exact claim record naming the guarantee boundary, scope, mechanism, assumptions, retention, evidence, and non-guarantees; source durability or retained pending work alone implies no stronger downstream outcome.
 - [ ] Each error/fault follows its exact §6.13 stage carrier/result/status mapping.
+- [ ] After source acceptance of an immediate-call command output, a callee programming fault retains accepted facts and surfaces only declared operational/quarantine evidence or `OutcomeUnknown` when execution may have occurred; it never rewrites to `NotAccepted` or a fabricated business result.
 - [ ] No later failure rewrites prior acceptance.
 - [ ] Every concrete fallible-admission profile/binding has one finite closed `AdmissionFailure.reason` union.
 - [ ] Unknown/open-string reasons fail.
@@ -138,9 +139,11 @@ Apply this subsection only when an inter-Ball edge or Flow exists.
 - [ ] Real queue, external-request and retained-output capacity is secured before accepting work that can otherwise be lost.
 - [ ] Completion cannot lose accepted evidence or reset an applicable growing-work budget; further outputs remain subject to their actual bounds.
 - [ ] Async handoff removes only the synchronous-invocation contribution to direct control, retains any separately present compile-time-import edge, and does not reset scope/depth/budget.
+- [ ] Direct-control edges remain until callee return or an explicit Assembly enqueue/async boundary; language-level `async`/`await` alone is insufficient; graph nodes are `BallInstance` authorities.
 - [ ] A Feature does not import another Feature's internals.
 - [ ] A one-hop command is not artificially turned into a micro-Flow.
 - [ ] A Flow owns at least one material coordination property—lifecycle, ordering/branch/join, compensation/recovery/cancellation, reconciliation, or independent terminal outcome. Call count or one hop alone is not material coordination; one real property is sufficient when the one-hop conditions fail.
+- [ ] Conflicting compensation under `OutcomeUnknown` starts only after a named Flow or project-policy owner records an immutable eight-field risk-acceptance record; that record never confers Core conformance.
 - [ ] A stateful multi-participant workflow has one coordinator owner.
 - [ ] A Flow does not copy mutable participant truth.
 - [ ] A Flow stores only field-minimized workflow values needed by later decisions/recovery; a participant/runtime ledger, outbox, and history do not become hidden decision input.

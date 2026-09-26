@@ -144,7 +144,7 @@ The same rule applies to a value from an earlier `Pulse` or `DecisionContext` th
 <!-- pkb:pba-source:end -->
 ### 7.7. Commutative updates under single-writer acceptance
 
-A Ball may declare a commutative or CRDT-like merge contract for concurrent ingress or independently prepared update values with proven properties:
+A Ball may declare a commutative or CRDT-like merge contract for concurrent ingress or independently prepared update values. The declaration MUST name an evidence route for each of the following properties—an algebraic argument, a §17 fixture suite, or both—before the contract is treated as established:
 
 ```text
 associative
@@ -154,7 +154,7 @@ deterministic conflict handling
 bounded metadata
 ```
 
-Such a contract changes conflict and merge semantics but does not remove single-writer acceptance: one logical writer serializes the merge and assigns the `CommitRevision`. Two independent writers concurrently accepting a mutation of the same `BallInstance` are outside Core even when the algebraic properties hold. A genuine multi-writer profile requires a separate specification; without one, §7.6 and PBA-12 always apply.
+When merge metadata can grow, the binding states an explicit metadata bound under §§8.3/13.1; unbounded growth is not an implicit merge guarantee. Such a contract changes conflict and merge semantics but does not remove single-writer acceptance: one logical writer serializes the merge and assigns the `CommitRevision`. Two independent writers concurrently accepting a mutation of the same `BallInstance` are outside Core even when the algebraic properties hold. A genuine multi-writer profile requires a separate §21.6 extension specification; without one, §7.6 and PBA-12 always apply.
 
 ### Definition source records for §7
 

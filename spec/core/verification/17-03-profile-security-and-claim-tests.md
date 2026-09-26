@@ -18,7 +18,7 @@ For `BoundedConcurrent`, add the cases whose subpaths exist:
 - timeout versus late result when deadlines/ambiguity exist;
 - worker crash when workers exist;
 - bounded causal chain when completion can re-enter a Decision;
-- starvation and priority behavior, if claimed.
+- starvation and priority behavior, if claimed under a performance Claim Record (PBA-41 / §13.4); the concurrent fixtures alone do not establish those claims.
 
 For `Transient` with an output-bearing path, fault injection verifies both sides of the single publication point:
 

@@ -23,7 +23,7 @@ Representation validation belongs at ingress; State/context-dependent business p
 
 Verify target-owned schemas, bound capabilities and pure reads. Immediate commands execute after source acceptance, accept at the target and return through serialized source handling. Trusted capability and call scope can carry provenance/correlation without tokens, envelopes, issuer fields or protocol IDs. Post-acceptance failure never means `NotAccepted`.
 
-Assembly owns wiring/transport; business choices stay in owners. An allowed additional consumer of an existing operation should need only wiring. A Flow owns actual coordination; shared utilities contain mechanical behavior, not hidden business authority. Imports and Direct Control Dependencies remain acyclic, including imports retained across async handoff.
+Assembly owns wiring/transport; business choices stay in owners. An allowed additional consumer of an existing operation should need only wiring. A Flow owns actual coordination; shared utilities contain mechanical behavior, not hidden business authority. Imports and Direct Control Dependencies remain acyclic, including imports retained across async handoff. Direct-control edges remain until return or an explicit Assembly enqueue/async boundary; language-level `async` alone is insufficient; nodes are BallInstances.
 
 Bound actual growing work: queues, external requests, retained outputs, retries and dynamic fan-out. Reject overflow before acceptance and preserve applicable causal budgets; capacity stays outside semantic context. Static terminating execution needs no numeric dependency/route/participant quota, depth field or reservation protocol. An import DAG alone cannot rule out commands repeatedly issued by result handlers.
 

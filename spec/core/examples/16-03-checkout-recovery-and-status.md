@@ -51,6 +51,8 @@ Every compensation has:
 - authorization/capability;
 - an outcome and `OutcomeUnknown` path.
 
+If compensation would conflict with an original action still at `OutcomeUnknown`, Checkout starts it only after the Flow (or governing project policy) records an immutable eight-field risk-acceptance record under §10.5; that record never confers Core conformance.
+
 The Order rejection/result and retained P/I/cart values are accepted even if compensation authorization is absent; the compensation steps created and the complete available output batch are changed by the same accepted frame. A crash cannot leave a dependent output without its source value or clear a value before its last consumer. Missing/expired compensation authorization does not trigger ambient credential fallback: no action is created, the residual target remains in state, and the terminal outcome becomes `NeedsManualReconciliation`. Compensation is not rollback. It may partially fail.
 
 Terminal outcomes may be:

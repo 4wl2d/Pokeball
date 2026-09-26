@@ -11,7 +11,7 @@ Start with one owned fact and one rule. A Ball can be one file. The useful separ
 
 An order draft owns the quantity the customer intends to buy. Its business rule allows quantities from 1 through 20. It does not own inventory, accept an order, reserve stock, calculate payment, or perform I/O.
 
-The host gives this draft one private, serial call scope on one owning thread. Calls neither yield nor invoke callbacks, and another thread cannot access its state. That confinement must actually be enforced by the chosen language and host; a comment is insufficient. The immutable, fixed-size state is published by one assignment. Losing the process loses the draft.
+The host gives this draft one private, serial call scope on one owning thread. Calls neither yield nor invoke callbacks, and another thread cannot access its state. That confinement must actually be enforced by the chosen language and host; a comment is insufficient. In languages without owning threads, use an exclusive mutex around the serial call scope, or confine the owner to a single-threaded event loop that never re-enters decisions. The immutable, fixed-size state is published by one assignment. Losing the process loses the draft.
 
 These conditions select `Inline + Transient + InProcess + Standard`, with static composition. The language-neutral pseudocode below shows the whole feature in one file:
 

@@ -241,7 +241,15 @@ PaymentCaptureOutcomeUnknown(reference)
 
 An immediate API such as `CounterCommands.increment(): IncrementResult` may return `Changed(value)` or `NotAccepted(reason)`. `Changed` is returned only after Counter accepts its change and result output; `NotAccepted` describes refusal before target acceptance under §6.13. The executor delivers the return through the source's serialized handler, which makes any source change through ordinary `decide` and acceptance. The return is sufficient correlation with that invocation. No `commandSource`, `resultSource`, result token, protocol identifier, or separate carrier class is required.
 
-A failure after acceptance cannot become `NotAccepted`. A declared executor or Resource failure preserves accepted work and follows the contract's failure path; a programming fault follows the runtime fault policy. If an external action may have happened without a known outcome, `OutcomeUnknown` retains that meaning. Concrete result types distinguish only the stages reachable for that operation; the Core does not require every implementation to use one carrier shape.
+A failure after acceptance cannot become `NotAccepted`. A declared executor or Resource failure preserves accepted work and follows the contract's failure path. If an external action may have happened without a known outcome, `OutcomeUnknown` retains that meaning. Concrete result types distinguish only the stages reachable for that operation; the Core does not require every implementation to use one carrier shape.
+
+When a callee programming fault occurs during an immediate same-build call after the source has already accepted the command output that caused that call:
+
+- the accepted source command, its accepted frame, and any already accepted target facts remain accepted facts and are not rewritten;
+- the caller-visible observation is drawn only from the binding's declared operational or quarantine evidence, or from `OutcomeUnknown` when execution may have occurred without a known business outcome;
+- the binding MUST NOT return `NotAccepted`, invent a business result, or fabricate validation, admission, Reply, or delivery success for that fault;
+- quarantine or instance-failure labels are profile- or binding-declared and are not a new Core protocol family.
+
 
 For detached, reorderable, retryable, recoverable, or independently observed delivery, a target Nucleus creates the portable result only inside an accepted target Decision:
 
@@ -450,7 +458,7 @@ Error meaning is fixed by the stage at which evidence exists:
 | target Decision accepts a business outcome | accepted `ModuleResultOutput`, then verified `ModuleResultPulse` | target acceptance remains; where status exists it is retained; source can project `Accepted` plus the target-owned outcome only after verified result evidence | dispatch or later failure never downgrades the result to a carrier or `BoundaryResponse` |
 | Resource/Execution Gate acts after accepted work | provenance-bound `Fact` and, for a command target, a later accepted `ModuleResultOutput`; reachable result/status variants include `ResourceFailure`, `TimedOut`, or `OutcomeUnknown` | the prior source/target acceptance remains; outcome/status refines only from declared evidence | no rollback, pre-acceptance carrier, or fabricated business rejection |
 | delivery policy exhausts after accepted output | trusted `DispatchStopped` observation | delivery/status facet only, keyed to the accepted output/result route | not business failure, cancellation, target non-execution, or erasure of accepted result |
-| programming fault | runtime fault policy; pre-acceptance publishes nothing, post-acceptance preserves already accepted facts under the selected profile | operational failure/quarantine and only already-declared status evidence | never fabricated as validation, admission, business result, Reply, or delivery success |
+| programming fault | pre-acceptance publishes nothing; post-acceptance preserves already accepted facts under the selected profile; on an immediate call after source acceptance, the caller-visible observation is only declared operational/quarantine evidence or `OutcomeUnknown` when execution may have occurred | operational failure/quarantine and only already-declared status evidence | never fabricated as validation, admission, business result, Reply, delivery success, or `NotAccepted` |
 
 A later-stage failure never rewrites an earlier acceptance or accepted result. Each row uses only the closed variants reachable for the concrete protocol/profile. The table fixes stage meaning, not a uniform return-type layout: an immediate call may express pre-acceptance refusal and an accepted result in one closed operation-specific return type while preserving their distinct acceptance semantics.
 

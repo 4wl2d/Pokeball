@@ -361,6 +361,8 @@ When accepted outputs exist, the state and complete source output batch are alre
 - creates a typed delivery observation, `OutcomeUnknown`, or terminal `DispatchStopped` according to the boundary contract;
 - may move the instance to `Failed` or `Quarantined`, but does not turn an accepted Decision into partial acceptance.
 
+When the fault is a callee programming fault on an immediate same-build call whose source command output is already accepted, the caller-visible consequence follows the §6.9/§6.13 programming-fault contract: retain accepted facts; surface only declared operational/quarantine evidence or `OutcomeUnknown` when execution may have occurred; never rewrite the accepted command to `NotAccepted` or a fabricated business outcome.
+
 For `Transient`, a process crash may lose the entire frame and pending work; this is a profile limit, not permission to continue serving visible state after partial loss of the batch. A Ball with no dispatch path has no delivery-status or unknown-outcome obligation from this paragraph.
 
 ### 8.9. Snapshot and event modes

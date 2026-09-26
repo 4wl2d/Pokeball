@@ -27,7 +27,7 @@ Credential scope and credential containment are separate triggers. An ordinary s
 
 ## 6. Claims
 
-Profile selection is not a claim. When a project says `durable`, `at-least-once`, `isolated`, `secure`, `atomic`, `zero overhead`, or similar, create a claim record:
+Profile selection is not a claim. When a project says `durable`, `at-least-once`, `isolated`, `secure`, `atomic`, `zero overhead`, starvation/priority fairness, or similar, create a claim record:
 
 ```text
 claim and exact boundary

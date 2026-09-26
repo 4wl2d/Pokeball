@@ -67,3 +67,11 @@ Use this table to assign the evidence activated by the selected slice and claims
 | Project owner | Recorded comparison, accepted costs, supported guarantees, remaining limitations, and criteria for revisiting the choice. | No incremental benefit is demonstrated, or an unmet requirement blocks the intended deployment. |
 
 The repository supplies a specification, worked examples, verification routes, and adoption guidance. It supplies no runtime, reference implementation, comparative benchmark, or evidence for your deployment. Documentation checks can establish consistency; they cannot establish production reliability or human usability on an untested project. A successful pilot supports its measured feature, team, binding, and environment. It does not establish suitability for every project.
+
+## Architecture verification evidence (repository scope)
+
+Use this section when checking the identity of a Core or Agent Pack snapshot, or when reproducing architecture-level checks published with a named snapshot. It does not replace the production-evidence table above.
+
+1. **Digests.** From a checkout of the exact published tree, verify the ordered Core-set and Agent Pack digests with the commands in [`docs/agents/BASELINE.md`](agents/BASELINE.md). Digests cover exact paths and bytes; they are not a substitute for reading the normative Core.
+2. **Architecture checks.** Finite model exploration and research fixtures, when supplied with a release or research companion for that snapshot, are labeled **finite-check** or **fixture**. Finite checking is not an unbounded proof. A fixture is not production certification, performance evidence, or a deployment readiness verdict.
+3. **Project evidence.** Guarantees claimed for a running system still require the project's binding, workload, failure tests, and measurements under this guide. Version and compatibility status live in the [Core header](../spec/pokeball-architecture-core.md) and §10.11; stronger migration claims need the §21.6 migration-and-rollout artifact.

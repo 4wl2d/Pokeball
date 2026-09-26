@@ -63,7 +63,7 @@ Between application authorities, every semantic dependency is declared as one of
 <!-- pkb:term:end -->
 
 <!-- pkb:term:start name="Direct Control Dependency" -->
-**Direct Control Dependency** — a compile-time import of another Ball's application surface or a synchronous cross-Ball call that transfers control before an asynchronous handoff/yield, including generated inline dispatch with that behavior. Ball-local utility and shared mechanical-Foundation imports remain ordinary compile-time graph edges but are not Direct Control Dependencies without one of those cross-Ball conditions. A same-stack command round trip contributes the source-to-target synchronous-invocation relation only; its causally bound result return is not a reverse edge. The graph is unconditionally acyclic. Handoff removes only the synchronous-invocation contribution; any separately present compile-time-import edge remains, while bounded asynchronous feedback after handoff adds no new synchronous-invocation edge.
+**Direct Control Dependency** — a compile-time import of another Ball's application surface or a synchronous cross-Ball call that transfers control before an asynchronous handoff/yield, including generated inline dispatch with that behavior. Graph nodes are `BallInstance` authorities: the same `BallType` alone does not create a cycle. Control remains a direct-control edge until the callee returns on the current control path or an explicit Assembly enqueue/async boundary executes; language-level `async`/`await` or coroutine syntax alone is insufficient. Ball-local utility and shared mechanical-Foundation imports remain ordinary compile-time graph edges but are not Direct Control Dependencies without one of those cross-Ball conditions. A same-stack command round trip contributes the source-to-target synchronous-invocation relation only; its causally bound result return is not a reverse edge. The graph is unconditionally acyclic. Handoff removes only the synchronous-invocation contribution; any separately present compile-time-import edge remains, while bounded asynchronous feedback after handoff adds no new synchronous-invocation edge.
 <!-- pkb:term:end -->
 
 <!-- pkb:term:start name="Application Surface" -->
@@ -106,7 +106,7 @@ Between application authorities, every semantic dependency is declared as one of
   | asynchronous causal route after handoff/yield | declared dependency plus Assembly route and preserved causal scope | a synchronous direct-control edge merely because generated code later invokes a target |
   | route/version/binding selection | Assembly | payload, policy, refusal, causal-token, or workflow authority |
 
-  `Direct Control Dependency` is an orthogonal graph classification: a compile-time import of another Ball's application surface, or a synchronous cross-Ball call that can transfer control before an asynchronous handoff or yield. Generated inline dispatch is direct control when it executes the target on the current control path before that boundary. A declared asynchronous command or signal route does not create a direct-control edge merely because its binding later uses generated code; if the binding invokes the target synchronously before handoff/yield, the direct edge exists and must be included in the graph.
+  `Direct Control Dependency` is an orthogonal graph classification: a compile-time import of another Ball's application surface, or a synchronous cross-Ball call that can transfer control before an asynchronous handoff or yield. Graph nodes are `BallInstance` authorities; sharing a `BallType` does not by itself create a cycle. Generated inline dispatch is direct control when it executes the target on the current control path before that boundary. The edge remains until callee return or an explicit Assembly enqueue/async boundary; language-level `async`/`await` alone is insufficient. A declared asynchronous command or signal route does not create a direct-control edge merely because its binding later uses generated code; if the binding invokes the target synchronously before handoff/yield, the direct edge exists and must be included in the graph.
 
   #### ReadDependency
 
@@ -294,7 +294,7 @@ deadline                # a compensation deadline exists
 reconciliation policy   # execution can remain ambiguous
 ```
 
-If the original action has `OutcomeUnknown`, conflicting compensation is not started before reconciliation unless the business risk is explicitly accepted.
+If the original action has `OutcomeUnknown`, conflicting compensation is not started before reconciliation unless the business risk is explicitly accepted. Acceptance requires a named owner—the Flow that owns the compensation path, or the project policy that governs that Flow—and an immutable record that reuses the eight-field `WaiverRecord` discipline from §0.3 (or a Flow protocol field with the same eight top-level fields). The record never confers Core conformance: it documents deliberate business-risk acceptance for review and does not override laws, cancel triggers, or satisfy missing evidence.
 
 For a parallel workflow, compensation order is derived from the dependency graph, not from incidental reverse completion order.
 
@@ -415,7 +415,7 @@ A business process may return to an earlier phase or create feedback through dec
 
 If the feedback path can duplicate, it also has idempotency/deduplication. If it retries, it also has one finite owned retry budget.
 
-Permitted asynchronous feedback begins only after an explicit bounded handoff/yield and does not itself add a `Direct Control Dependency` edge. The handoff preserves every active causal bound and any numeric depth/fan-out scope or budget; it cannot reset accounting at the queue, broker, worker, or target hop. It does not make a compile-time import or direct-control cycle permissible.
+Permitted asynchronous feedback begins only after an explicit bounded handoff/yield and does not itself add a `Direct Control Dependency` edge. Under the §10.2 handoff/yield criterion, that boundary is an explicit Assembly enqueue/async handoff or a completed return that ends the synchronous control path—not language-level `async` syntax alone. The handoff preserves every active causal bound and any numeric depth/fan-out scope or budget; it cannot reset accounting at the queue, broker, worker, or target hop. It does not make a compile-time import or direct-control cycle permissible.
 
 ### 10.11. Versioning and compatibility
 
@@ -441,7 +441,7 @@ Rules:
 7. The transition artifact version is part of deterministic replay or retained durable lineage when that path exists.
 8. A target command contract's classification of each refusal as pre-acceptance carrier or accepted `ModuleResultOutput` is part of its protocol meaning. Moving a refusal between those paths is breaking and requires a new target protocol version and a new Assembly producer/consumer version pair; a binding/profile/retry change cannot reclassify it.
 
-For a local Inline build, the compiler may provide exact compatibility. Independently deployed boundaries require contract tests and an explicit rollout window. Full wire canonicalization and a rolling-migration protocol belong to extension specifications.
+For a local Inline build, the compiler may provide exact compatibility. Independently deployed boundaries require contract tests and an explicit rollout window. A **rollout window** is the declared producer/consumer coexistence interval during which §10.11 rules 1–8 hold for every independently versioned dependency under the selected Assembly producer/consumer version pairs. Migration and rollout stronger claims are handed off under §21.6; unqualified zero-downtime upgrade is not a Core guarantee. Full wire canonicalization and a rolling-migration protocol belong to extension specifications.
 
 ### Definition source records for §10
 

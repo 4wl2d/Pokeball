@@ -7,9 +7,11 @@ description: Implement or change local Pokeball features, owned State, business 
 
 ## Locate the change
 
-Work in the application's language and layout. Find the fact's owner, decision/read function, typed input, acceptance site and tests. Reuse the binding and accepted project policies; implement the requested behavior.
+Work in the application's language and layout. Find the fact's owner, decision/read function, typed input, acceptance site and tests. When a binding already exists, reuse it and accepted project policies. If none exists yet, implement the Inline Transient accept loop below once, then reuse it.
 
 For a first feature, define one owned fact, invariant, closed inputs, pure decision and serialized acceptance. Keep them in one file when practical. Add Resources only for real external actions. Stateless mechanical helpers remain utilities.
+
+Always-applicable accept skeleton (omit empty outputs; EventJournal/`evolve` only if that form is already selected): require no reentry → validate ingress → `decide` → on reject return without publish → atomically publish state and any outputs → dispatch outputs after publish → return the accepted observation (flat `Accepted(nextState)` with omitted empty outputs equals nested Snapshot framing).
 
 ## Implement owned behavior
 
@@ -27,7 +29,7 @@ Validate malformed representations at ingress. Evaluate State-dependent limits a
 
 Reads map owned State, Query and required trusted context to target-owned results, including denial/redaction where applicable. A Query creates no decision, revision, acceptance record or output.
 
-For immediate same-build commands, execute the typed target call after source acceptance and return through the source's serialized handler. The call scope and supplied capability can carry correlation/provenance. Crossing a Ball alone requires no tokens, envelopes, caller registry or protocol-ID field. An error after acceptance never becomes `NotAccepted`.
+For immediate same-build commands, execute the typed target call after source acceptance and return through the source's serialized handler. The call scope and supplied capability can carry correlation/provenance. Crossing a Ball alone requires no tokens, envelopes, caller registry or protocol-ID field. An error after acceptance never becomes `NotAccepted`. A callee programming fault after that source acceptance surfaces only declared operational/quarantine evidence or `OutcomeUnknown` when execution may have occurred.
 
 Preserve identity for results that may arrive late, reorder, repeat, recover or be observed independently. Detached work needs required status, bounded execution and unknown-outcome handling. Do not silently change an accepted project policy or guarantee.
 

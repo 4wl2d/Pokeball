@@ -30,13 +30,14 @@ Pokeball is not automatically the right choice. Negative adoption cases include:
 
 In these cases, use ordinary modules/utilities/adapters or stop the pilot; Core makes no claim that every system needs a Ball graph.
 
-A suitable candidate:
+A suitable first vertical slice:
 
 - has a clear state lifecycle;
 - accepts several input variants;
-- performs one or two external effects;
 - has observable success/failure;
 - is not the most critical central workflow.
+
+Zero external effects is a valid first slice (as in the human quickstart's empty Resource role). One or two external effects are a common later trigger, not an entry filter for the first Ball.
 
 ### 21.2. Sequence
 
@@ -98,6 +99,7 @@ The topics below are deliberately handed off rather than left as implicit Core b
 | Certification tooling | Claimant and certification-scheme owner | Versioned conformance procedure, coverage model, implementation/tool identity, fixtures, evidence retention, and false-positive/negative limits | Every Core rule remains source-resolved, trigger-scoped, and objectively reviewable through §§17–18 | Formal certification, complete rule coverage, or equivalence of a lint pass and project conformance. |
 | Concrete profile values | Project/profile/binding owner | Exact immutable policy or manifest selection plus workload, environment, bound, benchmark/fault evidence, and review conditions | Every present dimension is finite and every claim is scoped and measured; absent triggers add no placeholder | Universal safe values, suitability for another workload/environment, or a performance/durability/security claim without matching evidence. |
 | Project decomposition and scale thresholds | Project architecture owner | Boundary/adoption worksheet using §§4.4–4.5 with actual invariants, lifecycle, authority, workload, change-radius evidence, and continue/reshape/stop criteria | One semantic authority, one writer, one workflow owner, explicit boundaries, and negative-adoption cases remain binding | One uniquely correct Ball graph, a universal size/load threshold, or automatic need for a Flow/Ball from count alone. |
+| Migration and rollout | Project architecture and Assembly owners | Declared rollout window (producer/consumer coexistence interval under §10.11 rules 1–8), contract tests for every independently versioned dependency pair, and migration/upcast evidence for persisted state that enters ordinary `decide` | Atomic acceptance, retained durable-output semantics, refusal-path classification as protocol meaning, and §10.11 rules 1–8 remain mandatory | Unqualified zero-downtime upgrade, silent reinterpretation of committed durable outputs, or migration without the declared window and contract-test artifact. |
 
 Only material supported by real implementation demand should then be developed as a separate document:
 
@@ -121,7 +123,7 @@ Every extension must:
 
 ### 21.7. Everyday development and production responsibility
 
-An ordinary feature change starts from the owning source, its behavior tests, and the project's effective binding. It does not start by reproducing the full Core inventory. The following workflow applies the existing responsibilities in §§0.2, 5, 8, 13.5, and 14; it introduces no additional runtime role, required document, profile, or conformance shortcut.
+An ordinary feature change starts from the owning source, its behavior tests, and the project's effective binding. If the project has no binding yet, implement the human quickstart owner (or an equivalent shared serial accept/dispatch site) once; then this everyday workflow applies. It does not start by reproducing the full Core inventory. The following workflow applies the existing responsibilities in §§0.2, 5, 8, 13.5, and 14; it introduces no additional runtime role, required document, profile, or conformance shortcut.
 
 | Work | What the responsible developer resolves | Reused within its existing exact scope |
 |---|---|---|
