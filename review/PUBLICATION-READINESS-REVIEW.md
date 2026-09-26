@@ -61,7 +61,13 @@ This is how an informed reviewer will read it. The mapping comes from §5 and th
 ### Gaps (in order of severity for publication)
 
 1. **No executable artifact.** There is no runtime, no reference binding and no example application. The only runnable example (`examples/local_composition.py` plus tests) was removed in `cc68409`. The generator and linter that maintain the `pkb:generated` regions and SHA-256 inventories are not in the repository either (removed in `c9b06f8`/`b4a8219`). A reader therefore cannot run anything or reproduce the consistency gate.
-2. **No evidence.** There is no pilot, case study, benchmark, fault-injection result, user study or formal model. `docs/EVALUATION.md` describes a good pilot that has not been run. For every refereed venue, this is the deciding gap.
+2. **No public evidence.** The public tree contains no pilot, case study, benchmark, fault-injection result, user study or formal model. `docs/EVALUATION.md` describes a good pilot that has not been run.
+
+   The PR #9 description does report private validation:
+   - 50 projection regression tests, 11 skill-tool tests and 13 local-composition tests;
+   - a separate research harness covering 30 workflow cases, 27 boundary cases, 311 mapped concrete transitions and 32 negative checks.
+
+   That harness and the accompanying manuscript are not published, so outside reviewers cannot inspect or reproduce them. Publishing the harness is the fastest way to turn this gap into evidence (see E2), though it would still be *finite* checking rather than proof. For every refereed venue, evidence is the deciding factor.
 3. **Size and readability.** Measured on spec prose, excluding code and comments:
    - Size: about 80.5k words, and about 150k words of English Markdown overall.
    - Sentences: 21.9 words on average. The longest sentences are 544 to 660 words (bulleted run-ons).
@@ -262,5 +268,5 @@ A literature scan (mostly abstract-level, because arXiv full texts were blocked 
 | Mean sentence length / FK grade / Flesch ease | 21.9 words / 18.0 / 5 |
 | Uppercase modals (MUST / MUST NOT / SHOULD / MAY; most normative force sits in the law `Rule:` fields instead) | 23 / 22 / 10 / 3 |
 | Agent rules / review gates | 37 unique `PKB-AR-*` / 10 `AP-GATE-*` |
-| Executable code, tests, generator in tree | none |
+| Executable code, tests, generator in public tree | none (PR #9 reports private tests and a research harness; not published) |
 | Commits / authors / age | 24 / 1 / about 10 weeks |
