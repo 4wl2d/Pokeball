@@ -2,7 +2,8 @@
 
 **Reviewed snapshot:** `fd624cb` (Core `1.5.0-draft`, 2026-09-26)
 **Question asked:** Is Pokeball ready to publish on arXiv and in journals? Is it unique? Can it live? What does it need first?
-**Method:** I read the Core chapters on the model, acceptance, async, composition, profiles, examples and adoption, plus the guides and skills. I measured the repository mechanically. Three independent literature searches covered prior art, publication venues, and LLM-agent research. Sources are marked when they could only be checked from search snippets.
+**Method:** I read the Core chapters on the model, acceptance, async, composition, profiles, examples and adoption, plus the guides and skills. I measured the repository mechanically. Three independent literature searches covered prior art, publication venues, and LLM-agent research.
+**Evidence limits:** the proxy blocked arXiv full texts, USPTO and several publisher sites. Recent (2026) arXiv citations and the trademark record were therefore checked only through search-engine extracts or GitHub mirrors, and should be re-verified before anyone cites them. The arXiv policy text was read from arXiv's own documentation source.
 
 ---
 
@@ -10,7 +11,7 @@
 
 | Question | Answer |
 |---|---|
-| Ready to publish as a research paper today? | **No.** There is no paper-shaped text, no related-work section, no implementation, no evaluation, and no formal model. The current text cannot be submitted to arXiv in its current form. |
+| Ready to publish as a research paper today? | **No.** There is no paper-shaped text, no related-work section, no implementation, no evaluation and no formal model. Posting it to arXiv now risks a decline as a "position paper" under the CS rule of 31 Oct 2025, and a decline brings closer scrutiny of every later submission (§5.1). |
 | Is it a *new architecture*? | **No.** Every mechanism already exists, usually in the same form. The core combination (pure decide, atomic state and outbox, single writer, dispatch after commit, no re-entrancy) already ships in Akka Persistence, Wolverine+Marten, fmodel/Decider stacks, Durable Entities and Reliable State Machines. |
 | Is anything genuinely distinctive? | **Yes, at the level of specification rather than mechanism.** See §4. The four applicability triggers ("absent path, absent ceremony"), scoped claim records, and one law set covering UI state machines through durable backends, security and limits are not found together in any single prior work. How well a coding agent can follow the spec is also an open research question. |
 | Can it live (be adopted)? | **Not yet.** The hardest part (the acceptor, outbox, status ledger and dispatcher, which the spec calls the "binding") is left to every adopter as "integration work". Successful architectures spread through a runnable library or a short, memorable text. Pokeball currently has neither. |
@@ -109,7 +110,58 @@ This is how an informed reviewer will read it. The mapping comes from §5 and th
 
 ## 5. Publication paths
 
-<!-- VENUES -->
+Sources are official policy pages and calls for papers. Items taken only from search extracts are marked "(extract)"; the rest are "[judgment]".
+
+### 5.1 arXiv: do not submit the current material
+
+- **Content-type risk.** Since 31 Oct 2025, arXiv CS rejects review articles and position papers unless they have already passed journal or conference peer review; workshop review is "generally insufficient". The rule was introduced because LLMs make "papers not introducing new research results" easy to write ([arXiv blog](https://blog.arxiv.org/2025/10/31/attention-authors-updated-practice-for-review-articles-and-position-papers-in-arxiv-cs-category/)).
+  - Moderators also decline "research proposals" and non-research books.
+  - A prescriptive spec with no artifact, formal analysis or evaluation will very likely be classed as a position paper or book.
+  - A decline has a lasting cost: arXiv warns that previously declined submitters "should anticipate closer scrutiny".
+- **Endorsement.** Since 21 Jan 2026, an institutional email alone no longer grants automatic endorsement. An independent first-time author in cs.SE needs a personal endorser: someone with recent papers in the area, ideally an author you cite who has read your draft. Mass-emailing endorsers is explicitly discouraged.
+- **Format and identity requirements:**
+  - LaTeX source, not Markdown (pandoc conversion is fine).
+  - English first; a Russian version may follow in the same PDF.
+  - CC BY 4.0 is available as a license.
+  - Real, complete author information is required: publish as *Vladislav Tomilov (Independent)*, with "4wl2d" only as a handle.
+  - Significant generative-AI use must be disclosed, and the author takes full responsibility for the content.
+- **What to do instead:** put the full spec on GitHub and Zenodo (DOI, no moderation). Post to arXiv (cs.SE with a cs.PL cross-list) only once the paper contains a research contribution: an implementation plus a checked model and/or evaluation, or after acceptance at a peer-reviewed venue.
+
+### 5.2 Peer-reviewed venues that fit
+
+| Venue | Fit | Needs | Timing (verify) |
+|---|---|---|---|
+| **Onward! Papers (SPLASH)** | Best conceptual fit: accepts "ideas that are well-argued but not yet proven", "exploratory implementations, and substantial examples" | ≤17 pp + refs, double-blind; small implementation + substantial worked example + prior-art positioning | 2027 deadline likely ~April 2027 (extract) |
+| **\<Programming\> journal** | Strong: its "Art" category covers "programming models and styles… essays" | ≤22 pp; scholarly placement in prior work; "Engineering" papers need measurements | Deadlines 1 Feb / 1 Jun / 1 Oct |
+| **EuroPLoP / PLoP** | Good and needs no code: present the laws as a pattern language with known uses (Elm, Akka, Decider, outbox) | Pattern form, shepherding, writers' workshop | EuroPLoP submission ~Feb; PLoP 2026 has closed |
+| **ICSA NEMI (New and Emerging Ideas)** | Feasible: 5-page visions with "concrete plans" are welcome, but not "disguised advertisements" | ≤5 pp double-anonymous; research plan (use §6) | 2027 date unconfirmed |
+| **JSS "New Ideas and Trends"** | Plausible: "not required to be fully validated" | Trend survey + outline of solution + preliminary results | Rolling |
+| ICSA/ECSA research tracks, TOSEM, EMSE | Not yet: they require empirical evaluation | E1–E3 or E5–E6 | ICSA 2027 papers due 30 Oct 2026 (too soon) |
+| IEEE Software, InfoQ, ICSA SA-in-Practice | After real use: they want practitioner experience | ≤4,200 words, 3 actionable insights (IEEE Software) | Months |
+
+**Closest precedent to copy:** Meng & Jackson, *"What You See Is What It Does: A Structural Pattern for Legible Software"*. It is a new structural pattern for software, posted as an arXiv cs.SE preprint (2508.14511) and then published at Onward! 2025, and evaluated on the RealWorld ("Conduit") benchmark app. That is the right-sized template: a short paper, an implementation, and one realistic app.
+
+**Reviewer checklist to satisfy.** Reviewers will use the ACM SIGSOFT Empirical Standards, "Engineering Research" standard. It requires:
+- the artifact described in enough detail, and the need for it justified;
+- a conceptual evaluation of strengths and limits;
+- an *empirical* evaluation (case study, experiment, simulation or benchmark);
+- a comparison with state-of-the-art alternatives.
+
+Listed antipatterns include overstated novelty and "toy examples misrepresented as case studies". Design-science framing (Hevner et al. 2004; Wieringa 2014) lets a formal model and a worked application count as treatment validation.
+
+**How comparable ideas spread.** No comparable architecture gained traction from a large specification alone:
+- Elm/TEA, Redux and TCA spread through working libraries.
+- Hexagonal and Clean Architecture spread through short texts by authors who already had an audience.
+- The Decider spread through a short blog post with code.
+- Lingua Franca earned academic credibility with a compiler and benchmarks.
+
+The 150k-word spec should become the reference manual *behind* a short paper and a small library.
+
+**Recommended order:**
+1. Onward! 2027 or \<Programming\> with E1 + E2 + a RealWorld-style app.
+2. In parallel, a EuroPLoP pattern-language paper or an ICSA NEMI vision paper.
+3. Then the E6 agent study as a separate empirical paper.
+4. Practitioner articles after real adoption.
 
 ### 5.3 The most distinctive research angle: agents
 
