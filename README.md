@@ -1,8 +1,28 @@
-# Pokeball
+<h1 align="center">Pokeball</h1>
+
+<p align="center">
+  <a href="spec/pokeball-core-2.0.md">
+    <img src="assets/pokeball-architecture-hero.svg" alt="Pokeball Architecture" width="100%" />
+  </a>
+</p>
+
+<p align="center">
+  <strong>Stateful features with one owner, pure decisions, and explicit effects.</strong>
+</p>
+
+<p align="center">
+  <a href="docs/tutorial.md">Write your first feature</a> ·
+  <a href="docs/decision-guide.md">Decide whether it pays off</a> ·
+  <a href="skills/pokeball-core-2/">Agent skill</a> ·
+  <a href="spec/pokeball-core-2.0.md">Core specification</a> ·
+  <a href="https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e/docs/ru">Russian documentation (Core 1.5)</a>
+</p>
 
 **Pokeball Core 2.0** is a small architecture for stateful applications that talk to unreliable systems. Each piece of mutable state has one owner, a *Ball*. A Ball decides in pure functions, and a runtime executes its decisions. The runtime tracks every outbound call and gives it exactly one honest outcome: `Done`, `NotDone`, or `Unknown`.
 
 The [specification](spec/pokeball-core-2.0.md) defines the current version and status. The Kotlin reference implementation supports its conformance checks and examples; it has not been used in production and has no production durable store. See the [migration guide](docs/migration-from-1.5.md) for the changes from Core 1.5.
+
+**Start with the [tutorial](docs/tutorial.md).** Build a reminder with a pure decider, a timer, an external call, and tests for faults and crashes.
 
 ## The idea in one example
 
@@ -38,6 +58,7 @@ The reference tests and bounded model checks are available to run. They do not e
 | [`docs/`](docs/) | Tutorial, decision guide, FAQ, anti-patterns, migration, and verification commands |
 | [`skills/`](skills/) | A short agent skill for Core 2 feature work (unevaluated) |
 | [`tools/`](tools/) | Link and snippet checks for the documentation |
+| [`assets/`](assets/) | Repository artwork |
 
 The [previous published Core 1.5 documentation](https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e), including its Russian edition, remains in Git history.
 
@@ -52,7 +73,9 @@ Requires JDK 21. From `reference/kotlin`:
 
 Start with the [tutorial](docs/tutorial.md). The [verification guide](docs/reproducibility.md) explains the available checks and their limits. For agent assistance, copy the complete [`pokeball-core-2`](skills/pokeball-core-2/) skill directory; its instructions are self-contained and unevaluated.
 
-## Licensing
+## License and authorship
+
+Copyright © 2026 **Vladislav Tomilov (4wl2d)**.
 
 Text and diagrams are licensed under [CC BY 4.0](LICENSE); see [NOTICE.md](NOTICE.md). **The code has no software license yet.** A software license remains the copyright holder's decision.
 
