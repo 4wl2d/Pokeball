@@ -1,7 +1,7 @@
 <h1 align="center">Pokeball</h1>
 
 <p align="center">
-  <a href="spec/pokeball-architecture-core.md">
+  <a href="spec/pokeball-core-2.0.md">
     <img src="assets/pokeball-architecture-hero.svg" alt="Pokeball Architecture" width="100%" />
   </a>
 </p>
@@ -11,102 +11,72 @@
 </p>
 
 <p align="center">
-  <a href="docs/QUICKSTART.md">Write your first feature</a> ·
-  <a href="docs/EVALUATION.md">Decide whether it pays off</a> ·
-  <a href="docs/SKILLS.md">Agent skills</a> ·
-  <a href="spec/pokeball-architecture-core.md">Core specification</a> ·
-  <a href="docs/ru/README.md">Russian documentation</a>
+  <a href="docs/tutorial.md">Write your first feature</a> ·
+  <a href="docs/decision-guide.md">Decide whether it pays off</a> ·
+  <a href="skills/pokeball-core-2/">Agent skill</a> ·
+  <a href="spec/pokeball-core-2.0.md">Core specification</a> ·
+  <a href="https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e/docs/ru">Russian documentation (Core 1.5)</a>
 </p>
 
-Pokeball is an architecture specification for stateful applications. A feature owns its state, makes decisions in a pure function, and performs external actions only after accepting the decision. It can start as one source file with ordinary types and functions.
+**Pokeball Core 2.0** is a small architecture for stateful applications that talk to unreliable systems. Each piece of mutable state has one owner, a *Ball*. A Ball decides in pure functions, and a runtime executes its decisions. The runtime tracks every outbound call and gives it exactly one honest outcome: `Done`, `NotDone`, or `Unknown`.
 
-**Start with the [human quickstart](docs/QUICKSTART.md).** It shows a complete local feature, its tests, and a business-rule change before introducing asynchronous work. You do not need to master the full reference before making an ordinary change inside an established project binding.
+The [specification](spec/pokeball-core-2.0.md) defines the current version and status. The Kotlin reference implementation supports its conformance checks and examples; it has not been used in production and has no production durable store. See the [migration guide](docs/migration-from-1.5.md) for the changes from Core 1.5.
 
-## Why use it?
+**Start with the [tutorial](docs/tutorial.md).** Build a reminder with a pure decider, a timer, an external call, and tests for faults and crashes.
 
-Consider a search that starts A, then B, but receives A's result last; or a payment that times out after the provider may have charged the customer. Layers and dependency direction alone do not select how your application handles these situations.
+## The idea in one example
 
-Pokeball gives a team explicit contracts for recurring questions:
+```kotlin
+object OrderDraftBall : Ball<Draft, DraftRequest, DraftReply> {
+    override val type = "order-draft"
+    override fun initial(key: String) = Draft(quantity = 1)
 
-- **State ownership:** one authority and one logical writer for each mutable fact.
-- **Decisions and consequences:** decide from State and explicit current input/context; accept State and all present outputs together; dispatch afterward.
-- **Asynchronous work:** associate results with accepted causes, reject or handle stale results by policy, and distinguish a timeout from a known failure.
-- **Bounded operation:** resolve finite limits for present variable dimensions and name the evidence behind stronger guarantees.
+    override fun decide(state: Draft, request: DraftRequest, ctx: RequestContext) = when (request) {
+        is DraftRequest.SetQuantity ->
+            if (request.value in 1..20) accept(Draft(request.value), DraftReply.Quantity(request.value))
+            else reject(DraftReply.OutOfRange)
+        DraftRequest.GetQuantity -> accept(state, DraftReply.Quantity(state.quantity))
+    }
+}
+```
 
-These contracts can make reviews and failure handling more consistent. They also cost design, code, tests, and learning. The [value comparison and pilot](docs/EVALUATION.md) explains how to measure both.
+A decision may also contain *outputs*: calls to ports, replies, notices, and cancellations. The runtime commits the new state and the outputs atomically, sends nothing before that commit, and later delivers each call's single completion to `complete`. Which outcome a call can end in depends on the port's effect class. A read (`Safe`) never ends `Unknown`. A card charge (`NonIdempotent`) is never re-sent, and after a timeout or crash it ends `Unknown` rather than a false `NotDone`. [The payment example](reference/kotlin/examples/shop/payments/src/main/kotlin/pokeball/examples/shop/payments/PaymentBall.kt) shows reconciliation after `Unknown`.
 
-Good Clean Architecture can use the same mechanisms. Pure functions, isolated tests, and replaceable adapters are shared benefits; Pokeball's additional value is a common, explicit contract for stateful behavior. If your project already has equivalent rules and checks, adopting another vocabulary may add little.
+## Costs and limits
 
-## What do I write?
+The architecture makes ownership, effects, and uncertain outcomes explicit. That costs types, code, runtime work, and module boundaries. It does not promise less code than a plain class or an expert's implementation. Stateless transformations and simple local features may be better served by ordinary code.
 
-| Everyday code | Pokeball term | Responsibility |
-|---|---|---|
-| A state-owning feature module | Ball | Own the fact, its invariant, and lifecycle. |
-| Input adapter | Interaction | Validate/adapt the present input channel; keep business choices in the decision. |
-| Pure decision and read functions | Nucleus | Compute the proposed change or read result from explicit values. |
-| Adapter for an external action | Resources | Execute only accepted requested work through the required boundary. |
+The reference tests and bounded model checks are available to run. They do not establish production reliability, team productivity, or an advantage over another architecture. Historical prototype measurements and their limits are described in [Core §10](spec/pokeball-core-2.0.md#10-trade-offs-and-known-limitations); their full experimental data and comparison harness are not part of this distribution. Use the [decision guide](docs/decision-guide.md) to assess a real slice of your application.
 
-The binding connects these roles and enforces the writer, acceptance, and applicable execution rules. A small project can implement it directly; an established project can reuse it. It is real integration work, not something this specification supplies.
+## Repository map
 
-For a local state-only feature, the Resource role is empty. Three logical roles do not require three classes, folders, interfaces, or a message bus. Source types, calls, verification sites, and the single accepted-write site can carry the role map; a separate document is unnecessary when those facts are already inspectable.
-
-## How much machinery is required?
-
-There is one Core. Always-applicable invariants remain in force; optional machinery appears when a real path, risk, or claim activates it.
-
-| Situation | Start with |
+| Path | Contents |
 |---|---|
-| Local state and synchronous calls | Owned State, closed typed input, pure decision, serial atomic publication, relevant tests. |
-| Detached external work | Accepted outputs, verified result correlation, bounded execution, and the required operation-status contract. |
-| Accepted work must survive process loss | A concrete durable binding, crash/recovery tests, and explicit external-outcome handling. |
-| Multiple authorities need an independent workflow | A Flow owner for the actual coordination and terminal outcome. |
+| [`spec/pokeball-core-2.0.md`](spec/pokeball-core-2.0.md) | The normative specification: model, execution semantics, rules R1–R13, profiles, conformance |
+| [`reference/kotlin/`](reference/kotlin/) | Kernel, reference runtime, test kit, architecture rules, examples, and conformance tests |
+| [`formal/alloy/`](formal/alloy/) | Alloy 6 model of the call protocol: 6 safety properties, 1 liveness property, 6 seeded runtime bugs |
+| [`docs/`](docs/) | Tutorial, decision guide, FAQ, anti-patterns, migration, and verification commands |
+| [`skills/`](skills/) | A short agent skill for Core 2 feature work (unevaluated) |
+| [`tools/`](tools/) | Link and snippet checks for the documentation |
+| [`assets/`](assets/) | Repository artwork |
 
-No standalone manifest, empty protocol category, unused adapter, runtime DI container, or per-feature copy of an unchanged shared policy is required. A present obligation still needs a real mechanism. Learn the details when the task activates them through [adoption](docs/ADOPTION.md), [composition](docs/COMPOSITION.md), and [Core's everyday workflow](spec/core/reference/21-adoption.md#217-everyday-development-and-production-responsibility).
+The [previous published Core 1.5 documentation](https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e), including its Russian edition, remains in Git history.
 
-## Is it appropriate for production?
+## Try it
 
-Production readiness belongs to an implemented system and its exact binding, workload, and guarantees. This repository provides the specification, teaching examples, and verification routes; it contains no runtime, library, reference implementation, comparative benchmark, or evidence for your deployment. Version and compatibility status are owned by the [Core header](spec/pokeball-architecture-core.md).
+Requires JDK 21. From `reference/kotlin`:
 
-Use one real slice to check failure behavior, implementation cost, and a human's first change. Include shared setup and maintenance cost. Continue when the benefit is demonstrated within your budget; reshape or stop when the existing approach satisfies the same requirements more simply. Use ordinary utilities or adapters for stateless mechanics and passive paths that need no state-owning decision module. Pokeball does not promise an advantage on every project.
+```sh
+./gradlew build checkModuleBoundaries   # tests, architecture rules, examples
+./gradlew :pokeball-runtime:pitest       # optional mutation testing
+```
 
-Follow the [project evaluation and production evidence guide](docs/EVALUATION.md). Documentation consistency and agent walkthroughs do not establish human usability or production reliability.
-
-## Agent skills
-
-Give your coding agent practical Pokeball instructions with the [official skills](docs/SKILLS.md). Start with `pokeball` for everyday feature changes; add `pokeball-async`, `pokeball-composition`, `pokeball-binding`, or `pokeball-review` for those tasks. Each independently installable skill contains concise work instructions and task-specific checks in one `SKILL.md`. Agents can apply them directly to project code and tests; the canonical Core remains authoritative.
-
-[Install with one prompt](docs/agents/INSTALL.md#install-skills-with-your-agent) in your coding agent, or follow the [manual GitHub installation guide](docs/SKILLS.md#download-once). Copy only the complete skill directories you want. Installed skills work without a local Pokeball checkout or network access. The manual guide also explains separate updates from GitHub. Skills provide coding workflows; the [Agent Pack](docs/agents/README.md) provides the broader contract, runbooks and review gates. Neither supplies an application runtime or a conformance verdict. Contributors should follow the [skill authoring guide](docs/SKILL-AUTHORING.md) when changing a skill or a source it uses.
-
-## Documentation
-
-| Start here when you want to… | Document |
-|---|---|
-| Write and change a small feature | [Human quickstart](docs/QUICKSTART.md) |
-| Compare benefits, cost, and production fit | [Project evaluation](docs/EVALUATION.md) |
-| Select profiles and adopt incrementally | [Adoption guide](docs/ADOPTION.md) |
-| Understand decisions and logical roles | [Architecture guide](docs/ARCHITECTURE.md) |
-| Choose boundaries, dependencies, and Flow ownership | [Composition guide](docs/COMPOSITION.md) |
-| Resolve an exact rule or audit the architecture | [Core specification](spec/pokeball-architecture-core.md) |
-| Give an agent focused coding workflows | [Skills, installation and updates](docs/SKILLS.md) |
-| Apply the full agent contract in another repository | [Agent Pack](docs/agents/README.md) and [installation](docs/agents/INSTALL.md) |
-| Read the complete documentation in Russian | [Russian documentation](docs/ru/README.md) |
-
-The Core entrypoint and its ordered manifest form the canonical specification. Each marked source clause owns its law; guides, examples, law indexes, and the Agent Pack are derived views. If a view conflicts with its source clause, Core controls. Ordinary work follows affected sources and tests; a full audit still covers every unique source.
+Start with the [tutorial](docs/tutorial.md). The [verification guide](docs/reproducibility.md) explains the available checks and their limits. For agent assistance, copy the complete [`pokeball-core-2`](skills/pokeball-core-2/) skill directory; its instructions are self-contained and unevaluated.
 
 ## License and authorship
 
-Copyright © 2026 **Vladislav Tomilov (4wl2d)**. `4wl2d` is his public
-pseudonym. The original specification, documentation,
-diagrams, examples, and Agent Pack are licensed under
-[Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/)
-(`CC-BY-4.0`). Anyone may share and adapt those materials for any purpose,
-including commercial use, subject to CC BY 4.0: retain the supplied creator,
-copyright, license, and warranty-disclaimer notices; include the license text
-or URL; link the source to the extent reasonably practicable; and indicate
-changes while retaining prior change notices. No ShareAlike condition applies.
+Copyright © 2026 **Vladislav Tomilov (4wl2d)**.
 
-This licenses the copyrightable expression of Pokeball Architecture; it does
-not create exclusive copyright ownership in abstract ideas, methods, systems,
-or functional concepts. CC BY 4.0 does not grant patent or trademark rights.
-See [`NOTICE.md`](NOTICE.md) for the exact scope and recommended attribution,
-and [`LICENSE`](LICENSE) for the complete legal code.
+Text and diagrams are licensed under [CC BY 4.0](LICENSE); see [NOTICE.md](NOTICE.md). **The code has no software license yet.** A software license remains the copyright holder's decision.
+
+Pokeball Architecture by Vladislav Tomilov (4wl2d).

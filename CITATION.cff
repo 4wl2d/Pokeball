@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: >-
+  If you discuss Pokeball Core 2.0, please cite it as below.
+  Text and diagrams are licensed under CC BY 4.0 (see NOTICE.md); the code in
+  reference/kotlin has no software license yet.
+title: "Pokeball Architecture: Core 2.0 specification and reference implementation"
+version: 2.0.0-draft
+date-released: 2026-09-27
+type: software
+authors:
+  - given-names: Vladislav
+    family-names: Tomilov
+    alias: 4wl2d
+repository-code: "https://github.com/4wl2d/Pokeball"
+keywords:
+  - software architecture
+  - state machines
+  - effects
+  - idempotency
+  - fault injection
+  - model checking
