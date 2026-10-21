@@ -23,3 +23,9 @@ include(
     ":examples:shop:checkout",
     ":examples:shop:app",
 )
+
+// Architecture benchmark: the same checkout in six styles, plus the runner (sources in /benchmark).
+for (m in listOf("env", "layered", "hardened", "actors", "mvu", "saga", "ballarch", "runner")) {
+    include(":benchmark:$m")
+    project(":benchmark:$m").projectDir = file("../../benchmark/$m")
+}

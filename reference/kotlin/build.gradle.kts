@@ -25,6 +25,18 @@ configure(subprojects.filter { it.path.startsWith(":examples:") }) {
     }
 }
 
+// The architecture benchmark modules (sources under /benchmark).
+configure(subprojects.filter { it.path.startsWith(":benchmark:") }) {
+    apply(plugin = "org.jetbrains.kotlin.jvm")
+    extensions.configure<KotlinJvmProjectExtension> { jvmToolchain(21) }
+    dependencies {
+        "testImplementation"(kotlin("test"))
+        "testImplementation"("org.junit.jupiter:junit-jupiter:5.13.4")
+        "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
+    }
+    tasks.withType<Test>().configureEach { useJUnitPlatform() }
+}
+
 /**
  * Module-boundary fitness function (Core 2 rule R10, build level): in the shop
  * example, an `-api` module depends only on the kernel, and an implementation

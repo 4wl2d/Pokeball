@@ -12,3 +12,5 @@ formal/alloy/alloy.jar
 # C and RTL references
 reference/c/build/
 reference/rtl/build/
+# Benchmark build outputs
+benchmark/*/build/
