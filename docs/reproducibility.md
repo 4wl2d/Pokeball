@@ -1,6 +1,6 @@
 # Verifying the reference implementation
 
-This checkout includes the reference implementation, its tests and examples, the Alloy model, and documentation checks. These checks support the conformance criteria in [Core §9](../spec/pokeball-core-2.0.md#9-conformance). They do not certify a deployment or reproduce the historical comparative evaluation discussed in Core §10.
+This checkout includes the reference implementation, its tests and examples, the Alloy model, and documentation checks. These checks support the conformance criteria in [Core §9](../spec/ballarch-core-2.0.md#9-conformance). They do not certify a deployment or reproduce the historical comparative evaluation discussed in Core §10.
 
 ## Prerequisites
 
@@ -21,10 +21,10 @@ This runs runtime unit and fault-exploration tests, architecture-rule fixtures, 
 Optional mutation testing:
 
 ```sh
-./gradlew :pokeball-runtime:pitest
+./gradlew :ballarch-runtime:pitest
 ```
 
-Inspect `pokeball-runtime/build/reports/pitest/`; a mutation score describes the tested runtime and chosen mutators, not overall correctness.
+Inspect `ballarch-runtime/build/reports/pitest/`; a mutation score describes the tested runtime and chosen mutators, not overall correctness.
 
 ## Alloy model
 

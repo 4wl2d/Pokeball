@@ -6,7 +6,7 @@ plugins {
 }
 
 subprojects {
-    group = "dev.pokeball"
+    group = "dev.ballarch"
     version = "2.0.0-SNAPSHOT"
 }
 
@@ -45,8 +45,8 @@ val checkModuleBoundaries by tasks.registering {
                 val allowed = when {
                     p.name == "app" -> true // the composition root may depend on everything
                     p.name.endsWith("-http") -> true // adapters depend on the runtime and on their feature
-                    p.name.endsWith("-api") -> d == ":pokeball-kernel"
-                    else -> d == ":pokeball-kernel" || d.endsWith("-api")
+                    p.name.endsWith("-api") -> d == ":ballarch-kernel"
+                    else -> d == ":ballarch-kernel" || d.endsWith("-api")
                 }
                 if (!allowed) violations += "${p.path} -> $d"
             }

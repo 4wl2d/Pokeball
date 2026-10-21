@@ -3,7 +3,7 @@ dependencies {
     api(project(":examples:shop:payments-api"))
     api(project(":examples:shop:inventory-api"))
     api(project(":examples:shop:orders-api"))
-    testImplementation(project(":pokeball-testkit"))
+    testImplementation(project(":ballarch-testkit"))
     testImplementation(project(":examples:shop:payments"))
     testImplementation(project(":examples:shop:inventory"))
     testImplementation(project(":examples:shop:orders"))

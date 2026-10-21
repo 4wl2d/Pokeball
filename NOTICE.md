@@ -1,9 +1,9 @@
-# Pokeball Architecture — copyright and licensing notice
+# Ballarch Architecture — copyright and licensing notice
 
 Copyright © 2026 Vladislav Tomilov (4wl2d).
 
 Vladislav Tomilov is the creator and copyright holder of the original
-Pokeball Architecture material in this repository. `4wl2d` is his designated
+Ballarch Architecture material in this repository. `4wl2d` is his designated
 public pseudonym. Both identify the same person. The requested creator
 identification is `Vladislav Tomilov (4wl2d)`.
 
@@ -36,7 +36,7 @@ prior change notices. Do not imply endorsement by Vladislav Tomilov (4wl2d).
 
 Recommended attribution:
 
-> Pokeball Architecture by Vladislav Tomilov (4wl2d).
+> Ballarch Architecture by Vladislav Tomilov (4wl2d).
 > Copyright © 2026 Vladislav Tomilov (4wl2d).
 > Source: https://github.com/4wl2d/Pokeball
 > Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/

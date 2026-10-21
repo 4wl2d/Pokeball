@@ -1,6 +1,6 @@
-# Migrating from Pokeball Core 1.5 to Core 2.0
+# Migrating from Pokeball Core 1.5 to Ballarch Core 2.0
 
-The [previous published Core 1.5.0-draft](https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e) remains in Git history. Core 2 replaces the project-defined binding with a smaller runtime contract and executable conformance checks. This guide maps the 1.5 vocabulary and each of its 44 laws to [Core 2.0](../spec/pokeball-core-2.0.md).
+Ballarch was published under the name Pokeball up to Core 1.5. The [previous published Pokeball Core 1.5.0-draft](https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e) remains in Git history. Core 2 replaces the project-defined binding with a smaller runtime contract and executable conformance checks. This guide maps the 1.5 vocabulary and each of its 44 laws to [Core 2.0](../spec/ballarch-core-2.0.md).
 
 ## What changes for a developer
 

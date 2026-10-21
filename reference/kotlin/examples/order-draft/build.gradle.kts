@@ -1,4 +1,4 @@
 dependencies {
-    implementation(project(":pokeball-kernel"))
-    testImplementation(project(":pokeball-testkit"))
+    implementation(project(":ballarch-kernel"))
+    testImplementation(project(":ballarch-testkit"))
 }

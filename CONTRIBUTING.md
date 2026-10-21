@@ -1,9 +1,9 @@
 # Contributing
 
-Pokeball publishes an architecture specification and reference artifacts for checking it. Useful contributions include:
+Ballarch publishes an architecture specification and reference artifacts for checking it. Useful contributions include:
 
 1. **Independent checks.** Reproduce a specification rule with a small example or a failing conformance test. State the exact version, assumptions, and observed outcome.
-2. **Another runtime.** An implementation of [`spec/pokeball-core-2.0.md`](spec/pokeball-core-2.0.md) in another language or on a durable execution engine, checked against the conformance criteria in §9.
+2. **Another runtime.** An implementation of [`spec/ballarch-core-2.0.md`](spec/ballarch-core-2.0.md) in another language or on a durable execution engine, checked against the conformance criteria in §9.
 3. **A durable store**, and measurements of its commit and recovery behavior.
 4. **Counterexamples.** Schedules, specification ambiguities or prior art that contradict a claim. Open an issue with the evidence.
 

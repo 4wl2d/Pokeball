@@ -1,6 +1,6 @@
 # Tutorial: a reminder that sends one email
 
-This tutorial builds a small feature on Pokeball Core 2: a reminder that waits, then sends an email through a mail service that has no idempotency key. It covers every kernel concept a typical feature needs:
+This tutorial builds a small feature on Ballarch Core 2: a reminder that waits, then sends an email through a mail service that has no idempotency key. It covers every kernel concept a typical feature needs:
 
 - a Ball and its decider;
 - a timer;
@@ -14,7 +14,7 @@ The code is the module [`reference/kotlin/examples/tutorial`](../reference/kotli
 
 A port is a typed contract with an effect class. Sending an email has an effect, and repeating the request sends it again, so the port is `NonIdempotent`. The runtime will never re-send such a call. If it cannot know whether the email went out, it says so with `Unknown` instead of guessing.
 
-<!-- snippet: reference/kotlin/examples/tutorial/src/main/kotlin/pokeball/examples/tutorial/Reminder.kt -->
+<!-- snippet: reference/kotlin/examples/tutorial/src/main/kotlin/ballarch/examples/tutorial/Reminder.kt -->
 ```kotlin
 data class Email(val to: String, val text: String)
 
@@ -27,7 +27,7 @@ A read-only lookup would be `Safe`: it may be retried freely and never ends `Unk
 
 Each stage of the reminder is an explicit case. `MaybeSent` is not an error state; it is the honest description of a timeout after the request may have reached the mail service.
 
-<!-- snippet: reference/kotlin/examples/tutorial/src/main/kotlin/pokeball/examples/tutorial/Reminder.kt -->
+<!-- snippet: reference/kotlin/examples/tutorial/src/main/kotlin/ballarch/examples/tutorial/Reminder.kt -->
 ```kotlin
 sealed interface ReminderState {
     data object Empty : ReminderState
@@ -46,7 +46,7 @@ sealed interface ReminderState {
 
 Scheduling asks for a timer. A timer is an ordinary call on the built-in timer port, and its key is stored in the state so that the completion can be matched later.
 
-<!-- snippet: reference/kotlin/examples/tutorial/src/main/kotlin/pokeball/examples/tutorial/Reminder.kt -->
+<!-- snippet: reference/kotlin/examples/tutorial/src/main/kotlin/ballarch/examples/tutorial/Reminder.kt -->
 ```kotlin
     override fun decide(state: ReminderState, request: ReminderRequest, ctx: RequestContext): Decision<ReminderState, ReminderReply> =
         when (request) {
@@ -69,7 +69,7 @@ The runtime commits the new state and the timer call together, and only then sta
 
 Every call ends in exactly one completion, delivered to `complete`. When the timer completes, the Ball sends the email. When the send completes, the Ball records one of three outcomes:
 
-<!-- snippet: reference/kotlin/examples/tutorial/src/main/kotlin/pokeball/examples/tutorial/Reminder.kt -->
+<!-- snippet: reference/kotlin/examples/tutorial/src/main/kotlin/ballarch/examples/tutorial/Reminder.kt -->
 ```kotlin
     override fun complete(state: ReminderState, completion: Completion<*>, ctx: Context): Step<ReminderState, ReminderReply> =
         when {
@@ -95,15 +95,15 @@ What each outcome means:
 - `NotDone`: there is evidence that nothing was sent. For example, the connection was refused before the request was written, or the deadline passed before the call left.
 - `Unknown`: the request may have been sent, for example after a timeout, an error after the request was written, or a crash while it was in flight.
 
-The runtime picks the outcome, not the adapter or the Ball. The rule is in §3.2 of the [specification](../spec/pokeball-core-2.0.md).
+The runtime picks the outcome, not the adapter or the Ball. The rule is in §3.2 of the [specification](../spec/ballarch-core-2.0.md).
 
-What to do with `MaybeSent` is a business decision. You can show it to the user, or ask the mail service's status API after its delivery horizon (see the [payment example](../reference/kotlin/examples/shop/payments/src/main/kotlin/pokeball/examples/shop/payments/PaymentBall.kt)). Sending again is the one thing you should not do blindly.
+What to do with `MaybeSent` is a business decision. You can show it to the user, or ask the mail service's status API after its delivery horizon (see the [payment example](../reference/kotlin/examples/shop/payments/src/main/kotlin/ballarch/examples/shop/payments/PaymentBall.kt)). Sending again is the one thing you should not do blindly.
 
 ## 5. Compose
 
 The composition root is the one place that says which Balls exist and which adapter performs each port:
 
-<!-- snippet: reference/kotlin/examples/tutorial/src/main/kotlin/pokeball/examples/tutorial/ReminderApp.kt -->
+<!-- snippet: reference/kotlin/examples/tutorial/src/main/kotlin/ballarch/examples/tutorial/ReminderApp.kt -->
 ```kotlin
 fun reminderComposition(mailer: Adapter<Email, Unit>): Composition =
     Composition()
@@ -111,17 +111,17 @@ fun reminderComposition(mailer: Adapter<Email, Unit>): Composition =
         .adapter(Mailer, mailer)
 ```
 
-In production, `mailer` is an adapter around your HTTP or SMTP client. An adapter reports each invocation once, never retries, and reports `NotApplied` only with evidence. [`HttpProviderAdapters`](../reference/kotlin/examples/shop/payments-http/src/main/kotlin/pokeball/examples/shop/payments/http/HttpProviderAdapters.kt) is a real example. Check yours with the adapter conformance kit (`pokeball.testkit.AdapterConformance`). Run the whole thing on a `Runtime` with a `ThreadScheduler` and a store.
+In production, `mailer` is an adapter around your HTTP or SMTP client. An adapter reports each invocation once, never retries, and reports `NotApplied` only with evidence. [`HttpProviderAdapters`](../reference/kotlin/examples/shop/payments-http/src/main/kotlin/ballarch/examples/shop/payments/http/HttpProviderAdapters.kt) is a real example. Check yours with the adapter conformance kit (`ballarch.testkit.AdapterConformance`). Run the whole thing on a `Runtime` with a `ThreadScheduler` and a store.
 
 ## 6. Test the decider as a function
 
-<!-- snippet: reference/kotlin/examples/tutorial/src/test/kotlin/pokeball/examples/tutorial/ReminderTest.kt -->
+<!-- snippet: reference/kotlin/examples/tutorial/src/test/kotlin/ballarch/examples/tutorial/ReminderTest.kt -->
 ```kotlin
     fun `scheduling accepts once and asks for a timer`() {
         val ctx = FixedContext(id)
         val decision = ReminderBall.decide(ReminderState.Empty, ReminderRequest.Schedule("ann@example.com", "Call Bob", 60_000), ctx)
         assertIs<Accept<ReminderState, ReminderReply>>(decision)
-        assertEquals(listOf(Timer.after(pokeball.kernel.CallKey("1.0"), 60_000)), decision.outputs)
+        assertEquals(listOf(Timer.after(ballarch.kernel.CallKey("1.0"), 60_000)), decision.outputs)
         val again = ReminderBall.decide(decision.state, ReminderRequest.Schedule("ann@example.com", "Call Bob", 60_000), ctx)
         assertEquals(Reject(ReminderReply.AlreadyScheduled), again)
     }
@@ -131,7 +131,7 @@ In production, `mailer` is an adapter around your HTTP or SMTP client. An adapte
 
 The test kit runs the real runtime on a simulated clock. A simulated mail service draws one fate per attempt: answer, late answer, lost request, lost answer, error after sending, or connection refused. The kit injects at most one crash at any point, and explores every combination:
 
-<!-- snippet: reference/kotlin/examples/tutorial/src/test/kotlin/pokeball/examples/tutorial/ReminderTest.kt -->
+<!-- snippet: reference/kotlin/examples/tutorial/src/test/kotlin/ballarch/examples/tutorial/ReminderTest.kt -->
 ```kotlin
         val runs = explore(ExhaustiveChooser()) { chooser ->
             val h = Harness(chooser, Profile.Durable) {
@@ -159,7 +159,7 @@ Try breaking it. Change `is Outcome.Unknown -> step(ReminderState.MaybeSent)` to
 
 ## Where next
 
-- The [specification](../spec/pokeball-core-2.0.md) defines the model and the rules R1–R13.
+- The [specification](../spec/ballarch-core-2.0.md) defines the model and the rules R1–R13.
 - The [decision guide](decision-guide.md) says when this architecture is worth its cost, and when it is not.
 - [Anti-patterns](anti-patterns.md) lists mistakes the rules and checks exist to catch.
 - The [shop example](../reference/kotlin/examples/shop/) is a checkout workflow across three Balls, with reservations, payment reconciliation and module boundaries.

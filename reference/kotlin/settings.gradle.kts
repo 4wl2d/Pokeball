@@ -1,11 +1,11 @@
-rootProject.name = "pokeball-reference"
+rootProject.name = "ballarch-reference"
 
 dependencyResolutionManagement {
     repositories { mavenCentral() }
 }
 
 // Library
-include(":pokeball-kernel", ":pokeball-runtime", ":pokeball-testkit", ":pokeball-archrules")
+include(":ballarch-kernel", ":ballarch-runtime", ":ballarch-testkit", ":ballarch-archrules")
 
 // Examples and executable documentation
 include(

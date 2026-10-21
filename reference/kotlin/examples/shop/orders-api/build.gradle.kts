@@ -1,3 +1,3 @@
 dependencies {
-    api(project(":pokeball-kernel"))
+    api(project(":ballarch-kernel"))
 }

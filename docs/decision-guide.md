@@ -1,6 +1,6 @@
-# Decision guide: when is Pokeball Core 2 worth it?
+# Decision guide: when is Ballarch Core 2 worth it?
 
-This guide reflects the historical prototype measurements summarized in [Core §10](../spec/pokeball-core-2.0.md#10-trade-offs-and-known-limitations), including their negative results. The comparison's full data and harness are outside this distribution. It gives no universal recommendation; it states which trade-offs were measured, and which were not.
+This guide reflects the historical prototype measurements summarized in [Core §10](../spec/ballarch-core-2.0.md#10-trade-offs-and-known-limitations), including their negative results. The comparison's full data and harness are outside this distribution. It gives no universal recommendation; it states which trade-offs were measured, and which were not.
 
 ## What you pay
 

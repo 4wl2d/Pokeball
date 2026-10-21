@@ -4,7 +4,7 @@
 No single mechanism is. Core 2 combines known mechanisms in a small contract with executable checks. This distribution makes no claim of scientific novelty or general superiority.
 
 **Is it a framework?**
-The kernel is about 170 lines of types with no dependencies. The reference runtime is about 1,000 lines. Other runtimes may implement the [specification](../spec/pokeball-core-2.0.md); conformance is defined in §9.
+The kernel is about 170 lines of types with no dependencies. The reference runtime is about 1,000 lines. Other runtimes may implement the [specification](../spec/ballarch-core-2.0.md); conformance is defined in §9.
 
 **Does it give exactly-once effects?**
 No. It guarantees that a non-idempotent call is sent at most once, and that the application is told honestly when the runtime cannot know whether the call took effect (`Unknown`). Idempotent destinations, keyed by the call identity, make most `Unknown` outcomes disappear after retries.

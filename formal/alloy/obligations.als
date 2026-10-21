@@ -1,5 +1,5 @@
 /*
- * Pokeball Core 2 — abstract model of the call-obligation protocol.
+ * Ballarch Core 2 — abstract model of the call-obligation protocol.
  *
  * Scope: one caller Ball whose runtime commits decisions durably
  * (Durable profile), a lossy/duplicating network, and one destination.
