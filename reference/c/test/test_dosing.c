@@ -1,299 +1,120 @@
 /*
- * Exhaustive fault exploration of the therapy controller on the firmware
- * runtime: every link fate for every transmission, and one power loss at any
- * point (between loop iterations, before or in the middle of an NVM write,
- * after the write-ahead record and before the bytes leave). The simulated pump
- * is the ground truth. Exit status 1 means a rule or the therapy's safety
- * property was violated; the mutant builds in the Makefile must fail.
+ * Bounded exhaustive fault exploration of the therapy controller on the
+ * firmware runtime (see explore.h for the bounds). The simulated pump is the
+ * ground truth. Besides the runtime oracles of explore.c, every run checks:
+ *   spacing  doses the pump applies are at least TH_INTERVAL_MS apart
+ *   overdose the pump never gives more than the prescription
+ *   therapy  the final state matches the pump (done: all doses; alarm: no
+ *            more believed than given; idle: none given)
+ * Every run starts 1.5 s before a 32-bit millisecond counter would wrap, so its
+ * timers and deadlines straddle that boundary.
+ * Exit status 1 means a rule or a safety property was violated; the mutant
+ * builds in the Makefile must fail.
  */
-#include "ballarch.h"
 #include "dosing.h"
+#include "explore.h"
 
-#include <setjmp.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
 #define PRESCRIBED 2
-#define CUT_POINTS 40      /* power loss before one of the first CUT_POINTS points, or never */
-#ifndef MAX_CHOICES
-#define MAX_CHOICES 9 /* later choices take value 0 (answer in time), which keeps runs finite */
+#define START_MS (0x100000000ull - 1500u) /* 1.5 s before a 32-bit millisecond counter wraps */
+#define END_MS (START_MS + 30000u)
+#ifndef FATE_BOUND
+#define FATE_BOUND 6 /* link fates explored for the first FATE_BOUND transmissions of a run */
 #endif
-#define END_MS 30000u
-#define LATENCY_MS 40u
-#define REBOOT_MS 250u
+#define DELAY_MS 500u /* a delayed dose request arrives within the link's delivery horizon */
 
-/* ---------------------------------------------------------------- exhaustive chooser */
+enum { F_REPLY, F_REPLY_LATE, F_LOSE_REQUEST, F_LOSE_REPLY, F_ERROR_AFTER_APPLY, F_NACK, F_DELAYED_REQUEST, DOSE_FATES };
+enum { C_REPLY, C_LOSE, C_FAILED, COUNTER_FATES };
 
-typedef struct {
-    int prefix[MAX_CHOICES], arity[MAX_CHOICES];
-    int len, pos;
-} chooser;
+/* The pump: the ground truth. It keeps its power when the controller loses its. */
+static struct {
+    int doses;
+    int dosed_before;
+    uint64_t last_dose_at;
+} P;
 
-static int choose(chooser *c, int n)
+static void pump_reset(void) { memset(&P, 0, sizeof P); }
+
+static void pump_doses(ex_call *l)
 {
-    if (c->pos >= MAX_CHOICES) return 0;
-    if (c->pos < c->len) {
-        if (c->arity[c->pos] != n) {
-            fprintf(stderr, "nondeterministic replay at choice %d\n", c->pos);
-            return 0;
-        }
-        return c->prefix[c->pos++];
-    }
-    c->prefix[c->len] = 0;
-    c->arity[c->len] = n;
-    c->len++;
-    c->pos++;
-    return 0;
+    uint64_t t = ex_now();
+    if (P.dosed_before && t - P.last_dose_at < TH_INTERVAL_MS)
+        ex_violation("spacing", "doses %d and %d given %llu ms apart (minimum %u)", P.doses, P.doses + 1,
+                     (unsigned long long)(t - P.last_dose_at), TH_INTERVAL_MS);
+    P.doses++;
+    P.dosed_before = 1;
+    P.last_dose_at = t;
+    l->applied = 1;
 }
 
-static int next_run(chooser *c)
+static void pump_transmit(ex_call *l, uint8_t port, uint32_t key, int32_t arg, uint8_t attempt)
 {
-    if (c->len > c->pos) c->len = c->pos;
-    while (c->len > 0 && c->prefix[c->len - 1] + 1 >= c->arity[c->len - 1]) c->len--;
-    if (c->len == 0) return 0;
-    c->prefix[c->len - 1]++;
-    c->pos = 0;
-    return 1;
-}
-
-/* ---------------------------------------------------------------- the simulated world */
-
-enum { F_REPLY, F_REPLY_LATE, F_LOSE_REQUEST, F_LOSE_REPLY, F_ERROR_AFTER_APPLY, F_NACK, DOSE_FATES };
-enum { C_REPLY, C_LOSE, COUNTER_FATES };
-
-typedef struct {
-    uint32_t at, key;
-    uint8_t attempt, kind;
-    int32_t value;
-    int incarnation, live;
-} report_event;
-
-typedef struct {
-    uint32_t key;
-    int committed, completed, transmissions, applied;
-    uint8_t port;
-    ba_outcome outcome;
-} call_log;
-
-typedef struct {
-    chooser *ch;
-    uint32_t clock;
-    ba_record slot[2];
-    int written[2];
-    int ops, cut_at, incarnation;
-    jmp_buf on_cut;
-    report_event ev[32];
-    int n_ev;
-    int doses; /* ground truth: doses the pump really gave */
-    call_log calls[64];
-    int n_calls;
-    int violations;
-    char first[256];
-} world;
-
-static world W;
-
-static void violation(const char *fmt, ...)
-{
-    if (W.violations++ == 0) {
-        va_list ap;
-        va_start(ap, fmt);
-        vsnprintf(W.first, sizeof W.first, fmt, ap);
-        va_end(ap);
-    }
-}
-
-static call_log *log_of(uint32_t key)
-{
-    for (int i = 0; i < W.n_calls; i++)
-        if (W.calls[i].key == key) return &W.calls[i];
-    call_log fresh = {key, 0, 0, 0, 0, 0, {BA_DONE, 0}};
-    if (W.n_calls == (int)(sizeof W.calls / sizeof W.calls[0])) {
-        violation("more calls than the test can log");
-        return &W.calls[W.n_calls - 1];
-    }
-    W.calls[W.n_calls] = fresh;
-    return &W.calls[W.n_calls++];
-}
-
-/* A possible power-loss point. */
-static void point(void)
-{
-    if (W.ops++ == W.cut_at) longjmp(W.on_cut, 1);
-}
-
-static void nvm_write(void *u, int slot, const void *data, size_t n)
-{
-    (void)u;
-    point(); /* lost before the write: the slot is unchanged */
-    if (W.ops++ == W.cut_at) { /* lost during the write: the slot is torn */
-        memcpy(&W.slot[slot], data, n / 2);
-        ((uint8_t *)&W.slot[slot])[n / 2] ^= 0xFF;
-        W.written[slot] = 1;
-        longjmp(W.on_cut, 1);
-    }
-    memcpy(&W.slot[slot], data, n);
-    W.written[slot] = 1;
-}
-
-static int nvm_read(void *u, int slot, void *data, size_t n)
-{
-    (void)u;
-    if (!W.written[slot]) return 0;
-    memcpy(data, &W.slot[slot], n);
-    return 1;
-}
-
-static uint32_t now(void *u)
-{
-    (void)u;
-    return W.clock;
-}
-
-/* The newest valid record in NVM, as the next boot would see it. */
-static const ba_record *durable(void)
-{
-    const ba_record *best = NULL;
-    for (int s = 0; s < 2; s++) {
-        const ba_record *r = &W.slot[s];
-        if (!W.written[s] || r->crc != ba_crc32(r, offsetof(ba_record, crc))) continue;
-        if (best == NULL || r->seq > best->seq) best = r;
-    }
-    return best;
-}
-
-static void schedule(uint32_t delay, uint32_t key, uint8_t attempt, ba_report_kind kind, int32_t value)
-{
-    report_event e = {W.clock + delay, key, attempt, (uint8_t)kind, value, W.incarnation, 1};
-    W.ev[W.n_ev++] = e;
-}
-
-static void transmit(void *u, uint8_t port, uint32_t key, int32_t arg, uint8_t attempt)
-{
-    (void)u;
     (void)arg;
-    point(); /* lost after the write-ahead record, before the bytes leave */
-    /* R5 and R8: the durable record already says that this call may have been sent. */
-    const ba_record *r = durable();
-    int recorded = 0;
-    for (unsigned i = 0; r && i < BA_MAX_CALLS; i++)
-        if (r->calls[i].used && r->calls[i].key == key && r->calls[i].phase == BA_SENDING) recorded = 1;
-    if (!recorded) violation("call %u transmitted before NVM recorded it as Sending", key);
-    call_log *l = log_of(key);
-    l->transmissions++;
-    l->port = port;
     if (port == TH_PORT_DOSE) {
-        if (l->transmissions > 1) violation("dose call %u transmitted %d times", key, l->transmissions);
-        switch (choose(W.ch, DOSE_FATES)) {
-        case F_REPLY: W.doses++; l->applied = 1; schedule(LATENCY_MS, key, attempt, BA_REPORT_OK, W.doses); break;
-        case F_REPLY_LATE: W.doses++; l->applied = 1; schedule(TH_CALL_TIMEOUT_MS + LATENCY_MS, key, attempt, BA_REPORT_OK, W.doses); break;
+        switch (ex_fate(DOSE_FATES)) {
+        case F_REPLY: pump_doses(l); ex_schedule(EX_LATENCY_MS, key, attempt, BA_REPORT_OK, P.doses); break;
+        case F_REPLY_LATE: pump_doses(l); ex_schedule(TH_CALL_TIMEOUT_MS + EX_LATENCY_MS, key, attempt, BA_REPORT_OK, P.doses); break;
         case F_LOSE_REQUEST: break;
-        case F_LOSE_REPLY: W.doses++; l->applied = 1; break;
-        case F_ERROR_AFTER_APPLY: W.doses++; l->applied = 1; schedule(LATENCY_MS, key, attempt, BA_REPORT_FAILED, 0); break;
-        case F_NACK: schedule(LATENCY_MS, key, attempt, BA_REPORT_NOT_APPLIED, 0); break;
+        case F_LOSE_REPLY: pump_doses(l); break;
+        case F_ERROR_AFTER_APPLY: pump_doses(l); ex_schedule(EX_LATENCY_MS, key, attempt, BA_REPORT_FAILED, 0); break;
+        case F_NACK: ex_schedule(EX_LATENCY_MS, key, attempt, BA_REPORT_NOT_APPLIED, 0); break;
+        case F_DELAYED_REQUEST: ex_schedule(DELAY_MS, key, attempt, EX_K_APPLY, 0); break; /* applied late, never answered */
         }
-    } else if (choose(W.ch, COUNTER_FATES) == C_REPLY) {
-        schedule(LATENCY_MS, key, attempt, BA_REPORT_OK, W.doses);
-    }
-}
-
-static void trace(void *u, int event, uint32_t key, const ba_outcome *o)
-{
-    (void)u;
-    call_log *l = log_of(key);
-    if (event == BA_T_CALL_COMMITTED) l->committed++;
-    if (event == BA_T_COMPLETED) {
-        l->completed++;
-        l->outcome = *o;
-        if (l->completed > 1) violation("call %u completed twice", key);
-        if (!l->committed) violation("completion for call %u, which was never committed", key);
-    }
-    if (event == BA_T_FAULT) violation("Ball quarantined at call %u", key);
-}
-
-static const ba_platform platform = {NULL, nvm_write, nvm_read, transmit, now, trace};
-
-static uint32_t next_event(void)
-{
-    uint32_t t = UINT32_MAX;
-    for (int i = 0; i < W.n_ev; i++)
-        if (W.ev[i].live && W.ev[i].at < t) t = W.ev[i].at;
-    return t;
-}
-
-/* ---------------------------------------------------------------- one run */
-
-typedef struct {
-    long runs, done, alarm, idle, cuts;
-} totals;
-
-static void run(chooser *ch, totals *t)
-{
-    memset(&W, 0, sizeof W);
-    W.ch = ch;
-    W.clock = 1000;
-    W.cut_at = choose(ch, CUT_POINTS + 1);
-    if (W.cut_at == CUT_POINTS) W.cut_at = -1;
-    static ba_runtime rt; /* static: survives longjmp without volatile qualifiers */
-    volatile int powered_before = 0;
-    if (setjmp(W.on_cut)) { /* power lost: RAM is gone; the controller restarts later */
-        W.incarnation++;
-        W.cut_at = -1;
-        W.clock += REBOOT_MS;
-        t->cuts++;
-    }
-    ba_boot(&rt, &th_ball, &platform, NULL);
-    if (!powered_before) {
-        powered_before = 1;
-        int32_t reply = 0;
-        ba_request(&rt, TH_REQ_START, PRESCRIBED, &reply); /* the nurse presses start once */
-    }
-    for (;;) {
-        uint32_t a = ba_next_wakeup(&rt), b = next_event();
-        uint32_t at = a < b ? a : b;
-        if (at == UINT32_MAX || at > END_MS) break;
-        if (at > W.clock) W.clock = at;
-        point();
-        for (int i = 0; i < W.n_ev; i++) {
-            report_event *e = &W.ev[i];
-            if (!e->live || e->at > W.clock) continue;
-            e->live = 0;
-            if (e->incarnation == W.incarnation) ba_report(&rt, e->key, e->attempt, (ba_report_kind)e->kind, e->value);
+    } else {
+        switch (ex_fate(COUNTER_FATES)) {
+        case C_REPLY: ex_schedule(EX_LATENCY_MS, key, attempt, BA_REPORT_OK, P.doses); break;
+        case C_LOSE: break;
+        case C_FAILED: ex_schedule(EX_LATENCY_MS, key, attempt, BA_REPORT_FAILED, 0); break; /* garbled: retried */
         }
-        ba_tick(&rt);
     }
+}
 
-    /* Oracles at quiescence. */
-    const th_state *s = ba_state(&rt);
-    if (W.doses > PRESCRIBED) violation("overdose: the pump gave %d doses", W.doses);
-    for (int i = 0; i < W.n_calls; i++) {
-        const call_log *l = &W.calls[i];
-        if (l->committed && !l->completed) violation("call %u never completed", l->key);
-        /* R7 against the pump's ground truth: NotDone only without effect, Done only with it. */
-        if (l->completed && l->outcome.kind == BA_NOT_DONE && l->applied) violation("call %u: NotDone, but the pump applied it", l->key);
-        if (l->completed && l->outcome.kind == BA_DONE && l->port == TH_PORT_DOSE && !l->applied) violation("call %u: Done, but the pump never applied it", l->key);
-    }
-    switch ((th_stage)s->stage) {
+static void pump_apply(ex_call *l, const ex_event *e)
+{
+    (void)e;
+    pump_doses(l);
+}
+
+static void start(ba_runtime *rt)
+{
+    int32_t reply = 0;
+    ba_request(rt, TH_REQ_START, PRESCRIBED, &reply); /* the nurse presses start once */
+}
+
+enum { FINAL_DONE, FINAL_ALARM, FINAL_IDLE, FINAL_OTHER };
+static const char *const FINALS[] = {"done", "alarm", "idle"};
+
+static int check(const ba_runtime *rt)
+{
+    th_state s;
+    memcpy(&s, ba_state(rt), sizeof s);
+    if (P.doses > PRESCRIBED) ex_violation("overdose", "the pump gave %d doses", P.doses);
+    switch ((th_stage)s.stage) {
     case TH_DONE:
-        t->done++;
-        if (W.doses != PRESCRIBED) violation("therapy done, but the pump gave %d doses", W.doses);
-        break;
+        if (P.doses != PRESCRIBED) ex_violation("therapy", "therapy done, but the pump gave %d doses", P.doses);
+        return FINAL_DONE;
     case TH_ALARM:
-        t->alarm++;
-        if (s->delivered > W.doses) violation("believes %d doses given; the pump gave %d", s->delivered, W.doses);
-        break;
+        if (s.delivered > P.doses) ex_violation("therapy", "believes %d doses given; the pump gave %d", s.delivered, P.doses);
+        return FINAL_ALARM;
     case TH_IDLE:
-        t->idle++;
-        if (W.doses != 0) violation("idle, but the pump gave %d doses", W.doses);
-        break;
+        if (P.doses != 0) ex_violation("therapy", "idle, but the pump gave %d doses", P.doses);
+        return FINAL_IDLE;
     default:
-        violation("unfinished in stage %d", s->stage);
+        ex_violation("therapy", "unfinished in stage %d", s.stage);
+        return FINAL_OTHER;
     }
-    t->runs++;
 }
 
-/* ---------------------------------------------------------------- decider unit test */
+static const uint8_t BUDGET[TH_PORTS] = {0, 0, 2}; /* a garbled counter query is retried once */
+
+static const ex_model MODEL = {
+    "dosing", &th_ball, BUDGET, FATE_BOUND, START_MS, END_MS, FINALS, 3,
+    pump_reset, start, pump_transmit, pump_apply, NULL, check,
+};
+
+/* ---------------------------------------------------------------- decider unit tests */
 
 static int unit_tests(void)
 {
@@ -303,9 +124,9 @@ static int unit_tests(void)
     memset(&out, 0, sizeof out);
     ba_ctx ctx = {0, 1, 0};
     int32_t reply = 0;
-    ba_input start = {BA_IN_REQUEST, TH_REQ_START, 2, 0, 0, {BA_DONE, 0}};
+    ba_input start_in = {BA_IN_REQUEST, TH_REQ_START, 2, 0, 0, {BA_DONE, 0}};
     int failures = 0;
-    if (th_step(&s, &start, &ctx, &n, &out, &reply) != BA_ACCEPT || out.n != 1 || out.call[0].port != TH_PORT_DOSE) failures++;
+    if (th_step(&s, &start_in, &ctx, &n, &out, &reply) != BA_ACCEPT || out.n != 1 || out.call[0].port != TH_PORT_DOSE) failures++;
     /* An unknown dose leads to waiting for the horizon, never to another dose. */
     th_state dosing = n, after;
     memset(&out, 0, sizeof out);
@@ -313,28 +134,13 @@ static int unit_tests(void)
     ba_input unknown = {BA_IN_COMPLETION, 0, 0, TH_PORT_DOSE, dosing.call, {BA_UNKNOWN, BA_R_LOST_AFTER_SEND}};
     th_step(&dosing, &unknown, &ctx2, &after, &out, &reply);
     if (after.stage != TH_SETTLING || out.n != 1 || out.call[0].port != BA_TIMER_PORT) failures++;
-    if (failures) printf("decider unit tests: %d failed\n", failures);
+    if (failures) printf("counterexample in run 0 [unit]: %d decider unit tests failed\n", failures);
     return failures;
 }
 
 int main(void)
 {
-    int unit_failures = unit_tests();
-    chooser ch;
-    memset(&ch, 0, sizeof ch);
-    totals t = {0, 0, 0, 0, 0};
-    int bad = 0;
-    char first[256] = "";
-    do { /* stops at the first counterexample, like a model checker */
-        run(&ch, &t);
-        if (W.violations) {
-            bad++;
-            snprintf(first, sizeof first, "%s", W.first);
-        }
-    } while (!bad && next_run(&ch));
-    printf("dosing exploration: %ld runs (%ld with a power loss); final stage done=%ld alarm=%ld idle=%ld\n",
-           t.runs, t.cuts, t.done, t.alarm, t.idle);
-    if (bad) printf("counterexample in run %ld: %s\n", t.runs, first);
-    else printf("no violation in any run\n");
-    return bad || unit_failures ? 1 : 0;
+    int failed = unit_tests() != 0; /* the exploration runs regardless, so each mutant shows what kills it there */
+    failed |= ex_explore(&MODEL) != 0;
+    return failed;
 }

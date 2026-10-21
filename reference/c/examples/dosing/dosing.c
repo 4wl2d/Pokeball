@@ -3,8 +3,12 @@
  * tools/check_purity.sh verifies that its object file references no external
  * symbol and defines no writable data.
  *
- * Seeded bug for the negative control in the Makefile (never enabled in a build):
- *   TH_MUTANT_RETRY_UNKNOWN  doses again after an Unknown outcome
+ * Seeded bugs for the negative controls in the Makefile (never enabled in a build):
+ *   TH_MUTANT_RETRY_UNKNOWN   doses again after an Unknown outcome
+ *   TH_MUTANT_NO_HORIZON      reads the pump's counter without waiting out the delivery horizon (dosing.h)
+ *   TH_MUTANT_SHORT_INTERVAL  waits only TH_RETRY_MS, not TH_INTERVAL_MS, after a dose was given
+ *   TH_MUTANT_EXTRA_DOSE      gives one dose more than prescribed, spaced as it should be
+ *   TH_MUTANT_UNKNOWN_AS_GIVEN counts a dose with an Unknown outcome as given, without asking the pump
  */
 #include "dosing.h"
 
@@ -33,8 +37,16 @@ static void finish(th_state *n, th_stage stage)
 
 static void dosed(th_state *n, ba_ctx *ctx, ba_outputs *out)
 {
+#ifdef TH_MUTANT_EXTRA_DOSE
+    if (n->delivered >= n->prescribed + 1) finish(n, TH_DONE);
+#else
     if (n->delivered >= n->prescribed) finish(n, TH_DONE);
+#endif
+#ifdef TH_MUTANT_SHORT_INTERVAL
+    else wait_for(n, ctx, out, TH_WAITING, TH_RETRY_MS);
+#else
     else wait_for(n, ctx, out, TH_WAITING, TH_INTERVAL_MS);
+#endif
 }
 
 static ba_verdict request(const th_state *s, th_state *n, const ba_input *in, ba_ctx *ctx, ba_outputs *out, int32_t *reply)
@@ -71,8 +83,11 @@ static void completion(const th_state *s, th_state *n, const ba_input *in, ba_ct
             if (++n->retries > TH_MAX_RETRIES) finish(n, TH_ALARM);
             else wait_for(n, ctx, out, TH_WAITING, TH_RETRY_MS);
         } else {
-#ifdef TH_MUTANT_RETRY_UNKNOWN
+#if defined(TH_MUTANT_RETRY_UNKNOWN)
             wait_for(n, ctx, out, TH_WAITING, TH_RETRY_MS); /* treats "may have been given" as "not given" */
+#elif defined(TH_MUTANT_UNKNOWN_AS_GIVEN)
+            n->delivered++; /* treats "may have been given" as "given" */
+            dosed(n, ctx, out);
 #else
             n->queries = 0; /* never dose blindly: wait past the horizon, then ask the pump */
             wait_for(n, ctx, out, TH_SETTLING, TH_HORIZON_MS);

@@ -23,7 +23,11 @@ typedef enum { TH_IDLE, TH_WAITING, TH_DOSING, TH_SETTLING, TH_QUERYING, TH_DONE
 #define TH_MAX_DOSES 4
 #define TH_INTERVAL_MS 1000u    /* between doses */
 #define TH_RETRY_MS 200u        /* after a dose that provably was not given */
+#ifdef TH_MUTANT_NO_HORIZON /* seeded bug: queries the pump before a late dose can arrive */
+#define TH_HORIZON_MS 0u
+#else
 #define TH_HORIZON_MS 600u      /* after which an unanswered dose can no longer arrive */
+#endif
 #define TH_CALL_TIMEOUT_MS 300u
 #define TH_MAX_RETRIES 2
 #define TH_MAX_QUERIES 3
@@ -36,6 +40,8 @@ typedef struct {
     uint8_t queries;    /* counter queries in the current reconciliation */
     uint32_t call;      /* key of the call the current stage waits for */
 } th_state;
+
+BA_STATE_FITS(th_state);
 
 /* The Ball type, bound in dosing_ball.c. */
 extern const ba_ball th_ball;

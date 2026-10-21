@@ -1,13 +1,12 @@
 /*
- * Ballarch Core 2 for firmware: the kernel types and a small runtime API in C11.
+ * Ballarch Core 2 for firmware: the types a decider sees, in C11.
  *
- * One runtime executes one Ball instance (a firmware task that owns a piece of
- * device state). Decisions are pure functions; the runtime commits the new
- * state and the call ledger to non-volatile memory in one atomic record
- * (two slots, sequence number, CRC), transmits only after that commit, and
- * gives every call exactly one outcome chosen from its phase and its port's
- * effect class. The rules are the same as for the Kotlin reference runtime;
- * see spec/ballarch-core-2.0.md.
+ * A Ball type is a pure step function from (state, input, context) to
+ * (next state, calls, reply). This header holds everything a decider needs and
+ * nothing of the runtime: the platform, the NVM record and the runtime API are
+ * in ballarch_runtime.h, which a decider translation unit must not include
+ * (tools/check_purity.sh refuses one that does). The rules are the same as for
+ * the Kotlin reference runtime; see spec/ballarch-core-2.0.md.
  *
  * Copyright (c) 2026 Vladislav Tomilov (4wl2d). See NOTICE.md at the
  * repository root: this code has no software license yet.
@@ -18,11 +17,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Bounds (rule R11). */
-#define BA_MAX_STATE 32u      /* bytes of Ball state in the committed record */
-#define BA_MAX_CALLS 4u       /* open calls per instance */
-#define BA_MAX_OUTPUTS 4u     /* calls per decision */
-#define BA_MAX_PORTS 8u
+/* Bounds (rule R11) and sizes of the fixed record; ba_boot refuses a Ball that does not fit. */
+#define BA_MAX_STATE 32u              /* bytes of Ball state in the committed record */
+#define BA_MAX_CALLS 4u               /* open calls per instance */
+#define BA_MAX_OUTPUTS 4u             /* calls per decision */
+#define BA_MAX_PORTS 8u               /* ports per Ball type, including the timer port */
+#define BA_MAX_KEYS 16u               /* keys one decision may draw with ba_new_key */
+#define BA_MAX_TIMEOUT_MS 86400000u   /* call timeout, and timer delay plus margin (Core §3.5) */
+
+/* Use once per Ball state type, e.g. BA_STATE_FITS(th_state); */
+#define BA_STATE_FITS(T) _Static_assert(sizeof(T) <= BA_MAX_STATE, #T " exceeds BA_MAX_STATE")
 
 /* Port 0 is the built-in timer (Safe). A timer call's argument is its delay. */
 #define BA_TIMER_PORT 0u
@@ -54,7 +58,7 @@ typedef struct {
     uint8_t port;
     uint32_t key;
     int32_t arg;
-    uint32_t timeout_ms;
+    uint32_t timeout_ms; /* at most BA_MAX_TIMEOUT_MS */
 } ba_call;
 
 typedef struct {
@@ -73,14 +77,28 @@ typedef struct {
     ba_outcome outcome;
 } ba_input;
 
-/* Trusted values for one decision. Keys come from ba_new_key, never from a clock or a random source. */
+/*
+ * Trusted values for one decision. Time is a 64-bit millisecond count that
+ * never wraps. Keys come from ba_new_key, never from a clock or a random source.
+ */
 typedef struct {
-    uint32_t now_ms;
+    uint64_t now_ms;
     uint32_t revision; /* revision the decision commits as */
     uint8_t keys_issued;
 } ba_ctx;
 
-static inline uint32_t ba_new_key(ba_ctx *ctx) { return ctx->revision * 16u + ctx->keys_issued++; }
+/*
+ * A fresh call key. Keys of different decisions never collide, because one
+ * decision may draw at most BA_MAX_KEYS keys: the runtime refuses a decision
+ * that drew more (a request is refused; a completion quarantines the instance).
+ * The count saturates, so an overrun stays visible to the runtime.
+ */
+static inline uint32_t ba_new_key(ba_ctx *ctx)
+{
+    uint32_t k = ctx->revision * BA_MAX_KEYS + ctx->keys_issued;
+    if (ctx->keys_issued <= BA_MAX_KEYS) ctx->keys_issued++;
+    return k;
+}
 
 static inline ba_call ba_timer(uint32_t key, uint32_t delay_ms)
 {
@@ -98,93 +116,18 @@ typedef enum { BA_REJECT = 0, BA_ACCEPT = 1 } ba_verdict;
 
 /*
  * A Ball type. step() must be pure (rule R2): it reads only its arguments and
- * writes only *next, *out and *reply. A completion cannot be refused, so for
- * completions step() must return BA_ACCEPT.
+ * writes only *next, *out and *reply. The runtime passes a copy of the
+ * committed state, so a decider that casts away const cannot change it. A
+ * completion cannot be refused, so for completions step() must return BA_ACCEPT.
  */
 typedef struct {
     const char *type;
-    size_t state_size;
-    uint8_t n_ports;          /* including the timer port */
+    uint32_t schema;          /* bump when the meaning of the state's bytes changes (NVM layout check) */
+    size_t state_size;        /* at most BA_MAX_STATE */
+    uint8_t n_ports;          /* including the timer port; at most BA_MAX_PORTS */
     const ba_effect *effects; /* effects[port] */
     void (*initial)(void *state);
     ba_verdict (*step)(const void *state, const ba_input *in, ba_ctx *ctx, void *next, ba_outputs *out, int32_t *reply);
 } ba_ball;
-
-/* What an adapter reports for one attempt (exactly once, never after retrying by itself). */
-typedef enum {
-    BA_REPORT_OK = 1,          /* the destination processed the request; value is its answer */
-    BA_REPORT_REFUSED = 2,     /* the destination refused without applying anything */
-    BA_REPORT_NOT_APPLIED = 3, /* evidence that nothing was applied (e.g. NACK before the command was latched) */
-    BA_REPORT_FAILED = 4       /* no usable answer after the request may have left */
-} ba_report_kind;
-
-/* Trace events for tests and diagnostics. */
-enum { BA_T_CALL_COMMITTED = 1, BA_T_SENT = 2, BA_T_COMPLETED = 3, BA_T_LATE_REPORT = 4, BA_T_FAULT = 5 };
-
-/* Services of the board (or of a simulator). */
-typedef struct {
-    void *user;
-    /* Non-volatile memory with two record slots. A write may be cut short by power loss. */
-    void (*nvm_write)(void *user, int slot, const void *data, size_t n);
-    int (*nvm_read)(void *user, int slot, void *data, size_t n); /* 0 if the slot was never written */
-    /* One attempt of a call on an adapter port (port >= 1). The adapter reports later with ba_report. */
-    void (*transmit)(void *user, uint8_t port, uint32_t key, int32_t arg, uint8_t attempt);
-    uint32_t (*now)(void *user);
-    void (*trace)(void *user, int event, uint32_t key, const ba_outcome *outcome); /* may be NULL */
-} ba_platform;
-
-typedef enum { BA_PENDING = 1, BA_SENDING = 2 } ba_phase;
-
-typedef struct {
-    uint8_t used, port, phase, attempts;
-    uint32_t key, deadline;
-    int32_t arg;
-} ba_call_rec;
-
-/* Everything that survives a power loss. Written as a whole, to one slot, with a CRC. */
-typedef struct {
-    uint32_t magic, seq, revision;
-    ba_call_rec calls[BA_MAX_CALLS];
-    uint8_t state[BA_MAX_STATE];
-    uint32_t crc;
-} ba_record;
-
-typedef struct {
-    uint32_t key;
-    uint8_t port;
-    ba_outcome outcome;
-} ba_resolution;
-
-/* The runtime. Everything here except `rec` is volatile and lost at a power loss. */
-typedef struct {
-    const ba_ball *ball;
-    const ba_platform *pf;
-    const uint8_t *max_attempts; /* per port; only Safe and Idempotent ports retry */
-    ba_record rec;
-    ba_resolution queue[BA_MAX_CALLS]; /* resolved, not yet committed by the Ball */
-    uint8_t queued;
-    uint8_t current_attempt[BA_MAX_CALLS];
-    int quarantined;
-} ba_runtime;
-
-/* Recover from NVM (or start fresh) and apply the restart rules of Core §3.7. */
-void ba_boot(ba_runtime *rt, const ba_ball *ball, const ba_platform *pf, const uint8_t *max_attempts);
-
-/* Decide an external request. Returns 1 if accepted and committed, 0 if rejected, -1 if refused by a bound or fault. */
-int ba_request(ba_runtime *rt, int32_t request, int32_t arg, int32_t *reply);
-
-/* An adapter's report for an attempt. Reports for closed calls or old attempts are dropped. */
-void ba_report(ba_runtime *rt, uint32_t key, uint8_t attempt, ba_report_kind kind, int32_t value);
-
-/* Fire due timers and deadlines, then let the Ball commit pending completions. */
-void ba_tick(ba_runtime *rt);
-
-/* Earliest time at which ba_tick has work, or UINT32_MAX. */
-uint32_t ba_next_wakeup(const ba_runtime *rt);
-
-/* Read-only view of the committed state (rule R12). */
-const void *ba_state(const ba_runtime *rt);
-
-uint32_t ba_crc32(const void *data, size_t n);
 
 #endif
