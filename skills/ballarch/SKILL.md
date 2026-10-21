@@ -8,13 +8,14 @@ description: Write, change or review a component on Ballarch Core 2 (Balls, deci
 ## Before writing code
 
 1. Work in the consuming project and use its existing kernel, runtime and tests. A review request authorizes findings only; edit or publish only when requested.
-2. Name the owner of each fact: one Ball type per consistency boundary.
-3. Locate the two horizons of every interaction:
+2. Check the fit. Ballarch moves fault handling out of each feature into the runtime and the rules; it does not make a feature more correct than careful hand-written handling of the same policy. It costs more code, more framework types, larger changes in total and a thread hand-off per request (Core §10). For stateless code, or CRUD without external effects, use plain code.
+3. Name the owner of each fact: one Ball type per consistency boundary.
+4. Locate the two horizons of every interaction:
    - the **commit horizon**: the atomic commit of the decision that requests the effect;
    - the **send horizon**: the first moment the request may have left.
 
    Nothing may leave before the commit horizon. Before the send horizon, `NotDone` is provable; after it, only `Done`, `NotDone` with evidence of non-application (for a Safe port, the absence of any effect), or `Unknown`.
-4. For every external call, choose the port's effect class honestly:
+5. For every external call, choose the port's effect class honestly:
    - `Safe`: no effect;
    - `Idempotent`: the destination deduplicates by the call identity;
    - `NonIdempotent`: otherwise.
@@ -26,7 +27,7 @@ description: Write, change or review a component on Ballarch Core 2 (Balls, deci
 - `decide`, `complete` and `observe` must be pure. Take time only from `ctx.now` and keys only from `ctx.newKey()`. No I/O, clocks, randomness, globals or threads (R2).
 - Keep every stage and every outcome as an explicit state, including "may have happened" (`Unknown`).
 - Store the key of each call whose completion matters, and ignore completions with other keys.
-- Never re-send after `Unknown` on a NonIdempotent port. Reconcile instead: wait past the destination's horizon, then query a Safe status port. A new call after `NotDone` is allowed, because `NotDone` proves nothing happened.
+- Never re-send after `Unknown` on a NonIdempotent port. Reconcile instead: wait past the destination's horizon, then query a Safe status port. That status is final only if the destination keeps its horizon; prefer an idempotency key where the destination offers one. A new call after `NotDone` is allowed, because `NotDone` proves nothing happened.
 - Reply to every accepted request, now or later (R9). Wait with `Timer.after`, and treat a timer completion as a wake-up.
 - Make state and messages immutable data (R1).
 
@@ -49,7 +50,7 @@ Report `Partial` or `NotAllDone` as such; do not collapse them into "failed". Se
 
 ## Writing an adapter
 
-Report once. Never retry. Report `NotApplied` only with evidence that nothing was applied (for example, connection refused before the request was written); otherwise report `Failed`. For Idempotent ports, send `invocation.callId` as the idempotency key. The Kotlin reference runtime has no timeout per attempt, so on a port with a retry policy end each attempt yourself: report `Failed` after an attempt timeout shorter than the call's deadline, and ignore a later answer. Check the adapter with `ballarch.testkit.AdapterConformance`.
+Report once. Never retry. Report `NotApplied` only with evidence that nothing was applied (for example, connection refused before the request was written); otherwise report `Failed`. For Idempotent ports, send `invocation.callId` as the idempotency key. The Kotlin reference runtime has no timeout per attempt, so on a port with a retry policy end each attempt yourself: report `Failed` after an attempt timeout shorter than the call's deadline, and ignore a later answer. Otherwise a lost answer holds the first attempt until the deadline, the call ends `Unknown`, and the retry policy never acts. Check the adapter with `ballarch.testkit.AdapterConformance`.
 
 ## Wiring
 

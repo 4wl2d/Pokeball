@@ -13,11 +13,19 @@ abstract: >-
   two boundaries in time (the commit and send horizons) and the port's effect
   class. A knowledge algebra over Kleene's three-valued logic bounds what a
   composite operation may claim, so that a composite that replies with its
-  settled knowledge can be used as a single component one level up. The
-  distribution contains the specification, reference implementations in
-  Kotlin, C and SystemVerilog that check the call-protocol rules with
-  level-specific mechanisms, an Alloy model, and a benchmark of one feature in
-  six architectural styles.
+  settled knowledge can itself be used as a single component. The
+  distribution contains the specification; reference implementations in
+  Kotlin, C and SystemVerilog that check the call-protocol rules and the
+  knowledge algebra with level-specific mechanisms (composition across
+  levels is not tested); a language-neutral conformance-trace checker; an
+  Alloy model; and a benchmark of one checkout feature in nine
+  implementations (four styles, each naive and careful, and Ballarch), with
+  four change requests and a runtime-overhead measurement. In the benchmark,
+  the careful versions and Ballarch were equally correct while the
+  provider's delivery horizon held. Ballarch moves the classification of
+  outcomes, the write-ahead record and crash recovery from each feature into
+  its runtime; the feature still writes the reconciliation. This costs code,
+  framework types, total complexity and change size.
 version: 2.0.0-rc.1
 type: software
 license-url: "https://github.com/4wl2d/Pokeball/blob/master/NOTICE.md"

@@ -14,7 +14,7 @@ These checks support the conformance criteria in [Core §9](../spec/ballarch-cor
 ## Prerequisites
 
 - JDK 21. The Gradle wrapper downloads Gradle 8.14.3; Gradle fetches Kotlin 2.3.21 and dependencies from Maven Central.
-- Python 3.10 or later (standard library only; the trace oracles need 3.8 or later, and the benchmark report also needs `lizard`).
+- Python 3.10 or later, standard library only (the trace oracles need 3.8 or later), and git for the benchmark's change requests.
 - For model checking, Java and network access to download the pinned Alloy 6.2.0 distribution.
 - For the firmware reference, a C11 compiler and binutils (`nm`, `objdump`). Clang, if installed, adds the purity lint's syntax-tree layer and its Cortex-M0 checks; without it they are skipped with a note. For the hardware reference, Icarus Verilog 12, Verilator 5 and Yosys 0.33 or later. For the paper, TeX Live 2023 or later with `latexmk`.
 
@@ -117,14 +117,30 @@ The seeded bugs run in parallel, one bench per core; `make JOBS=1` runs them one
 
 ## Architecture benchmark
 
-From `reference/kotlin`, with Python 3.10 or later and `pip install lizard==1.24.1`:
+From `reference/kotlin`:
 
 ```sh
 ./gradlew :benchmark:runner:run --args="2000 ../../benchmark/results"
 python3 ../../benchmark/report.py ../../benchmark/results/results.json ../../benchmark/results
 ```
 
-The simulation is deterministic: the published [`results.json`](../benchmark/results/results.json) is reproduced byte for byte. Method and threats to validity: [benchmark/README.md](../benchmark/README.md).
+The runner runs every cell 2,000 times and the single-crash sweep on 1,000 seeds, in about two minutes, and writes `results.json`; a third argument sets the number of sweep seeds. `report.py` renders [`RESULTS.md`](../benchmark/results/RESULTS.md) from `results.json`, `changes.json` and `overhead.json`. The simulation is deterministic: the published [`results.json`](../benchmark/results/results.json) is reproduced byte for byte, and `RESULTS.md` is rendered unchanged. `./gradlew build` also runs the benchmark's regression tests on fewer runs.
+
+The change requests and the runtime overhead, from the repository root:
+
+```sh
+python3 benchmark/changes/measure.py --check
+python3 benchmark/changes/verify.py
+(cd reference/kotlin && ./gradlew :benchmark:runner:overhead)
+python3 benchmark/report.py benchmark/results/results.json benchmark/results
+```
+
+- `measure.py --check` writes nothing. It fails if a change-request patch no longer applies to this checkout, if a patch's metrics differ from those recorded in [`changes.json`](../benchmark/results/changes.json), or if a patch breaks the formatting rule of [`changes/README.md`](../benchmark/changes/README.md). Without `--check` it recomputes the patch metrics.
+- `verify.py` applies the patches of each change request in a temporary copy outside the work tree, builds it, and runs every design under that change request's scenario: 2,000 runs per profile with and without a crash, and the sweep on 500 seeds. It takes about five minutes on 4 processors, writes the verification part of `changes.json`, and exits with 1 if a careful version or Ballarch violates a requirement while the delivery horizon holds. Extra Gradle arguments go after `--gradle-arg`.
+- The `overhead` task times one request through the reference runtime in four ways and writes [`overhead.json`](../benchmark/results/overhead.json). Its numbers depend on the machine and its load, so CI does not regenerate the file and it is not part of the byte-for-byte check.
+- The last command renders `RESULTS.md` again with the new files.
+
+Method, change requests and threats to validity: [benchmark/README.md](../benchmark/README.md).
 
 ## Paper
 
@@ -147,4 +163,4 @@ The link check requires relative destinations to belong to the tracked public tr
 
 ## Limits
 
-The runtime's file store has been tested against killed processes, not power loss, and has no replication. The firmware and RTL references run in simulation, within the bounds stated above, and emit no conformance trace. A real store, device, deployment, workload and failure environment need their own evidence. The benchmark is one scenario, written by one author; see its threats to validity. The earlier prototype comparison's raw runs, baselines and change-request patches are outside this distribution; the checks above do not reproduce those measurements.
+The runtime's file store has been tested against killed processes, not power loss, and has no replication. The firmware and RTL references run in simulation, within the bounds stated above, and emit no conformance trace. A real store, device, deployment, workload and failure environment need their own evidence. The benchmark is one scenario family, written by one author, and its runtime overhead was measured on one machine; see its threats to validity. The data of an earlier prototype comparison, which the specification once cited, is outside this distribution; the benchmark's change requests and overhead measurement replace its figures.

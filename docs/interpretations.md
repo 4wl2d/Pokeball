@@ -27,7 +27,7 @@ Idempotent has the narrow meaning of Core §2: the destination recognises a repe
 | Reconciliation | read a status or counter register that records whether the command took effect |
 | Profile | Transient: registers do not survive reset |
 
-The reference blocks are [`ballarch_issuer.sv`](../reference/rtl/rtl/ballarch_issuer.sv), which issues commands, and [`ballarch_composite.sv`](../reference/rtl/rtl/ballarch_composite.sv), which performs a two-step operation through it and keeps the operation's knowledge (R14) in a status register. Each truth value *a* takes two bits, *a1* (may be Yes) and *a0* (may be No): Yes is `10`, No is `01` and Maybe is `11`. Kleene's AND is then `{a1 & b1, a0 | b0}` and OR is `{a1 | b1, a0 & b0}`. Yosys checks one driver per register (R1), no latch and no storage other than flip-flops (R2), one rising clock edge for all state with no input reaching an asynchronous pin (R4), and no path from an input to an output except through a register (R5). Fault-injecting benches check R5–R8 against the device model, and R14 for the composite's status register. Writing the issuer, the first draft reported `NOT_DONE` for a withdrawn retry after an earlier attempt had already been applied, and the bench caught it; the bug is kept as a seeded bug that the bench must catch. The rules are subtle enough to need checks at this level too.
+The reference blocks are [`ballarch_issuer.sv`](../reference/rtl/rtl/ballarch_issuer.sv), which issues commands, and [`ballarch_composite.sv`](../reference/rtl/rtl/ballarch_composite.sv), which performs a two-step operation through it and keeps the operation's knowledge (R14) in a status register. The block is Transient, so the register covers only operations since its last reset. Each truth value *a* takes two bits, *a1* (may be Yes) and *a0* (may be No): Yes is `10`, No is `01` and Maybe is `11`. Kleene's AND is then `{a1 & b1, a0 | b0}` and OR is `{a1 | b1, a0 & b0}`. Yosys checks one driver per register (R1), no latch and no storage other than flip-flops (R2), one rising clock edge for all state with no input reaching an asynchronous pin (R4), and no path from an input to an output except through a register (R5). Fault-injecting benches check R5–R8 against the device model, and R14 for the composite's status register. Writing the issuer, the first draft reported `NOT_DONE` for a withdrawn retry after an earlier attempt had already been applied, and the bench caught it; the bug is kept as a seeded bug that the bench must catch. The rules are subtle enough to need checks at this level too.
 
 ## Embedded firmware
 
@@ -56,10 +56,10 @@ Intermittent-computing research meets the same hazard on energy-harvesting devic
 | Send horizon | the write-ahead `Sending` record before the HTTP or gRPC request |
 | Effect classes | GET is Safe. A request with an idempotency key is Idempotent if the provider deduplicates by it. A PUT without a key is NonIdempotent here: a late attempt can overwrite a later request to the same resource. Sending it again is harmless only if no later request to that resource is sent before every earlier attempt is answered or past its delivery horizon. Most POSTs to third parties are NonIdempotent. |
 | `Unknown` | a timeout, a reset after the request was written, or a restart while `Sending` |
-| Reconciliation | a status endpoint after the provider's delivery horizon, or a provider that accepts idempotency keys, which makes the port Idempotent |
+| Reconciliation | a status endpoint after the provider's delivery horizon, or a provider that accepts idempotency keys, which makes the port Idempotent. Runtime retries then cover a lost answer only if the adapter ends each attempt before the call's deadline (Core §8.4) |
 | Profile | Durable when state, outbox and call ledger are committed in one store transaction; Transient with an in-memory store |
 
-See the [tutorial](tutorial.md), the [shop example](../reference/kotlin/examples/shop/), and the [benchmark](../benchmark/), which compares this with layered, actor, MVU and saga designs.
+See the [tutorial](tutorial.md), the [shop example](../reference/kotlin/examples/shop/), and the [benchmark](../benchmark/), which compares this with naive and careful layered, actor, MVU and saga designs.
 
 ## User interfaces and mobile clients
 

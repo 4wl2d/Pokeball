@@ -17,7 +17,8 @@ Nothing has been submitted or published. Every step below is the author's decisi
    - Gray 1981: the passage on real actions deferred until commit, and its page, against the primary text (only the proceedings index and secondary sources could be reached);
    - the DOIs of Maeng and Lucia (PLDI 2019) and of Mukherjee et al. (ECOOP 2019, LIPIcs 134), and the article number of Surbatovich et al. (PACMPL 3, OOPSLA), which could not be confirmed and are left out;
    - Pardon and Pautasso (WWW 2014): the statement that a participant cancels a reservation not confirmed within its timeout and refuses a later confirmation was checked only against search-engine summaries of Pautasso's slides on the same design (inf.usi.ch, `rest-tcc`) and of a related paper, and against the description of a reviewer; the full text could not be reached from here;
-   - the web sources (gRFC A6, the Temporal documentation, Leach's article, the protobuf and Smithy specifications, the Seata blog, the Narayana source): each `note` says what was checked on 2026-10-21; pin a commit or a date where the source has one;
+   - the web sources (gRFC A6, the Temporal documentation, Leach's article, the protobuf and Smithy specifications, the Seata blog, the Narayana source, the Akka documentation, the Elm guide and Elm 0.17 announcement, the JaCoCo documentation): each `note` says what was checked on 2026-10-21; pin a commit or a date where the source has one. The JaCoCo page itself could not be reached from here, only its source in the JaCoCo repository, and the Akka and Elm texts were read in their source repositories too: open each URL once;
+   - the Idempotency-Key Internet-Draft: the entry cites the working group's editor's copy, without a version number; cite the latest published version (`draft-ietf-httpapi-idempotency-key-header-NN`) and its authors as the IETF datatracker lists them;
    - the OMG Transaction Service specification is not cited, because its document number could not be verified; the paper cites the Narayana source for heuristic merging and interposition instead.
 
    Open each of these entries and check it against the source before submitting.
@@ -26,10 +27,10 @@ Nothing has been submitted or published. Every step below is the author's decisi
    - from the repository root, `python3 -m unittest discover -s tools -p 'test_*.py'`, then `python3 tools/oracles.py` on the conformance traces the build writes to `reference/kotlin/ballarch-runtime/build/conformance-traces/` (every top-level trace must pass, and with `--expect-violations` every trace in `seeded/` must fail);
    - `make` in `reference/c` and `reference/rtl`, and `make sanitize` and `make deep` in `reference/c` (the paper quotes the deep counts);
    - the Alloy runner;
-   - the benchmark;
+   - the benchmark, and its change requests (`python3 benchmark/changes/measure.py --check` and `python3 benchmark/changes/verify.py`); the runtime overhead (`./gradlew :benchmark:runner:overhead`) depends on the machine, so rerun it only to report a new machine, and then update the paper's figures and setup together;
    - the documentation checks;
    - `make arxiv` here;
-   - the character count of the abstract in [`arxiv-metadata.txt`](arxiv-metadata.txt), after the benchmark's results replace its `[NUMBERS PENDING]` marker. The results sentences of the LaTeX abstract, from "In a benchmark" to its end, run to 600 characters as plain text, but only 456 fit: cut them in `ballarch.tex` to that length (or shorten the rest of both abstracts by the difference) before copying them into `arxiv-metadata.txt`.
+   - the character count of the abstract in [`arxiv-metadata.txt`](arxiv-metadata.txt): 1,917 of the 1,920 that arXiv accepts on 2026-10-21. It is the abstract of `ballarch.tex` in plain text, word for word, so change both together and recount.
 5. **Software license.** The code has no software license. arXiv does not need one, but artifact evaluation, reuse and a software DOI do. Choose one before tagging any release:
    - set `license` in `CITATION.cff` to its SPDX id (replacing `license-url`), and `"license"` in [`.zenodo.json`](../.zenodo.json) to its Zenodo id;
    - keep the CC BY 4.0 grant for text and diagrams in `message`, `notes` and `NOTICE.md`;
@@ -71,7 +72,7 @@ arXiv is a preprint server. A peer-reviewed venue gives the work standing, and s
 
 | Venue | Fit | What it needs |
 |---|---|---|
-| **Onward! Papers** (SPLASH) | new ideas with a substantial worked example and an implementation | ≤ 17 pages + references, double-blind; anonymize the repository link; reformat to the `acmart` class with CCS concepts (`\ccsdesc`) and `\keywords`. The arXiv version's main text runs to page 19, so check the length after reformatting and move detail to the repository if needed |
+| **Onward! Papers** (SPLASH) | new ideas with a substantial worked example and an implementation | ≤ 17 pages + references, double-blind; anonymize the repository link; reformat to the `acmart` class with CCS concepts (`\ccsdesc`) and `\keywords`. The arXiv version's main text runs to page 23 (references from page 23), so it must be cut by several pages after reformatting: move detail, such as parts of the benchmark's tables, to the repository |
 | **The Art, Science, and Engineering of Programming** (*Programming* journal) | programming models and styles, with scholarly placement | ≤ 22 pages; three deadlines per year |
 | **ICSA** (Software Architecture) research track or New and Emerging Ideas | architecture styles with evaluation | research track: empirical evaluation (the benchmark); NEMI: ≤ 5 pages; reformat to the IEEE conference template with Index Terms |
 | **EuroPLoP / PLoP** | the rules as a pattern language with known uses | pattern form, shepherding, writers' workshop |
@@ -79,9 +80,10 @@ arXiv is a preprint server. A peer-reviewed venue gives the work standing, and s
 | **DATE, DAC or FPGA workshops** on HW/SW co-design | the cross-level part | a hardware-focused case study |
 
 The [ACM SIGSOFT Empirical Standards](https://acmsigsoft.github.io/EmpiricalStandards/) (Engineering Research) are what reviewers will apply. Before a refereed submission, the evaluation most needs:
-- independent implementations of the baselines;
-- a second scenario, including one with an idempotent provider;
-- measured change impact.
+- naive and careful baselines and change-request patches written by independent authors, ideally before they see the results;
+- a durable-execution baseline (Temporal, Restate or Azure Durable Functions);
+- scenarios beyond one checkout feature, and other fault mixes and delivery horizons;
+- pre-registration of the next round.
 
 ## Archives and indexes
 

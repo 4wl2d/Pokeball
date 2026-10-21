@@ -111,7 +111,7 @@ fun reminderComposition(mailer: Adapter<Email, Unit>): Composition =
         .adapter(Mailer, mailer)
 ```
 
-In production, `mailer` is an adapter around your HTTP or SMTP client. An adapter reports each invocation once, never retries, and reports `NotApplied` only with evidence. [`HttpProviderAdapters`](../reference/kotlin/examples/shop/payments-http/src/main/kotlin/ballarch/examples/shop/payments/http/HttpProviderAdapters.kt) is a real example. Check yours with the adapter conformance kit (`ballarch.testkit.AdapterConformance`). Run the whole thing on a `Runtime` with a `ThreadScheduler` and a store.
+In production, `mailer` is an adapter around your HTTP or SMTP client. An adapter reports each invocation once, never retries, and reports `NotApplied` only with evidence. On a Safe or Idempotent port it should also end each attempt after its own timeout, shorter than the call's deadline, so that the runtime's retries can cover a lost answer (Core §8.4). [`HttpProviderAdapters`](../reference/kotlin/examples/shop/payments-http/src/main/kotlin/ballarch/examples/shop/payments/http/HttpProviderAdapters.kt) is a real example of reporting each invocation once and claiming `NotApplied` only with evidence. It does not end attempts on its own: its request timeout is the time left until the call's deadline. Add an attempt timeout before you give its port a retry policy (Core §10). Check yours with the adapter conformance kit (`ballarch.testkit.AdapterConformance`). Run the whole thing on a `Runtime` with a `ThreadScheduler` and a store.
 
 ## 6. Test the decider as a function
 
