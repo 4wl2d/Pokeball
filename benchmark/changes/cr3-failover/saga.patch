@@ -1,0 +1,66 @@
+diff --git a/benchmark/saga/src/main/kotlin/bench/saga/app/SagaSystem.kt b/benchmark/saga/src/main/kotlin/bench/saga/app/SagaSystem.kt
+index 8c24a19..6fad58f 100644
+--- a/benchmark/saga/src/main/kotlin/bench/saga/app/SagaSystem.kt
++++ b/benchmark/saga/src/main/kotlin/bench/saga/app/SagaSystem.kt
+@@ -26,11 +26,13 @@ class SagaSystem : CheckoutSystem {
+         saga = CreateOrderSaga(world.db)
+         val inventory = InventoryService(world.db, Scenario.STOCK)
+         val payment = PaymentService(world.db, ProviderClient(world.provider))
++        val secondaryPayment = PaymentService(world.db, ProviderClient(world.secondaryProvider))
+         MessageRelay(
+             world.db, process.scope, process::execute,
+             mapOf(
+                 Channels.INVENTORY to { m -> inventory.handle(m) },
+                 Channels.PAYMENT to { m -> payment.handle(m) },
++                Channels.SECONDARY_PAYMENT to { m -> secondaryPayment.handle(m) },
+                 Channels.SAGA_REPLIES to { m -> saga.onReply(m) },
+             ),
+         ).start()
+diff --git a/benchmark/saga/src/main/kotlin/bench/saga/messages/Messages.kt b/benchmark/saga/src/main/kotlin/bench/saga/messages/Messages.kt
+index c2aaced..7b274bc 100644
+--- a/benchmark/saga/src/main/kotlin/bench/saga/messages/Messages.kt
++++ b/benchmark/saga/src/main/kotlin/bench/saga/messages/Messages.kt
+@@ -19,7 +19,8 @@ sealed interface SagaReply {
+     data class PaymentFailed(override val orderId: String, val reason: String) : SagaReply
+ }
+ 
+-data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = null) {
++/** [onSecondary]: the order is being charged through the secondary provider. */
++data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = null, val onSecondary: Boolean = false) {
+     enum class Step { Reserving, Charging, Compensating, Done }
+     enum class Outcome { Approved, Rejected }
+ }
+@@ -27,5 +28,6 @@ data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = n
+ object Channels {
+     const val INVENTORY = "inventory"
+     const val PAYMENT = "payment"
++    const val SECONDARY_PAYMENT = "secondary-payment"
+     const val SAGA_REPLIES = "saga-replies"
+ }
+diff --git a/benchmark/saga/src/main/kotlin/bench/saga/order/CreateOrderSaga.kt b/benchmark/saga/src/main/kotlin/bench/saga/order/CreateOrderSaga.kt
+index eeca94e..58d92c5 100644
+--- a/benchmark/saga/src/main/kotlin/bench/saga/order/CreateOrderSaga.kt
++++ b/benchmark/saga/src/main/kotlin/bench/saga/order/CreateOrderSaga.kt
+@@ -16,8 +16,9 @@ import bench.saga.messages.SagaState
+ 
+ /**
+  * The orchestrator of an orchestration-based saga: reserve stock, charge the
+- * card (the pivot transaction), approve; compensate by releasing stock. The
+- * saga state and the commands it sends commit in one transaction.
++ * card (the pivot transaction), approve; compensate by releasing stock. A
++ * card the primary provider failed to charge is charged through the secondary
++ * one. The saga state and the commands it sends commit in one transaction.
+  */
+ class CreateOrderSaga(private val db: SimDb) {
+     fun start(order: Order) = db.transaction { tx ->
+@@ -38,6 +39,10 @@ class CreateOrderSaga(private val db: SimDb) {
+             }
+             saga.step == Step.Reserving && reply is SagaReply.StockUnavailable -> saga.copy(step = Step.Done, outcome = Outcome.Rejected)
+             saga.step == Step.Charging && reply is SagaReply.PaymentSucceeded -> saga.copy(step = Step.Done, outcome = Outcome.Approved)
++            saga.step == Step.Charging && reply is SagaReply.PaymentFailed && !saga.onSecondary -> {
++                Outbox.send(tx, Channels.SECONDARY_PAYMENT, ChargeCard(saga.order.id, saga.order.amount))
++                saga.copy(onSecondary = true)
++            }
+             saga.step == Step.Charging && reply is SagaReply.PaymentFailed -> {
+                 Outbox.send(tx, Channels.INVENTORY, InventoryCommand.ReleaseStock(saga.order.id))
+                 saga.copy(step = Step.Compensating)

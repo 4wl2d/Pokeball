@@ -1,0 +1,173 @@
+diff --git a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
+index 7fe8ba3..affc55f 100644
+--- a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
++++ b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
+@@ -11,9 +11,11 @@ import bench.careful.mvu.core.init
+ import bench.careful.mvu.core.update
+ import bench.env.ChargeResult
+ import bench.env.ChargeStatus
++import bench.env.Changes
+ import bench.env.CheckoutSystem
+ import bench.env.ConnectionRefused
+ import bench.env.Order
++import bench.env.OrderCancellation
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -26,11 +28,11 @@ import kotlinx.coroutines.withTimeout
+ import java.io.IOException
+ 
+ /** Wires the program: persistence of the model, and the effects of commands, whose failures become values. */
+-class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem {
++class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem, OrderCancellation {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var program: Program<Model, Msg, Cmd>
+-    private val config = Config(horizonMillis = Scenario.PROVIDER_HORIZON_MILLIS)
++    private val config = Config(horizonMillis = Scenario.PROVIDER_HORIZON_MILLIS, cancelWindowMillis = Changes.CANCEL_WINDOW_MILLIS)
+ 
+     private val saved: Model? get() = world.db.get("mvu/model") as Model?
+ 
+@@ -51,6 +53,7 @@ class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem
+                             delay(cmd.afterMillis)
+                             Msg.StatusChecked(cmd.orderId, status(client, cmd.orderId))
+                         }
++                        is Cmd.Refund -> Msg.RefundCompleted(cmd.orderId, refund(client, cmd))
+                     }
+                 },
+             )
+@@ -81,7 +84,18 @@ class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem
+         StatusOutcome.Unavailable
+     }
+ 
+-    override fun start(order: Order) = process.execute { program.dispatch(Msg.Place(order)) }
++    private suspend fun refund(client: ProviderClient, cmd: Cmd.Refund): Boolean = try {
++        withTimeout(timeoutMillis) { client.refund(cmd.orderId, cmd.amount) }
++        true
++    } catch (e: TimeoutCancellationException) {
++        false
++    } catch (e: IOException) {
++        false
++    }
++
++    override fun start(order: Order) = process.execute { program.dispatch(Msg.Place(order, world.scheduler.now())) }
++
++    override fun cancel(orderId: String) = process.execute { program.dispatch(Msg.Cancel(orderId, world.scheduler.now())) }
+ 
+     override fun crash() = process.kill()
+ 
+@@ -91,9 +105,11 @@ class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem
+         OrderModel.Stage.Completed -> Terminal.Completed
+         OrderModel.Stage.Failed -> Terminal.Failed
+         OrderModel.Stage.NeedsAttention -> Terminal.NeedsAttention
++        OrderModel.Stage.Refunded -> Terminal.Refunded
+         else -> null
+     }
+ 
+     override fun reserved(): Map<String, Int> =
+-        saved?.orders?.values.orEmpty().filter { it.stage != OrderModel.Stage.Failed }.associate { it.order.id to it.order.quantity }
++        saved?.orders?.values.orEmpty().filter { it.stage != OrderModel.Stage.Failed && it.stage != OrderModel.Stage.Refunded }
++            .associate { it.order.id to it.order.quantity }
+ }
+diff --git a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
+index 47070c3..a732940 100644
+--- a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
++++ b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
+@@ -9,8 +9,16 @@ data class Model(val stock: Int, val orders: Map<String, OrderModel> = emptyMap(
+  * [Stage.Paying] is persisted before its charge command runs, so after a
+  * restart it means "possibly charged"; [sends] counts the requests made.
+  */
+-data class OrderModel(val order: Order, val stage: Stage, val sends: Int = 0, val queries: Int = 0, val reference: String? = null) {
+-    enum class Stage { Paying, Reconciling, Completed, Failed, NeedsAttention }
++data class OrderModel(
++    val order: Order,
++    val stage: Stage,
++    val sends: Int = 0,
++    val queries: Int = 0,
++    val reference: String? = null,
++    val placedAt: Long = 0,
++    val refunds: Int = 0,
++) {
++    enum class Stage { Paying, Reconciling, Completed, Failed, NeedsAttention, Refunding, Refunded }
+ }
+ 
+ /** What one charge request established. */
+@@ -33,9 +41,13 @@ sealed interface StatusOutcome {
+ }
+ 
+ sealed interface Msg {
+-    data class Place(val order: Order) : Msg
++    data class Place(val order: Order, val at: Long) : Msg
+     data class ChargeCompleted(val orderId: String, val outcome: ChargeOutcome) : Msg
+     data class StatusChecked(val orderId: String, val status: StatusOutcome) : Msg
++    data class Cancel(val orderId: String, val at: Long) : Msg
++
++    /** [confirmed]: the provider answered, so nothing charged for the order is left to refund. */
++    data class RefundCompleted(val orderId: String, val confirmed: Boolean) : Msg
+ }
+ 
+ sealed interface Cmd {
+@@ -43,21 +55,26 @@ sealed interface Cmd {
+ 
+     /** Waits [afterMillis], then asks the provider's status endpoint. */
+     data class CheckStatus(val orderId: String, val afterMillis: Long) : Cmd
++
++    /** Safe to repeat: the provider never refunds more than it charged. */
++    data class Refund(val orderId: String, val amount: Long) : Cmd
+ }
+ 
+-/** The program's flags: the provider's delivery horizon and the retry budgets. */
+-data class Config(val horizonMillis: Long, val maxSends: Int = 3, val maxQueries: Int = 3)
++/** The program's flags: the provider's delivery horizon, the cancellation window and the retry budgets. */
++data class Config(val horizonMillis: Long, val cancelWindowMillis: Long, val maxSends: Int = 3, val maxQueries: Int = 3)
+ 
+ /**
+  * Starts from the persisted model. An order still paying may have been
+  * charged before the restart, so its charge is not issued again: its status is
+- * checked once the delivery horizon has passed.
++ * checked once the delivery horizon has passed. A refund that was under way
++ * is sent again.
+  */
+ fun init(config: Config, saved: Model?, stock: Int): Pair<Model, List<Cmd>> {
+     val model = saved ?: Model(stock)
+     val open = model.orders.values.filter { it.stage == OrderModel.Stage.Paying || it.stage == OrderModel.Stage.Reconciling }
+     val reconciling = open.fold(model) { m, o -> m.put(if (o.stage == OrderModel.Stage.Paying) o.copy(stage = OrderModel.Stage.Reconciling, queries = 0) else o) }
+-    return reconciling to open.map { Cmd.CheckStatus(it.order.id, config.horizonMillis) }
++    val refunds = model.orders.values.filter { it.stage == OrderModel.Stage.Refunding }.map { Cmd.Refund(it.order.id, it.order.amount) }
++    return reconciling to open.map { Cmd.CheckStatus(it.order.id, config.horizonMillis) } + refunds
+ }
+ 
+ /** Pure: the next model and the commands to perform. */
+@@ -65,13 +82,17 @@ fun update(config: Config, model: Model, msg: Msg): Pair<Model, List<Cmd>> = whe
+     is Msg.Place -> when {
+         msg.order.id in model.orders -> model to emptyList()
+         model.stock < msg.order.quantity -> model.put(OrderModel(msg.order, OrderModel.Stage.Failed)) to emptyList()
+-        else -> model.copy(stock = model.stock - msg.order.quantity).put(OrderModel(msg.order, OrderModel.Stage.Paying, sends = 1)) to
++        else -> model.copy(stock = model.stock - msg.order.quantity).put(OrderModel(msg.order, OrderModel.Stage.Paying, sends = 1, placedAt = msg.at)) to
+             listOf(Cmd.Charge(msg.order.id, msg.order.amount))
+     }
+     is Msg.ChargeCompleted -> model.orders[msg.orderId]?.takeIf { it.stage == OrderModel.Stage.Paying }
+         ?.let { charged(config, model, it, msg.outcome) } ?: (model to emptyList())
+     is Msg.StatusChecked -> model.orders[msg.orderId]?.takeIf { it.stage == OrderModel.Stage.Reconciling }
+         ?.let { checked(config, model, it, msg.status) } ?: (model to emptyList())
++    is Msg.Cancel -> model.orders[msg.orderId]?.takeIf { it.stage == OrderModel.Stage.Completed && msg.at - it.placedAt <= config.cancelWindowMillis }
++        ?.let { model.put(it.copy(stage = OrderModel.Stage.Refunding, refunds = 1)) to listOf(Cmd.Refund(it.order.id, it.order.amount)) } ?: (model to emptyList())
++    is Msg.RefundCompleted -> model.orders[msg.orderId]?.takeIf { it.stage == OrderModel.Stage.Refunding }
++        ?.let { refunded(config, model, it, msg.confirmed) } ?: (model to emptyList())
+ }
+ 
+ private fun charged(config: Config, model: Model, order: OrderModel, outcome: ChargeOutcome): Pair<Model, List<Cmd>> = when (outcome) {
+@@ -95,6 +116,13 @@ private fun checked(config: Config, model: Model, order: OrderModel, status: Sta
+         }
+ }
+ 
++/** A confirmed refund returns the unit to stock. */
++private fun refunded(config: Config, model: Model, order: OrderModel, confirmed: Boolean): Pair<Model, List<Cmd>> = when {
++    confirmed -> model.copy(stock = model.stock + order.order.quantity).put(order.copy(stage = OrderModel.Stage.Refunded)) to emptyList()
++    order.refunds < config.maxSends -> model.put(order.copy(refunds = order.refunds + 1)) to listOf(Cmd.Refund(order.order.id, order.order.amount))
++    else -> model.put(order.copy(stage = OrderModel.Stage.NeedsAttention)) to emptyList()
++}
++
+ private fun Model.put(order: OrderModel) = copy(orders = orders + (order.order.id to order))
+ 
+ private fun Model.fail(order: OrderModel) = copy(stock = stock + order.order.quantity).put(order.copy(stage = OrderModel.Stage.Failed))

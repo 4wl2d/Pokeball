@@ -1,0 +1,168 @@
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
+index 0387108..2a306b0 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
+@@ -5,8 +5,10 @@ import bench.careful.saga.messages.Channels
+ import bench.careful.saga.messages.SagaState
+ import bench.careful.saga.order.CreateOrderSaga
+ import bench.careful.saga.payment.PaymentService
++import bench.env.Changes
+ import bench.env.CheckoutSystem
+ import bench.env.Order
++import bench.env.OrderCancellation
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -15,7 +17,7 @@ import bench.env.World
+ import bench.saga.kit.MessageRelay
+ 
+ /** Application wiring: the saga, its participants and the message relay. */
+-class CarefulSagaSystem : CheckoutSystem {
++class CarefulSagaSystem : CheckoutSystem, OrderCancellation {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var saga: CreateOrderSaga
+@@ -23,7 +25,7 @@ class CarefulSagaSystem : CheckoutSystem {
+     override fun boot(world: World) {
+         this.world = world
+         process = Process(world.scheduler)
+-        saga = CreateOrderSaga(world.db)
++        saga = CreateOrderSaga(world.db, Changes.CANCEL_WINDOW_MILLIS)
+         val inventory = InventoryService(world.db, Scenario.STOCK)
+         val payment = PaymentService(world.db, ProviderClient(world.provider), Scenario.PROVIDER_HORIZON_MILLIS)
+         MessageRelay(
+@@ -36,7 +38,9 @@ class CarefulSagaSystem : CheckoutSystem {
+         ).start()
+     }
+ 
+-    override fun start(order: Order) = process.execute { saga.start(order) }
++    override fun start(order: Order) = process.execute { saga.start(order, world.scheduler.now()) }
++
++    override fun cancel(orderId: String) = process.execute { saga.cancel(orderId, world.scheduler.now()) }
+ 
+     override fun crash() = process.kill()
+ 
+@@ -48,6 +52,7 @@ class CarefulSagaSystem : CheckoutSystem {
+         SagaState.Outcome.Approved -> Terminal.Completed
+         SagaState.Outcome.Rejected -> Terminal.Failed
+         SagaState.Outcome.NeedsAttention -> Terminal.NeedsAttention
++        SagaState.Outcome.Refunded -> Terminal.Refunded
+         null -> null
+     }
+ 
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
+index eb3288e..b6bfee2 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
+@@ -12,6 +12,9 @@ sealed interface PaymentCommand {
+ 
+     /** Ask the provider whether the order was charged, once no earlier request can still take effect. */
+     data class CheckPayment(val orderId: String) : PaymentCommand
++
++    /** Refund the order's charge; safe to repeat, since the provider never refunds more than it charged. */
++    data class RefundPayment(val orderId: String, val amount: Long) : PaymentCommand
+ }
+ 
+ sealed interface SagaReply {
+@@ -27,12 +30,17 @@ sealed interface SagaReply {
+ 
+     /** The card may or may not have been charged. */
+     data class PaymentUnknown(override val orderId: String) : SagaReply
++
++    data class PaymentRefunded(override val orderId: String) : SagaReply
++
++    /** No refund request was answered. */
++    data class RefundUnconfirmed(override val orderId: String) : SagaReply
+ }
+ 
+-data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = null, val checks: Int = 0) {
++data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = null, val checks: Int = 0, val placedAt: Long = 0) {
+     /** [Step.PaymentPending]: the saga is parked until a payment check settles the charge. */
+-    enum class Step { Reserving, Charging, PaymentPending, Compensating, Done }
+-    enum class Outcome { Approved, Rejected, NeedsAttention }
++    enum class Step { Reserving, Charging, PaymentPending, Compensating, Done, Refunding, Restocking }
++    enum class Outcome { Approved, Rejected, NeedsAttention, Refunded }
+ }
+ 
+ object Channels {
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
+index 548a4db..cbbf0ea 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
+@@ -19,16 +19,24 @@ import bench.saga.kit.processedBefore
+  * card (the pivot transaction), approve; compensate by releasing stock, but
+  * only when the card was not charged. A payment whose outcome is unknown parks
+  * the saga: it asks the payment participant to check, and hands the order to
+- * an operator when the checks run out. The saga state and the commands it
+- * sends commit in one transaction.
++ * an operator when the checks run out. An approved order cancelled within the
++ * window is refunded, then its stock is released. The saga state and the
++ * commands it sends commit in one transaction.
+  */
+-class CreateOrderSaga(private val db: SimDb, private val maxChecks: Int = 3) {
+-    fun start(order: Order) = db.transaction { tx ->
++class CreateOrderSaga(private val db: SimDb, private val cancelWindowMillis: Long, private val maxChecks: Int = 3) {
++    fun start(order: Order, at: Long) = db.transaction { tx ->
+         if (tx.get<SagaState>(key(order.id)) != null) return@transaction
+-        tx.put(key(order.id), SagaState(order, Step.Reserving))
++        tx.put(key(order.id), SagaState(order, Step.Reserving, placedAt = at))
+         Outbox.send(tx, Channels.INVENTORY, InventoryCommand.ReserveStock(order.id, order.sku, order.quantity))
+     }
+ 
++    fun cancel(orderId: String, at: Long) = db.transaction { tx ->
++        val saga = tx.get<SagaState>(key(orderId)) ?: return@transaction
++        if (saga.outcome != Outcome.Approved || at - saga.placedAt > cancelWindowMillis) return@transaction
++        tx.put(key(orderId), saga.copy(step = Step.Refunding, outcome = null))
++        Outbox.send(tx, Channels.PAYMENT, PaymentCommand.RefundPayment(orderId, saga.order.amount))
++    }
++
+     fun onReply(message: Message) = db.transaction { tx ->
+         if (tx.processedBefore("saga", message)) return@transaction
+         tx.markProcessed("saga", message)
+@@ -54,6 +62,12 @@ class CreateOrderSaga(private val db: SimDb, private val maxChecks: Int = 3) {
+                     saga.copy(step = Step.Done, outcome = Outcome.NeedsAttention)
+                 }
+             saga.step == Step.Compensating && reply is SagaReply.StockReleased -> saga.copy(step = Step.Done, outcome = Outcome.Rejected)
++            saga.step == Step.Refunding && reply is SagaReply.PaymentRefunded -> {
++                Outbox.send(tx, Channels.INVENTORY, InventoryCommand.ReleaseStock(saga.order.id))
++                saga.copy(step = Step.Restocking)
++            }
++            saga.step == Step.Refunding && reply is SagaReply.RefundUnconfirmed -> saga.copy(step = Step.Done, outcome = Outcome.NeedsAttention)
++            saga.step == Step.Restocking && reply is SagaReply.StockReleased -> saga.copy(step = Step.Done, outcome = Outcome.Refunded)
+             else -> saga
+         }
+         tx.put(key(reply.orderId), next)
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/payment/PaymentService.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/payment/PaymentService.kt
+index 057b92c..c0497d8 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/payment/PaymentService.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/payment/PaymentService.kt
+@@ -38,6 +38,7 @@ class PaymentService(
+         val reply = when (val command = message.payload as PaymentCommand) {
+             is PaymentCommand.ChargeCard -> charge(message, command)
+             is PaymentCommand.CheckPayment -> check(command.orderId)
++            is PaymentCommand.RefundPayment -> refund(command)
+         }
+         db.transaction { tx ->
+             tx.markProcessed("payment", message)
+@@ -66,6 +67,21 @@ class PaymentService(
+         return SagaReply.PaymentFailed(command.orderId, "payment provider unreachable")
+     }
+ 
++    /** A refund is safe to repeat, so a request without an answer is sent again. */
++    private suspend fun refund(command: PaymentCommand.RefundPayment): SagaReply {
++        repeat(maxSends) {
++            try {
++                withTimeout(timeoutMillis) { client.refund(command.orderId, command.amount) }
++                return SagaReply.PaymentRefunded(command.orderId)
++            } catch (e: TimeoutCancellationException) {
++                // No answer: send again.
++            } catch (e: IOException) {
++                // No answer: send again.
++            }
++        }
++        return SagaReply.RefundUnconfirmed(command.orderId)
++    }
++
+     /** Waits until no earlier request can still take effect, then asks the provider's status endpoint. */
+     private suspend fun check(orderId: String): SagaReply {
+         delay(horizonMillis)

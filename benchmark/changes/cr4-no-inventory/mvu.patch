@@ -1,0 +1,72 @@
+diff --git a/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt b/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
+index 83b51f8..47b025c 100644
+--- a/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
++++ b/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
+@@ -4,7 +4,6 @@ import bench.env.CheckoutSystem
+ import bench.env.Order
+ import bench.env.Process
+ import bench.env.ProviderClient
+-import bench.env.Scenario
+ import bench.env.Terminal
+ import bench.env.World
+ import bench.mvu.core.Cmd
+@@ -31,7 +30,7 @@ class MvuSystem : CheckoutSystem {
+         process.execute {
+             program = Program(
+                 scope = process.scope,
+-                init = init(saved, Scenario.STOCK),
++                init = init(saved),
+                 update = ::update,
+                 persist = { model -> world.db.transaction { it.put("mvu/model", model) } },
+                 perform = { cmd ->
+@@ -55,6 +54,5 @@ class MvuSystem : CheckoutSystem {
+         else -> null
+     }
+ 
+-    override fun reserved(): Map<String, Int> =
+-        saved?.orders?.values.orEmpty().filter { it.stage != OrderModel.Stage.Failed }.associate { it.order.id to it.order.quantity }
++    override fun reserved(): Map<String, Int> = emptyMap()
+ }
+diff --git a/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt b/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
+index 1ab5a63..6a588e3 100644
+--- a/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
++++ b/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
+@@ -4,7 +4,7 @@ import bench.env.ChargeResult
+ import bench.env.Order
+ 
+ /** The whole application state, one store (as in Redux). */
+-data class Model(val stock: Int, val orders: Map<String, OrderModel> = emptyMap())
++data class Model(val orders: Map<String, OrderModel> = emptyMap())
+ 
+ data class OrderModel(val order: Order, val stage: Stage, val reference: String? = null) {
+     enum class Stage { Paying, Completed, Failed }
+@@ -20,8 +20,8 @@ sealed interface Cmd {
+ }
+ 
+ /** Starts from the persisted model and re-issues the commands of orders that were being paid. */
+-fun init(saved: Model?, stock: Int): Pair<Model, List<Cmd>> {
+-    val model = saved ?: Model(stock)
++fun init(saved: Model?): Pair<Model, List<Cmd>> {
++    val model = saved ?: Model()
+     val resume = model.orders.values.filter { it.stage == OrderModel.Stage.Paying }.map { Cmd.Charge(it.order.id, it.order.amount) }
+     return model to resume
+ }
+@@ -30,10 +30,7 @@ fun init(saved: Model?, stock: Int): Pair<Model, List<Cmd>> {
+ fun update(model: Model, msg: Msg): Pair<Model, List<Cmd>> = when (msg) {
+     is Msg.Place -> when {
+         msg.order.id in model.orders -> model to emptyList()
+-        model.stock < msg.order.quantity ->
+-            model.copy(orders = model.orders + (msg.order.id to OrderModel(msg.order, OrderModel.Stage.Failed))) to emptyList()
+         else -> model.copy(
+-            stock = model.stock - msg.order.quantity,
+             orders = model.orders + (msg.order.id to OrderModel(msg.order, OrderModel.Stage.Paying)),
+         ) to listOf(Cmd.Charge(msg.order.id, msg.order.amount))
+     }
+@@ -47,7 +44,6 @@ fun update(model: Model, msg: Msg): Pair<Model, List<Cmd>> = when (msg) {
+                 model.copy(orders = model.orders + (msg.orderId to current.copy(stage = OrderModel.Stage.Completed, reference = charged.reference))) to emptyList()
+             } else {
+                 model.copy(
+-                    stock = model.stock + current.order.quantity,
+                     orders = model.orders + (msg.orderId to current.copy(stage = OrderModel.Stage.Failed)),
+                 ) to emptyList()
+             }

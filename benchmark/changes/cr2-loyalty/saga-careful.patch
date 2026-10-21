@@ -1,0 +1,263 @@
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
+index 0387108..b16de94 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
+@@ -1,12 +1,17 @@
+ package bench.careful.saga.app
+ 
+ import bench.careful.saga.inventory.InventoryService
++import bench.careful.saga.loyalty.LoyaltyService
+ import bench.careful.saga.messages.Channels
+ import bench.careful.saga.messages.SagaState
+ import bench.careful.saga.order.CreateOrderSaga
+ import bench.careful.saga.payment.PaymentService
++import bench.env.Changes
+ import bench.env.CheckoutSystem
++import bench.env.LoyaltyClient
++import bench.env.LoyaltyPoints
+ import bench.env.Order
++import bench.env.Points
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -15,7 +20,7 @@ import bench.env.World
+ import bench.saga.kit.MessageRelay
+ 
+ /** Application wiring: the saga, its participants and the message relay. */
+-class CarefulSagaSystem : CheckoutSystem {
++class CarefulSagaSystem : CheckoutSystem, LoyaltyPoints {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var saga: CreateOrderSaga
+@@ -23,14 +28,16 @@ class CarefulSagaSystem : CheckoutSystem {
+     override fun boot(world: World) {
+         this.world = world
+         process = Process(world.scheduler)
+-        saga = CreateOrderSaga(world.db)
++        saga = CreateOrderSaga(world.db, Changes.POINTS)
+         val inventory = InventoryService(world.db, Scenario.STOCK)
+         val payment = PaymentService(world.db, ProviderClient(world.provider), Scenario.PROVIDER_HORIZON_MILLIS)
++        val loyalty = LoyaltyService(world.db, LoyaltyClient(world.loyalty), Scenario.PROVIDER_HORIZON_MILLIS)
+         MessageRelay(
+             world.db, process.scope, process::execute,
+             mapOf(
+                 Channels.INVENTORY to { m -> inventory.handle(m) },
+                 Channels.PAYMENT to { m -> payment.handle(m) },
++                Channels.LOYALTY to { m -> loyalty.handle(m) },
+                 Channels.SAGA_REPLIES to { m -> saga.onReply(m) },
+             ),
+         ).start()
+@@ -51,6 +58,12 @@ class CarefulSagaSystem : CheckoutSystem {
+         null -> null
+     }
+ 
++    override fun points(orderId: String): Points? = when (state(orderId)?.award) {
++        SagaState.Award.Awarded -> Points.Awarded
++        SagaState.Award.NeedsAttention -> Points.NeedsAttention
++        null -> null
++    }
++
+     override fun reserved(): Map<String, Int> =
+         world.db.keys("inventory/reservation/").associate { it.removePrefix("inventory/reservation/") to world.db.get(it) as Int }
+ }
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/loyalty/LoyaltyService.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/loyalty/LoyaltyService.kt
+new file mode 100644
+index 0000000..918b61a
+--- /dev/null
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/loyalty/LoyaltyService.kt
+@@ -0,0 +1,74 @@
++package bench.careful.saga.loyalty
++
++import bench.careful.saga.messages.Channels
++import bench.careful.saga.messages.LoyaltyCommand
++import bench.careful.saga.messages.SagaReply
++import bench.env.AwardStatus
++import bench.env.ConnectionRefused
++import bench.env.LoyaltyClient
++import bench.env.SimDb
++import bench.saga.kit.Message
++import bench.saga.kit.Outbox
++import bench.saga.kit.markProcessed
++import bench.saga.kit.processedBefore
++import kotlinx.coroutines.TimeoutCancellationException
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.withTimeout
++import java.io.IOException
++
++/**
++ * The loyalty participant, built like the payment participant: before it
++ * sends an award it commits an award-attempted row for the message, and a
++ * redelivered command whose row exists is answered from the service's status
++ * instead of being sent again. Each command sends at most one request; the
++ * saga decides whether to send another.
++ */
++class LoyaltyService(
++    private val db: SimDb,
++    private val client: LoyaltyClient,
++    private val horizonMillis: Long,
++    private val timeoutMillis: Long = 1_000,
++) {
++    suspend fun handle(message: Message) {
++        if (db.transaction { it.processedBefore("loyalty", message) }) return
++        val reply = when (val command = message.payload as LoyaltyCommand) {
++            is LoyaltyCommand.AwardPoints -> award(message, command)
++            is LoyaltyCommand.CheckAward -> check(command.orderId)
++        }
++        db.transaction { tx ->
++            tx.markProcessed("loyalty", message)
++            Outbox.send(tx, Channels.SAGA_REPLIES, reply)
++        }
++    }
++
++    private suspend fun award(message: Message, command: LoyaltyCommand.AwardPoints): SagaReply {
++        val attempted = "loyalty/attempted/${message.id}"
++        if (db.get(attempted) != null) return check(command.orderId)
++        db.transaction { it.put(attempted, command.orderId) }
++        return try {
++            withTimeout(timeoutMillis) { client.award(command.orderId, command.points) }
++            SagaReply.PointsAwarded(command.orderId)
++        } catch (e: ConnectionRefused) {
++            SagaReply.PointsNotAwarded(command.orderId)
++        } catch (e: TimeoutCancellationException) {
++            SagaReply.AwardUnknown(command.orderId)
++        } catch (e: IOException) {
++            SagaReply.AwardUnknown(command.orderId)
++        }
++    }
++
++    /** Waits until no earlier request can still take effect, then asks the loyalty service's status endpoint. */
++    private suspend fun check(orderId: String): SagaReply {
++        delay(horizonMillis)
++        return try {
++            when (withTimeout(timeoutMillis) { client.status(orderId) }) {
++                is AwardStatus.Awarded -> SagaReply.PointsAwarded(orderId)
++                AwardStatus.NotAwarded -> SagaReply.PointsNotAwarded(orderId)
++            }
++        } catch (e: TimeoutCancellationException) {
++            SagaReply.AwardUnknown(orderId)
++        } catch (e: IOException) {
++            SagaReply.AwardUnknown(orderId)
++        }
++    }
++}
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
+index eb3288e..c7decc3 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
+@@ -14,6 +14,13 @@ sealed interface PaymentCommand {
+     data class CheckPayment(val orderId: String) : PaymentCommand
+ }
+ 
++sealed interface LoyaltyCommand {
++    data class AwardPoints(val orderId: String, val points: Int) : LoyaltyCommand
++
++    /** Ask the loyalty service whether the order's points were awarded, once no earlier request can still take effect. */
++    data class CheckAward(val orderId: String) : LoyaltyCommand
++}
++
+ sealed interface SagaReply {
+     val orderId: String
+ 
+@@ -27,16 +34,34 @@ sealed interface SagaReply {
+ 
+     /** The card may or may not have been charged. */
+     data class PaymentUnknown(override val orderId: String) : SagaReply
++    data class PointsAwarded(override val orderId: String) : SagaReply
++
++    /** The points were not awarded: the request was refused, or the status says so. */
++    data class PointsNotAwarded(override val orderId: String) : SagaReply
++
++    /** The points may or may not have been awarded. */
++    data class AwardUnknown(override val orderId: String) : SagaReply
+ }
+ 
+-data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = null, val checks: Int = 0) {
++/** [award] is the loyalty award of an approved order; the saga counts its award requests and checks. */
++data class SagaState(
++    val order: Order,
++    val step: Step,
++    val outcome: Outcome? = null,
++    val checks: Int = 0,
++    val award: Award? = null,
++    val awardSends: Int = 0,
++    val awardChecks: Int = 0,
++) {
+     /** [Step.PaymentPending]: the saga is parked until a payment check settles the charge. */
+-    enum class Step { Reserving, Charging, PaymentPending, Compensating, Done }
++    enum class Step { Reserving, Charging, PaymentPending, Compensating, Awarding, Done }
+     enum class Outcome { Approved, Rejected, NeedsAttention }
++    enum class Award { Awarded, NeedsAttention }
+ }
+ 
+ object Channels {
+     const val INVENTORY = "inventory"
+     const val PAYMENT = "payment"
++    const val LOYALTY = "loyalty"
+     const val SAGA_REPLIES = "saga-replies"
+ }
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
+index 548a4db..d89e298 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
+@@ -2,9 +2,11 @@ package bench.careful.saga.order
+ 
+ import bench.careful.saga.messages.Channels
+ import bench.careful.saga.messages.InventoryCommand
++import bench.careful.saga.messages.LoyaltyCommand
+ import bench.careful.saga.messages.PaymentCommand
+ import bench.careful.saga.messages.SagaReply
+ import bench.careful.saga.messages.SagaState
++import bench.careful.saga.messages.SagaState.Award
+ import bench.careful.saga.messages.SagaState.Outcome
+ import bench.careful.saga.messages.SagaState.Step
+ import bench.env.Order
+@@ -19,10 +21,12 @@ import bench.saga.kit.processedBefore
+  * card (the pivot transaction), approve; compensate by releasing stock, but
+  * only when the card was not charged. A payment whose outcome is unknown parks
+  * the saga: it asks the payment participant to check, and hands the order to
+- * an operator when the checks run out. The saga state and the commands it
+- * sends commit in one transaction.
++ * an operator when the checks run out. An approved order's loyalty points are
++ * then awarded the same way: an award is sent again only after the loyalty
++ * participant has shown that it did not take effect. The saga state and the
++ * commands it sends commit in one transaction.
+  */
+-class CreateOrderSaga(private val db: SimDb, private val maxChecks: Int = 3) {
++class CreateOrderSaga(private val db: SimDb, private val points: Int, private val maxChecks: Int = 3, private val maxAwards: Int = 3) {
+     fun start(order: Order) = db.transaction { tx ->
+         if (tx.get<SagaState>(key(order.id)) != null) return@transaction
+         tx.put(key(order.id), SagaState(order, Step.Reserving))
+@@ -41,7 +45,10 @@ class CreateOrderSaga(private val db: SimDb, private val maxChecks: Int = 3) {
+                 saga.copy(step = Step.Charging)
+             }
+             saga.step == Step.Reserving && reply is SagaReply.StockUnavailable -> saga.copy(step = Step.Done, outcome = Outcome.Rejected)
+-            paying && reply is SagaReply.PaymentSucceeded -> saga.copy(step = Step.Done, outcome = Outcome.Approved)
++            paying && reply is SagaReply.PaymentSucceeded -> {
++                Outbox.send(tx, Channels.LOYALTY, LoyaltyCommand.AwardPoints(saga.order.id, points))
++                saga.copy(step = Step.Awarding, outcome = Outcome.Approved, awardSends = 1)
++            }
+             paying && reply is SagaReply.PaymentFailed -> {
+                 Outbox.send(tx, Channels.INVENTORY, InventoryCommand.ReleaseStock(saga.order.id))
+                 saga.copy(step = Step.Compensating)
+@@ -54,6 +61,21 @@ class CreateOrderSaga(private val db: SimDb, private val maxChecks: Int = 3) {
+                     saga.copy(step = Step.Done, outcome = Outcome.NeedsAttention)
+                 }
+             saga.step == Step.Compensating && reply is SagaReply.StockReleased -> saga.copy(step = Step.Done, outcome = Outcome.Rejected)
++            saga.step == Step.Awarding && reply is SagaReply.PointsAwarded -> saga.copy(step = Step.Done, award = Award.Awarded)
++            saga.step == Step.Awarding && reply is SagaReply.PointsNotAwarded ->
++                if (saga.awardSends < maxAwards) {
++                    Outbox.send(tx, Channels.LOYALTY, LoyaltyCommand.AwardPoints(saga.order.id, points))
++                    saga.copy(awardSends = saga.awardSends + 1, awardChecks = 0)
++                } else {
++                    saga.copy(step = Step.Done, award = Award.NeedsAttention)
++                }
++            saga.step == Step.Awarding && reply is SagaReply.AwardUnknown ->
++                if (saga.awardChecks < maxChecks) {
++                    Outbox.send(tx, Channels.LOYALTY, LoyaltyCommand.CheckAward(saga.order.id))
++                    saga.copy(awardChecks = saga.awardChecks + 1)
++                } else {
++                    saga.copy(step = Step.Done, award = Award.NeedsAttention)
++                }
+             else -> saga
+         }
+         tx.put(key(reply.orderId), next)

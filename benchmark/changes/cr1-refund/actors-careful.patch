@@ -1,0 +1,193 @@
+diff --git a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt
+index 491fd6a..f33f00e 100644
+--- a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt
++++ b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt
+@@ -11,8 +11,10 @@ import bench.careful.actors.protocol.CheckoutState
+ import bench.careful.actors.protocol.InventoryCommand
+ import bench.careful.actors.protocol.InventoryState
+ import bench.careful.actors.protocol.PaymentCommand
++import bench.env.Changes
+ import bench.env.CheckoutSystem
+ import bench.env.Order
++import bench.env.OrderCancellation
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -20,22 +22,27 @@ import bench.env.Terminal
+ import bench.env.World
+ 
+ /** Guardian: spawns the inventory, payment and checkout actors, and recovers checkouts after a restart. */
+-class CarefulActorsSystem : CheckoutSystem {
++class CarefulActorsSystem : CheckoutSystem, OrderCancellation {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var system: ActorSystem
+     private lateinit var inventory: ActorRef<InventoryCommand>
+     private lateinit var payments: ActorRef<PaymentCommand>
++    private val checkouts = HashMap<String, ActorRef<CheckoutCommand>>()
+ 
+     private fun store(orderId: String) = DurableState<CheckoutState>(world.db, "actor/checkout/$orderId")
+ 
+-    private fun spawnCheckout(state: CheckoutState) =
+-        system.checkout(store(state.order.id), state, inventory, payments, Scenario.PROVIDER_HORIZON_MILLIS).tell(CheckoutCommand.Drive)
++    private fun spawnCheckout(state: CheckoutState) {
++        val checkout = system.checkout(store(state.order.id), state, inventory, payments, Scenario.PROVIDER_HORIZON_MILLIS, Changes.CANCEL_WINDOW_MILLIS)
++        checkouts[state.order.id] = checkout
++        checkout.tell(CheckoutCommand.Drive)
++    }
+ 
+     override fun boot(world: World) {
+         this.world = world
+         process = Process(world.scheduler)
+         process.execute {
++            checkouts.clear()
+             system = ActorSystem(process.scope)
+             inventory = system.inventory(DurableState(world.db, "actor/inventory"), InventoryState(Scenario.STOCK))
+             payments = system.payments(ProviderClient(world.provider))
+@@ -45,10 +52,12 @@ class CarefulActorsSystem : CheckoutSystem {
+ 
+     override fun start(order: Order) {
+         process.execute {
+-            if (store(order.id).load() == null) spawnCheckout(CheckoutState(order, CheckoutState.Stage.Reserving))
++            if (store(order.id).load() == null) spawnCheckout(CheckoutState(order, CheckoutState.Stage.Reserving, placedAt = world.scheduler.now()))
+         }
+     }
+ 
++    override fun cancel(orderId: String) = process.execute { checkouts[orderId]?.tell(CheckoutCommand.Cancel(world.scheduler.now())) }
++
+     override fun crash() = process.kill()
+ 
+     override fun accepted(orderId: String) = store(orderId).load() != null
+@@ -57,6 +66,7 @@ class CarefulActorsSystem : CheckoutSystem {
+         CheckoutState.Stage.Completed -> Terminal.Completed
+         CheckoutState.Stage.Failed -> Terminal.Failed
+         CheckoutState.Stage.NeedsAttention -> Terminal.NeedsAttention
++        CheckoutState.Stage.Refunded -> Terminal.Refunded
+         else -> null
+     }
+ 
+diff --git a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt
+index 2c3361d..034161b 100644
+--- a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt
++++ b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt
+@@ -66,6 +66,10 @@ fun ActorSystem.payments(client: ProviderClient): ActorRef<PaymentCommand> = spa
+             runCatching { client.status(command.orderId) }
+                 .fold({ command.replyTo.complete(it) }, { command.replyTo.completeExceptionally(it) })
+         }
++        is PaymentCommand.Refund -> run {
++            runCatching { client.refund(command.orderId, command.amount) }
++                .fold({ command.replyTo.complete(Unit) }, { command.replyTo.completeExceptionally(it) })
++        }
+     }
+ }
+ 
+@@ -76,7 +80,9 @@ fun ActorSystem.payments(client: ProviderClient): ActorRef<PaymentCommand> = spa
+  * provider's delivery horizon and the actor asks the provider's status
+  * endpoint. After a restart, a checkout that may have been charged is
+  * reconciled the same way, never charged again: side effects are not re-run on
+- * recovery, as with Akka's durable state.
++ * recovery, as with Akka's durable state. A completed checkout cancelled
++ * within the window is refunded, which is safe to repeat, and then its stock
++ * is released.
+  */
+ fun ActorSystem.checkout(
+     store: DurableState<CheckoutState>,
+@@ -84,6 +90,7 @@ fun ActorSystem.checkout(
+     inventory: ActorRef<InventoryCommand>,
+     payments: ActorRef<PaymentCommand>,
+     horizonMillis: Long,
++    cancelWindowMillis: Long,
+     askTimeoutMillis: Long = 1_000,
+     maxSends: Int = 3,
+     maxQueries: Int = 3,
+@@ -117,13 +124,29 @@ fun ActorSystem.checkout(
+             }) { CheckoutCommand.Released(it.isSuccess) }
+         }
+ 
++        fun ActorContext<CheckoutCommand>.refund(refunds: Int) {
++            persist(state.copy(stage = Stage.Refunding, refunds = refunds))
++            ask(payments, askTimeoutMillis, { reply: CompletableDeferred<Unit> ->
++                PaymentCommand.Refund(state.order.id, state.order.amount, reply)
++            }) { CheckoutCommand.Refunded(it.isSuccess) }
++        }
++
++        fun ActorContext<CheckoutCommand>.restock() {
++            persist(state.copy(stage = Stage.Restocking))
++            ask(inventory, askTimeoutMillis, { reply: CompletableDeferred<Unit> ->
++                InventoryCommand.Release(state.order.id, reply)
++            }) { CheckoutCommand.Released(it.isSuccess) }
++        }
++
+         when (command) {
+             CheckoutCommand.Drive -> when (state.stage) {
+                 Stage.Reserving -> reserve()
+                 Stage.Charging -> reconcile(0) // possibly sent before the restart
+                 Stage.Reconciling -> scheduleOnce(horizonMillis, CheckoutCommand.CheckStatus)
+                 Stage.Releasing -> release(state.reason ?: "payment failed")
+-                Stage.Completed, Stage.Failed, Stage.NeedsAttention -> Unit
++                Stage.Refunding -> refund(1)
++                Stage.Restocking -> restock()
++                Stage.Completed, Stage.Failed, Stage.NeedsAttention, Stage.Refunded -> Unit
+             }
+             is CheckoutCommand.Reserved -> if (state.stage == Stage.Reserving) {
+                 when (command.result.getOrNull()) {
+@@ -154,6 +177,16 @@ fun ActorSystem.checkout(
+             }
+             is CheckoutCommand.Released -> if (state.stage == Stage.Releasing) {
+                 if (command.acknowledged) persist(state.copy(stage = Stage.Failed)) else release(state.reason ?: "payment failed")
++            } else if (state.stage == Stage.Restocking) {
++                if (command.acknowledged) persist(state.copy(stage = Stage.Refunded)) else restock()
++            }
++            is CheckoutCommand.Cancel -> if (state.stage == Stage.Completed && command.at - state.placedAt <= cancelWindowMillis) refund(1)
++            is CheckoutCommand.Refunded -> if (state.stage == Stage.Refunding) {
++                when {
++                    command.confirmed -> restock()
++                    state.refunds < maxSends -> refund(state.refunds + 1)
++                    else -> persist(state.copy(stage = Stage.NeedsAttention))
++                }
+             }
+         }
+     }
+diff --git a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt
+index 9a68c64..c0c6435 100644
+--- a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt
++++ b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt
+@@ -26,6 +26,9 @@ sealed interface ChargeReply {
+ sealed interface PaymentCommand {
+     data class Charge(val orderId: String, val amount: Long, val replyTo: CompletableDeferred<ChargeReply>) : PaymentCommand
+     data class QueryStatus(val orderId: String, val replyTo: CompletableDeferred<ChargeStatus>) : PaymentCommand
++
++    /** Completed when the provider answered: nothing charged for the order is left to refund. Safe to repeat. */
++    data class Refund(val orderId: String, val amount: Long, val replyTo: CompletableDeferred<Unit>) : PaymentCommand
+ }
+ 
+ sealed interface CheckoutCommand {
+@@ -40,14 +43,26 @@ sealed interface CheckoutCommand {
+     /** The provider's status, or null when it could not be read. */
+     data class StatusChecked(val status: ChargeStatus?) : CheckoutCommand
+     data class Released(val acknowledged: Boolean) : CheckoutCommand
++
++    /** The customer cancels; [at] is when the request arrived. */
++    data class Cancel(val at: Long) : CheckoutCommand
++    data class Refunded(val confirmed: Boolean) : CheckoutCommand
+ }
+ 
+ /**
+  * The durable state of one checkout actor. [Stage.Charging] is persisted before
+  * every charge request, so after a restart it means "possibly charged".
+  */
+-data class CheckoutState(val order: Order, val stage: Stage, val sends: Int = 0, val queries: Int = 0, val reason: String? = null) {
+-    enum class Stage { Reserving, Charging, Reconciling, Releasing, Completed, Failed, NeedsAttention }
++data class CheckoutState(
++    val order: Order,
++    val stage: Stage,
++    val sends: Int = 0,
++    val queries: Int = 0,
++    val reason: String? = null,
++    val placedAt: Long = 0,
++    val refunds: Int = 0,
++) {
++    enum class Stage { Reserving, Charging, Reconciling, Releasing, Completed, Failed, NeedsAttention, Refunding, Restocking, Refunded }
+ }
+ 
+ /** The durable state of the inventory actor. */

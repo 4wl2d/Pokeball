@@ -1,0 +1,191 @@
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt
+index 02fc4ec..a3c6eeb 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt
+@@ -3,20 +3,6 @@ package bench.ballarch.api
+ import ballarch.kernel.BallPort
+ import bench.env.Order
+ 
+-// Inventory: one instance per SKU.
+-sealed interface InventoryRequest {
+-    data class Reserve(val orderId: String, val quantity: Int) : InventoryRequest
+-    data class Release(val orderId: String) : InventoryRequest
+-}
+-
+-sealed interface InventoryReply {
+-    data object Reserved : InventoryReply
+-    data object OutOfStock : InventoryReply
+-    data object Released : InventoryReply
+-}
+-
+-val InventoryPort = BallPort<InventoryRequest, InventoryReply>("inventory")
+-
+ // Payments: one instance per order. Capture is idempotent per order.
+ data class Capture(val amount: Long)
+ 
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
+index dc245f6..dd99c6d 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
+@@ -9,8 +9,6 @@ import ballarch.runtime.Runtime
+ import bench.ballarch.api.StartCheckout
+ import bench.ballarch.checkout.CheckoutFlow
+ import bench.ballarch.checkout.CheckoutState
+-import bench.ballarch.inventory.InventoryBall
+-import bench.ballarch.inventory.Stock
+ import bench.ballarch.payment.ChargeRequest
+ import bench.ballarch.payment.PaymentBall
+ import bench.ballarch.payment.ProviderCharge
+@@ -44,7 +42,6 @@ fun statusAdapter(provider: Provider) = Adapter<String, ChargeStatus> { invocati
+ 
+ /** The composition root. */
+ fun composition(provider: Provider): Composition = Composition()
+-    .ball(InventoryBall(Scenario.STOCK))
+     .ball(PaymentBall(horizonMillis = Scenario.PROVIDER_HORIZON_MILLIS))
+     .ball(CheckoutFlow())
+     .adapter(ProviderCharge, chargeAdapter(provider))
+@@ -76,5 +73,5 @@ class BallarchSystem(private val wiring: (Provider) -> Composition = ::compositi
+         else -> null
+     }
+ 
+-    override fun reserved(): Map<String, Int> = (store.load(BallId("inventory", Scenario.SKU))?.state as Stock?)?.reservations.orEmpty()
++    override fun reserved(): Map<String, Int> = emptyMap()
+ }
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt
+index 04bbe4f..fc95ac7 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt
+@@ -6,7 +6,6 @@ import ballarch.kernel.CallKey
+ import ballarch.kernel.Completion
+ import ballarch.kernel.Context
+ import ballarch.kernel.Decision
+-import ballarch.kernel.NotDoneReason
+ import ballarch.kernel.Outcome
+ import ballarch.kernel.RequestContext
+ import ballarch.kernel.Step
+@@ -14,9 +13,6 @@ import ballarch.kernel.accept
+ import ballarch.kernel.outcomeOf
+ import ballarch.kernel.step
+ import bench.ballarch.api.Capture
+-import bench.ballarch.api.InventoryPort
+-import bench.ballarch.api.InventoryReply
+-import bench.ballarch.api.InventoryRequest
+ import bench.ballarch.api.PaymentReply
+ import bench.ballarch.api.PaymentsPort
+ import bench.ballarch.api.StartCheckout
+@@ -24,18 +20,16 @@ import bench.env.Order
+ 
+ sealed interface CheckoutState {
+     data object New : CheckoutState
+-    data class Reserving(val order: Order, val call: CallKey, val attempts: Int) : CheckoutState
+     data class Paying(val order: Order, val call: CallKey, val attempts: Int) : CheckoutState
+-    data class Releasing(val order: Order, val call: CallKey, val attempts: Int) : CheckoutState
+     data class Completed(val order: Order, val reference: String) : CheckoutState
+     data class Failed(val order: Order, val reason: String) : CheckoutState
+     data class NeedsAttention(val order: Order) : CheckoutState
+ }
+ 
+ /**
+- * The checkout workflow (a Flow): reserve, capture, complete; release when the
+- * payment is not captured. Inventory and payment requests are idempotent per
+- * order, so a step whose outcome is unknown is asked again.
++ * The checkout workflow (a Flow): capture, then complete, or fail when the
++ * payment is not captured. Payment requests are idempotent per order, so a
++ * capture whose outcome is unknown is asked again.
+  */
+ class CheckoutFlow(private val stepTimeoutMillis: Long = 10_000, private val maxAttempts: Int = 3) :
+     Ball<CheckoutState, StartCheckout, Unit> {
+@@ -44,51 +38,25 @@ class CheckoutFlow(private val stepTimeoutMillis: Long = 10_000, private val max
+     override fun initial(key: String): CheckoutState = CheckoutState.New
+ 
+     override fun decide(state: CheckoutState, request: StartCheckout, ctx: RequestContext): Decision<CheckoutState, Unit> =
+-        if (state == CheckoutState.New) reserve(request.order, ctx, 1).let { accept(it.state, Unit, *it.outputs.toTypedArray()) }
++        if (state == CheckoutState.New) pay(request.order, ctx, 1).let { accept(it.state, Unit, *it.outputs.toTypedArray()) }
+         else accept(state, Unit)
+ 
+     override fun complete(state: CheckoutState, completion: Completion<*>, ctx: Context): Step<CheckoutState, Unit> = when {
+-        state is CheckoutState.Reserving && completion.key == state.call -> reserved(state, completion.outcomeOf(InventoryPort)!!, ctx)
+         state is CheckoutState.Paying && completion.key == state.call -> paid(state, completion.outcomeOf(PaymentsPort)!!, ctx)
+-        state is CheckoutState.Releasing && completion.key == state.call -> released(state, completion.outcomeOf(InventoryPort)!!, ctx)
+         else -> step(state) // stale
+     }
+ 
+-    private fun reserved(s: CheckoutState.Reserving, o: Outcome<InventoryReply>, ctx: Context) = when {
+-        o is Outcome.Done -> pay(s.order, ctx, 1)
+-        o is Outcome.NotDone && o.reason is NotDoneReason.Refused -> step(CheckoutState.Failed(s.order, "out of stock"))
+-        else -> retry(s.order, s.attempts) { reserve(s.order, ctx, it) } // Unknown or no answer: ask again (idempotent)
+-    }
+-
+     private fun paid(s: CheckoutState.Paying, o: Outcome<PaymentReply>, ctx: Context) = when (val r = (o as? Outcome.Done)?.value) {
+         is PaymentReply.Captured -> step(CheckoutState.Completed(s.order, r.reference))
+-        is PaymentReply.NotCaptured -> release(s.order, ctx, 1)
++        is PaymentReply.NotCaptured -> step(CheckoutState.Failed(s.order, "payment not captured"))
+         PaymentReply.Unresolved -> step(CheckoutState.NeedsAttention(s.order))
+         null -> retry(s.order, s.attempts) { pay(s.order, ctx, it) } // Capture is idempotent per order
+     }
+ 
+-    private fun released(s: CheckoutState.Releasing, o: Outcome<InventoryReply>, ctx: Context) =
+-        if (o is Outcome.Done) step(CheckoutState.Failed(s.order, "payment not captured"))
+-        else retry(s.order, s.attempts) { release(s.order, ctx, it) }
+-
+     private fun retry(order: Order, attempts: Int, next: (Int) -> Step<CheckoutState, Unit>) =
+         if (attempts < maxAttempts) next(attempts + 1) else step(CheckoutState.NeedsAttention(order))
+ 
+-    private fun reserve(order: Order, ctx: Context, attempts: Int) = ctx.newKey().let { key ->
+-        step<CheckoutState, Unit>(
+-            CheckoutState.Reserving(order, key, attempts),
+-            Call(key, InventoryPort, InventoryRequest.Reserve(order.id, order.quantity), stepTimeoutMillis, target = order.sku),
+-        )
+-    }
+-
+     private fun pay(order: Order, ctx: Context, attempts: Int) = ctx.newKey().let { key ->
+         step<CheckoutState, Unit>(CheckoutState.Paying(order, key, attempts), Call(key, PaymentsPort, Capture(order.amount), stepTimeoutMillis, target = order.id))
+     }
+-
+-    private fun release(order: Order, ctx: Context, attempts: Int) = ctx.newKey().let { key ->
+-        step<CheckoutState, Unit>(
+-            CheckoutState.Releasing(order, key, attempts),
+-            Call(key, InventoryPort, InventoryRequest.Release(order.id), stepTimeoutMillis, target = order.sku),
+-        )
+-    }
+ }
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/inventory/InventoryBall.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/inventory/InventoryBall.kt
+deleted file mode 100644
+index efe7d2a..0000000
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/inventory/InventoryBall.kt
++++ /dev/null
+@@ -1,34 +0,0 @@
+-package bench.ballarch.inventory
+-
+-import ballarch.kernel.Ball
+-import ballarch.kernel.Decision
+-import ballarch.kernel.RequestContext
+-import ballarch.kernel.accept
+-import ballarch.kernel.reject
+-import bench.ballarch.api.InventoryReply
+-import bench.ballarch.api.InventoryRequest
+-
+-data class Stock(val available: Int, val reservations: Map<String, Int> = emptyMap())
+-
+-/** Owns the stock of one SKU. Reservations are per order, so repeating a request changes nothing. */
+-class InventoryBall(private val initialStock: Int) : Ball<Stock, InventoryRequest, InventoryReply> {
+-    override val type = "inventory"
+-
+-    override fun initial(key: String) = Stock(initialStock)
+-
+-    override fun decide(state: Stock, request: InventoryRequest, ctx: RequestContext): Decision<Stock, InventoryReply> =
+-        when (request) {
+-            is InventoryRequest.Reserve -> when {
+-                request.orderId in state.reservations -> accept(state, InventoryReply.Reserved)
+-                state.available < request.quantity -> reject(InventoryReply.OutOfStock)
+-                else -> accept(
+-                    Stock(state.available - request.quantity, state.reservations + (request.orderId to request.quantity)),
+-                    InventoryReply.Reserved,
+-                )
+-            }
+-            is InventoryRequest.Release -> {
+-                val quantity = state.reservations[request.orderId] ?: 0
+-                accept(Stock(state.available + quantity, state.reservations - request.orderId), InventoryReply.Released)
+-            }
+-        }
+-}

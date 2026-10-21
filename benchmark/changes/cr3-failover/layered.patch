@@ -1,0 +1,95 @@
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt b/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
+index cd5774b..f3b1ae1 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
+@@ -26,7 +26,8 @@ class LayeredSystem : CheckoutSystem {
+         process = Process(world.scheduler)
+         orders = DbOrderRepository(world.db)
+         val inventory = DbInventoryRepository(world.db, mapOf(Scenario.SKU to Scenario.STOCK))
+-        interactor = CheckoutInteractor(orders, inventory, ProviderPaymentGateway(ProviderClient(world.provider)))
++        val secondary = ProviderPaymentGateway(ProviderClient(world.secondaryProvider))
++        interactor = CheckoutInteractor(orders, inventory, ProviderPaymentGateway(ProviderClient(world.provider)), secondary)
+         process.scope.launch { interactor.resumeUnfinished() }
+     }
+ 
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt b/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
+index 1cc34be..ade71fa 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
+@@ -1,6 +1,7 @@
+ package bench.layered.application
+ 
+ import bench.layered.domain.CheckoutOrder
++import bench.layered.domain.CheckoutOrder.PaymentProvider
+ import bench.layered.domain.CheckoutOrder.Status
+ 
+ /** Input port. */
+@@ -13,12 +14,14 @@ interface CheckoutInputPort {
+  * The checkout use case (application business rules). It depends only on its
+  * output ports; the framework and the provider live behind them. Processing
+  * resumes from the persisted status, so the same use case drives new orders
+- * and orders interrupted by a restart.
++ * and orders interrupted by a restart. A payment that fails at the primary
++ * provider is made through the secondary one.
+  */
+ class CheckoutInteractor(
+     private val orders: OrderRepository,
+     private val inventory: InventoryRepository,
+     private val payments: PaymentGateway,
++    private val secondaryPayments: PaymentGateway,
+ ) : CheckoutInputPort {
+     override fun place(order: CheckoutOrder) {
+         if (orders.find(order.id) == null) orders.save(order)
+@@ -34,13 +37,17 @@ class CheckoutInteractor(
+             order = order.reserved()
+             orders.save(order)
+         }
+-        if (order.status == Status.RESERVED) {
++        while (order.status == Status.RESERVED) {
++            val gateway = if (order.provider == PaymentProvider.PRIMARY) payments else secondaryPayments
+             order = try {
+-                order.paid(payments.charge(order.id, order.amount))
++                order.paid(gateway.charge(order.id, order.amount))
+             } catch (e: PaymentFailedException) {
+-                inventory.release(order.id)
+-                orders.save(order.failed(e.message ?: "payment failed"))
+-                return
++                if (order.provider == PaymentProvider.SECONDARY) {
++                    inventory.release(order.id)
++                    orders.save(order.failed(e.message ?: "payment failed"))
++                    return
++                }
++                order.failedOver()
+             }
+             orders.save(order)
+         }
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt b/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
+index 19af1c2..7a5bce2 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
+@@ -1,6 +1,6 @@
+ package bench.layered.domain
+ 
+-/** Enterprise business rules: an order moves through checkout in one direction. */
++/** Enterprise business rules: an order moves through checkout in one direction, charged through [provider]. */
+ data class CheckoutOrder(
+     val id: String,
+     val sku: String,
+@@ -9,8 +9,10 @@ data class CheckoutOrder(
+     val status: Status = Status.NEW,
+     val paymentReference: String? = null,
+     val failureReason: String? = null,
++    val provider: PaymentProvider = PaymentProvider.PRIMARY,
+ ) {
+     enum class Status { NEW, RESERVED, PAID, COMPLETED, FAILED }
++    enum class PaymentProvider { PRIMARY, SECONDARY }
+ 
+     val isTerminal: Boolean get() = status == Status.COMPLETED || status == Status.FAILED
+ 
+@@ -21,4 +23,6 @@ data class CheckoutOrder(
+     fun completed() = copy(status = Status.COMPLETED)
+ 
+     fun failed(reason: String) = copy(status = Status.FAILED, failureReason = reason)
++
++    fun failedOver() = copy(provider = PaymentProvider.SECONDARY)
+ }

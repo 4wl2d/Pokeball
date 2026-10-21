@@ -1,0 +1,93 @@
+diff --git a/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt b/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt
+index 2f6d7d6..0467cb9 100644
+--- a/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt
++++ b/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt
+@@ -26,6 +26,7 @@ class ActorsSystem : CheckoutSystem {
+     private lateinit var system: ActorSystem
+     private lateinit var inventory: ActorRef<InventoryCommand>
+     private lateinit var payments: ActorRef<PaymentCommand>
++    private lateinit var secondaryPayments: ActorRef<PaymentCommand>
+ 
+     private fun store(orderId: String) = DurableState<CheckoutState>(world.db, "actor/checkout/$orderId")
+ 
+@@ -36,9 +37,10 @@ class ActorsSystem : CheckoutSystem {
+             system = ActorSystem(process.scope)
+             inventory = system.inventory(DurableState(world.db, "actor/inventory"), InventoryState(Scenario.STOCK))
+             payments = system.payments(ProviderClient(world.provider))
++            secondaryPayments = system.payments(ProviderClient(world.secondaryProvider))
+             for (key in world.db.keys("actor/checkout/")) {
+                 val state = world.db.get(key) as CheckoutState
+-                system.checkout(store(state.order.id), state, inventory, payments).tell(CheckoutCommand.Drive)
++                system.checkout(store(state.order.id), state, inventory, payments, secondaryPayments).tell(CheckoutCommand.Drive)
+             }
+         }
+     }
+@@ -46,7 +48,7 @@ class ActorsSystem : CheckoutSystem {
+     override fun start(order: Order) {
+         process.execute {
+             if (store(order.id).load() == null) {
+-                system.checkout(store(order.id), CheckoutState(order, CheckoutState.Stage.Reserving), inventory, payments)
++                system.checkout(store(order.id), CheckoutState(order, CheckoutState.Stage.Reserving), inventory, payments, secondaryPayments)
+                     .tell(CheckoutCommand.Drive)
+             }
+         }
+diff --git a/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt b/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt
+index e1f63f7..d105025 100644
+--- a/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt
++++ b/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt
+@@ -51,12 +51,16 @@ fun ActorSystem.payments(client: ProviderClient): ActorRef<PaymentCommand> = spa
+     }
+ }
+ 
+-/** One actor per checkout. On recovery it is re-created from its durable state and re-driven. */
++/**
++ * One actor per checkout. On recovery it is re-created from its durable state and re-driven.
++ * A payment that fails at the primary provider is made through the secondary one.
++ */
+ fun ActorSystem.checkout(
+     store: DurableState<CheckoutState>,
+     initial: CheckoutState,
+     inventory: ActorRef<InventoryCommand>,
+     payments: ActorRef<PaymentCommand>,
++    secondaryPayments: ActorRef<PaymentCommand>,
+     askTimeoutMillis: Long = 1_000,
+ ): ActorRef<CheckoutCommand> {
+     var state = store.load() ?: store.persist(initial)
+@@ -65,7 +69,7 @@ fun ActorSystem.checkout(
+             Stage.Reserving -> ask(inventory, askTimeoutMillis, { reply: CompletableDeferred<Boolean> ->
+                 InventoryCommand.Reserve(state.order.id, state.order.sku, state.order.quantity, reply)
+             }) { CheckoutCommand.Reserved(it) }
+-            Stage.Paying -> ask(payments, askTimeoutMillis, { reply: CompletableDeferred<ChargeResult> ->
++            Stage.Paying -> ask(if (state.onSecondary) secondaryPayments else payments, askTimeoutMillis, { reply: CompletableDeferred<ChargeResult> ->
+                 PaymentCommand.Charge(state.order.id, state.order.amount, reply)
+             }) { CheckoutCommand.Charged(it) }
+             Stage.Completed, Stage.Failed -> Unit
+@@ -86,10 +90,13 @@ fun ActorSystem.checkout(
+                 val charged = command.result.getOrNull()
+                 state = if (charged is ChargeResult.Charged) {
+                     store.persist(state.copy(stage = Stage.Completed))
++                } else if (!state.onSecondary) {
++                    store.persist(state.copy(onSecondary = true))
+                 } else {
+                     inventory.tell(InventoryCommand.Release(state.order.id))
+                     store.persist(state.copy(stage = Stage.Failed, reason = "payment failed"))
+                 }
++                drive()
+             }
+         }
+     }
+diff --git a/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt b/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt
+index 3b31ab5..a4e385c 100644
+--- a/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt
++++ b/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt
+@@ -20,8 +20,8 @@ sealed interface CheckoutCommand {
+     data class Charged(val result: Result<ChargeResult>) : CheckoutCommand
+ }
+ 
+-/** The durable state of one checkout actor. */
+-data class CheckoutState(val order: Order, val stage: Stage, val reason: String? = null) {
++/** The durable state of one checkout actor; [onSecondary]: it is being paid through the secondary provider. */
++data class CheckoutState(val order: Order, val stage: Stage, val reason: String? = null, val onSecondary: Boolean = false) {
+     enum class Stage { Reserving, Paying, Completed, Failed }
+ }
+ 

@@ -1,0 +1,196 @@
+diff --git a/benchmark/saga/src/main/kotlin/bench/saga/app/SagaSystem.kt b/benchmark/saga/src/main/kotlin/bench/saga/app/SagaSystem.kt
+index 8c24a19..0bae5ab 100644
+--- a/benchmark/saga/src/main/kotlin/bench/saga/app/SagaSystem.kt
++++ b/benchmark/saga/src/main/kotlin/bench/saga/app/SagaSystem.kt
+@@ -1,7 +1,11 @@
+ package bench.saga.app
+ 
++import bench.env.Changes
+ import bench.env.CheckoutSystem
++import bench.env.LoyaltyClient
++import bench.env.LoyaltyPoints
+ import bench.env.Order
++import bench.env.Points
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -9,13 +13,14 @@ import bench.env.Terminal
+ import bench.env.World
+ import bench.saga.inventory.InventoryService
+ import bench.saga.kit.MessageRelay
++import bench.saga.loyalty.LoyaltyService
+ import bench.saga.messages.Channels
+ import bench.saga.messages.SagaState
+ import bench.saga.order.CreateOrderSaga
+ import bench.saga.payment.PaymentService
+ 
+ /** Application wiring: the saga, its participants and the message relay. */
+-class SagaSystem : CheckoutSystem {
++class SagaSystem : CheckoutSystem, LoyaltyPoints {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var saga: CreateOrderSaga
+@@ -23,14 +28,16 @@ class SagaSystem : CheckoutSystem {
+     override fun boot(world: World) {
+         this.world = world
+         process = Process(world.scheduler)
+-        saga = CreateOrderSaga(world.db)
++        saga = CreateOrderSaga(world.db, Changes.POINTS)
+         val inventory = InventoryService(world.db, Scenario.STOCK)
+         val payment = PaymentService(world.db, ProviderClient(world.provider))
++        val loyalty = LoyaltyService(world.db, LoyaltyClient(world.loyalty))
+         MessageRelay(
+             world.db, process.scope, process::execute,
+             mapOf(
+                 Channels.INVENTORY to { m -> inventory.handle(m) },
+                 Channels.PAYMENT to { m -> payment.handle(m) },
++                Channels.LOYALTY to { m -> loyalty.handle(m) },
+                 Channels.SAGA_REPLIES to { m -> saga.onReply(m) },
+             ),
+         ).start()
+@@ -50,6 +57,12 @@ class SagaSystem : CheckoutSystem {
+         null -> null
+     }
+ 
++    override fun points(orderId: String): Points? = when (state(orderId)?.award) {
++        SagaState.Award.Awarded -> Points.Awarded
++        SagaState.Award.Failed -> Points.Failed
++        null -> null
++    }
++
+     override fun reserved(): Map<String, Int> =
+         world.db.keys("inventory/reservation/").associate { it.removePrefix("inventory/reservation/") to world.db.get(it) as Int }
+ }
+diff --git a/benchmark/saga/src/main/kotlin/bench/saga/loyalty/LoyaltyService.kt b/benchmark/saga/src/main/kotlin/bench/saga/loyalty/LoyaltyService.kt
+new file mode 100644
+index 0000000..c4da4df
+--- /dev/null
++++ b/benchmark/saga/src/main/kotlin/bench/saga/loyalty/LoyaltyService.kt
+@@ -0,0 +1,38 @@
++package bench.saga.loyalty
++
++import bench.env.LoyaltyClient
++import bench.env.SimDb
++import bench.saga.kit.Message
++import bench.saga.kit.Outbox
++import bench.saga.kit.markProcessed
++import bench.saga.kit.processedBefore
++import bench.saga.messages.AwardPoints
++import bench.saga.messages.Channels
++import bench.saga.messages.SagaReply
++import kotlinx.coroutines.TimeoutCancellationException
++import kotlinx.coroutines.withTimeout
++import java.io.IOException
++
++/**
++ * The loyalty participant. Like the payment participant, it checks for
++ * duplicates, calls the service, and then records the message as processed
++ * together with its reply.
++ */
++class LoyaltyService(private val db: SimDb, private val client: LoyaltyClient, private val timeoutMillis: Long = 1_000) {
++    suspend fun handle(message: Message) {
++        if (db.transaction { it.processedBefore("loyalty", message) }) return
++        val command = message.payload as AwardPoints
++        val reply = try {
++            withTimeout(timeoutMillis) { client.award(command.orderId, command.points) }
++            SagaReply.PointsAwarded(command.orderId)
++        } catch (e: TimeoutCancellationException) {
++            SagaReply.AwardFailed(command.orderId)
++        } catch (e: IOException) {
++            SagaReply.AwardFailed(command.orderId)
++        }
++        db.transaction { tx ->
++            tx.markProcessed("loyalty", message)
++            Outbox.send(tx, Channels.SAGA_REPLIES, reply)
++        }
++    }
++}
+diff --git a/benchmark/saga/src/main/kotlin/bench/saga/messages/Messages.kt b/benchmark/saga/src/main/kotlin/bench/saga/messages/Messages.kt
+index c2aaced..4d6023b 100644
+--- a/benchmark/saga/src/main/kotlin/bench/saga/messages/Messages.kt
++++ b/benchmark/saga/src/main/kotlin/bench/saga/messages/Messages.kt
+@@ -9,6 +9,8 @@ sealed interface InventoryCommand {
+ 
+ data class ChargeCard(val orderId: String, val amount: Long)
+ 
++data class AwardPoints(val orderId: String, val points: Int)
++
+ sealed interface SagaReply {
+     val orderId: String
+ 
+@@ -17,15 +19,20 @@ sealed interface SagaReply {
+     data class StockReleased(override val orderId: String) : SagaReply
+     data class PaymentSucceeded(override val orderId: String, val reference: String) : SagaReply
+     data class PaymentFailed(override val orderId: String, val reason: String) : SagaReply
++    data class PointsAwarded(override val orderId: String) : SagaReply
++    data class AwardFailed(override val orderId: String) : SagaReply
+ }
+ 
+-data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = null) {
+-    enum class Step { Reserving, Charging, Compensating, Done }
++/** [award] is the loyalty award of an approved order. */
++data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = null, val award: Award? = null) {
++    enum class Step { Reserving, Charging, Compensating, Awarding, Done }
+     enum class Outcome { Approved, Rejected }
++    enum class Award { Awarded, Failed }
+ }
+ 
+ object Channels {
+     const val INVENTORY = "inventory"
+     const val PAYMENT = "payment"
++    const val LOYALTY = "loyalty"
+     const val SAGA_REPLIES = "saga-replies"
+ }
+diff --git a/benchmark/saga/src/main/kotlin/bench/saga/order/CreateOrderSaga.kt b/benchmark/saga/src/main/kotlin/bench/saga/order/CreateOrderSaga.kt
+index eeca94e..8c984cc 100644
+--- a/benchmark/saga/src/main/kotlin/bench/saga/order/CreateOrderSaga.kt
++++ b/benchmark/saga/src/main/kotlin/bench/saga/order/CreateOrderSaga.kt
+@@ -2,12 +2,14 @@ package bench.saga.order
+ 
+ import bench.env.Order
+ import bench.env.SimDb
++import bench.saga.messages.SagaState.Award
+ import bench.saga.messages.SagaState.Outcome
+ import bench.saga.messages.SagaState.Step
+ import bench.saga.kit.Message
+ import bench.saga.kit.Outbox
+ import bench.saga.kit.markProcessed
+ import bench.saga.kit.processedBefore
++import bench.saga.messages.AwardPoints
+ import bench.saga.messages.Channels
+ import bench.saga.messages.ChargeCard
+ import bench.saga.messages.InventoryCommand
+@@ -16,10 +18,11 @@ import bench.saga.messages.SagaState
+ 
+ /**
+  * The orchestrator of an orchestration-based saga: reserve stock, charge the
+- * card (the pivot transaction), approve; compensate by releasing stock. The
+- * saga state and the commands it sends commit in one transaction.
++ * card (the pivot transaction), approve and award loyalty points; compensate
++ * by releasing stock. The saga state and the commands it sends commit in one
++ * transaction.
+  */
+-class CreateOrderSaga(private val db: SimDb) {
++class CreateOrderSaga(private val db: SimDb, private val points: Int) {
+     fun start(order: Order) = db.transaction { tx ->
+         if (tx.get<SagaState>(key(order.id)) != null) return@transaction
+         tx.put(key(order.id), SagaState(order, Step.Reserving))
+@@ -37,12 +40,17 @@ class CreateOrderSaga(private val db: SimDb) {
+                 saga.copy(step = Step.Charging)
+             }
+             saga.step == Step.Reserving && reply is SagaReply.StockUnavailable -> saga.copy(step = Step.Done, outcome = Outcome.Rejected)
+-            saga.step == Step.Charging && reply is SagaReply.PaymentSucceeded -> saga.copy(step = Step.Done, outcome = Outcome.Approved)
++            saga.step == Step.Charging && reply is SagaReply.PaymentSucceeded -> {
++                Outbox.send(tx, Channels.LOYALTY, AwardPoints(saga.order.id, points))
++                saga.copy(step = Step.Awarding, outcome = Outcome.Approved)
++            }
+             saga.step == Step.Charging && reply is SagaReply.PaymentFailed -> {
+                 Outbox.send(tx, Channels.INVENTORY, InventoryCommand.ReleaseStock(saga.order.id))
+                 saga.copy(step = Step.Compensating)
+             }
+             saga.step == Step.Compensating && reply is SagaReply.StockReleased -> saga.copy(step = Step.Done, outcome = Outcome.Rejected)
++            saga.step == Step.Awarding && reply is SagaReply.PointsAwarded -> saga.copy(step = Step.Done, award = Award.Awarded)
++            saga.step == Step.Awarding && reply is SagaReply.AwardFailed -> saga.copy(step = Step.Done, award = Award.Failed)
+             else -> saga
+         }
+         tx.put(key(reply.orderId), next)

@@ -1,0 +1,283 @@
+diff --git a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt
+index 491fd6a..56264eb 100644
+--- a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt
++++ b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt
+@@ -5,14 +5,20 @@ import bench.actors.kit.ActorSystem
+ import bench.careful.actors.behavior.DurableState
+ import bench.careful.actors.behavior.checkout
+ import bench.careful.actors.behavior.inventory
++import bench.careful.actors.behavior.loyalty
+ import bench.careful.actors.behavior.payments
+ import bench.careful.actors.protocol.CheckoutCommand
+ import bench.careful.actors.protocol.CheckoutState
+ import bench.careful.actors.protocol.InventoryCommand
+ import bench.careful.actors.protocol.InventoryState
++import bench.careful.actors.protocol.LoyaltyCommand
+ import bench.careful.actors.protocol.PaymentCommand
++import bench.env.Changes
+ import bench.env.CheckoutSystem
++import bench.env.LoyaltyClient
++import bench.env.LoyaltyPoints
+ import bench.env.Order
++import bench.env.Points
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -20,17 +26,18 @@ import bench.env.Terminal
+ import bench.env.World
+ 
+ /** Guardian: spawns the inventory, payment and checkout actors, and recovers checkouts after a restart. */
+-class CarefulActorsSystem : CheckoutSystem {
++class CarefulActorsSystem : CheckoutSystem, LoyaltyPoints {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var system: ActorSystem
+     private lateinit var inventory: ActorRef<InventoryCommand>
+     private lateinit var payments: ActorRef<PaymentCommand>
++    private lateinit var loyalty: ActorRef<LoyaltyCommand>
+ 
+     private fun store(orderId: String) = DurableState<CheckoutState>(world.db, "actor/checkout/$orderId")
+ 
+     private fun spawnCheckout(state: CheckoutState) =
+-        system.checkout(store(state.order.id), state, inventory, payments, Scenario.PROVIDER_HORIZON_MILLIS).tell(CheckoutCommand.Drive)
++        system.checkout(store(state.order.id), state, inventory, payments, loyalty, Changes.POINTS, Scenario.PROVIDER_HORIZON_MILLIS).tell(CheckoutCommand.Drive)
+ 
+     override fun boot(world: World) {
+         this.world = world
+@@ -39,6 +46,7 @@ class CarefulActorsSystem : CheckoutSystem {
+             system = ActorSystem(process.scope)
+             inventory = system.inventory(DurableState(world.db, "actor/inventory"), InventoryState(Scenario.STOCK))
+             payments = system.payments(ProviderClient(world.provider))
++            loyalty = system.loyalty(LoyaltyClient(world.loyalty))
+             for (key in world.db.keys("actor/checkout/")) spawnCheckout(world.db.get(key) as CheckoutState)
+         }
+     }
+@@ -60,5 +68,11 @@ class CarefulActorsSystem : CheckoutSystem {
+         else -> null
+     }
+ 
++    override fun points(orderId: String): Points? = when (store(orderId).load()?.award) {
++        CheckoutState.Award.Awarded -> Points.Awarded
++        CheckoutState.Award.NeedsAttention -> Points.NeedsAttention
++        else -> null
++    }
++
+     override fun reserved(): Map<String, Int> = (world.db.get("actor/inventory") as InventoryState?)?.reservations.orEmpty()
+ }
+diff --git a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt
+index 2c3361d..3ca35c6 100644
+--- a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt
++++ b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt
+@@ -3,16 +3,21 @@ package bench.careful.actors.behavior
+ import bench.actors.kit.ActorContext
+ import bench.actors.kit.ActorRef
+ import bench.actors.kit.ActorSystem
++import bench.careful.actors.protocol.AwardReply
+ import bench.careful.actors.protocol.ChargeReply
+ import bench.careful.actors.protocol.CheckoutCommand
+ import bench.careful.actors.protocol.CheckoutState
++import bench.careful.actors.protocol.CheckoutState.Award
+ import bench.careful.actors.protocol.CheckoutState.Stage
+ import bench.careful.actors.protocol.InventoryCommand
+ import bench.careful.actors.protocol.InventoryState
++import bench.careful.actors.protocol.LoyaltyCommand
+ import bench.careful.actors.protocol.PaymentCommand
++import bench.env.AwardStatus
+ import bench.env.ChargeResult
+ import bench.env.ChargeStatus
+ import bench.env.ConnectionRefused
++import bench.env.LoyaltyClient
+ import bench.env.ProviderClient
+ import bench.env.SimDb
+ import kotlinx.coroutines.CompletableDeferred
+@@ -69,6 +74,27 @@ fun ActorSystem.payments(client: ProviderClient): ActorRef<PaymentCommand> = spa
+     }
+ }
+ 
++/** Calls the loyalty service and reports what each award request proves; the asker's timeout bounds the wait. */
++fun ActorSystem.loyalty(client: LoyaltyClient): ActorRef<LoyaltyCommand> = spawn { command ->
++    when (command) {
++        is LoyaltyCommand.Award -> run {
++            val reply = try {
++                client.award(command.orderId, command.points)
++                AwardReply.Awarded
++            } catch (e: ConnectionRefused) {
++                AwardReply.NotSent
++            } catch (e: IOException) {
++                AwardReply.Unknown
++            }
++            command.replyTo.complete(reply)
++        }
++        is LoyaltyCommand.QueryAward -> run {
++            runCatching { client.status(command.orderId) }
++                .fold({ command.replyTo.complete(it) }, { command.replyTo.completeExceptionally(it) })
++        }
++    }
++}
++
+ /**
+  * One actor per checkout. A charge is sent again only after evidence that it
+  * was not sent. When its outcome is unknown (the ask timed out, or the
+@@ -76,13 +102,16 @@ fun ActorSystem.payments(client: ProviderClient): ActorRef<PaymentCommand> = spa
+  * provider's delivery horizon and the actor asks the provider's status
+  * endpoint. After a restart, a checkout that may have been charged is
+  * reconciled the same way, never charged again: side effects are not re-run on
+- * recovery, as with Akka's durable state.
++ * recovery, as with Akka's durable state. A completed checkout then awards
++ * the order's loyalty points with the same policy.
+  */
+ fun ActorSystem.checkout(
+     store: DurableState<CheckoutState>,
+     initial: CheckoutState,
+     inventory: ActorRef<InventoryCommand>,
+     payments: ActorRef<PaymentCommand>,
++    loyalty: ActorRef<LoyaltyCommand>,
++    points: Int,
+     horizonMillis: Long,
+     askTimeoutMillis: Long = 1_000,
+     maxSends: Int = 3,
+@@ -117,13 +146,38 @@ fun ActorSystem.checkout(
+             }) { CheckoutCommand.Released(it.isSuccess) }
+         }
+ 
++        // Like the charge: persisted before the request, so that a restart knows the award may have been sent.
++        fun ActorContext<CheckoutCommand>.award(sends: Int) {
++            if (sends > maxSends) return persist(state.copy(award = Award.NeedsAttention))
++            persist(state.copy(award = Award.Awarding, awardSends = sends))
++            ask(loyalty, askTimeoutMillis, { reply: CompletableDeferred<AwardReply> ->
++                LoyaltyCommand.Award(state.order.id, points, reply)
++            }) { CheckoutCommand.AwardSent(it.getOrDefault(AwardReply.Unknown)) }
++        }
++
++        fun ActorContext<CheckoutCommand>.reconcileAward(queries: Int) {
++            persist(state.copy(award = Award.Reconciling, awardQueries = queries))
++            scheduleOnce(horizonMillis, CheckoutCommand.CheckAward)
++        }
++
++        fun ActorContext<CheckoutCommand>.complete() {
++            persist(state.copy(stage = Stage.Completed))
++            award(1)
++        }
++
+         when (command) {
+             CheckoutCommand.Drive -> when (state.stage) {
+                 Stage.Reserving -> reserve()
+                 Stage.Charging -> reconcile(0) // possibly sent before the restart
+                 Stage.Reconciling -> scheduleOnce(horizonMillis, CheckoutCommand.CheckStatus)
+                 Stage.Releasing -> release(state.reason ?: "payment failed")
+-                Stage.Completed, Stage.Failed, Stage.NeedsAttention -> Unit
++                Stage.Completed -> when (state.award) {
++                    null -> award(1)
++                    Award.Awarding -> reconcileAward(0) // possibly sent before the restart
++                    Award.Reconciling -> scheduleOnce(horizonMillis, CheckoutCommand.CheckAward)
++                    Award.Awarded, Award.NeedsAttention -> Unit
++                }
++                Stage.Failed, Stage.NeedsAttention -> Unit
+             }
+             is CheckoutCommand.Reserved -> if (state.stage == Stage.Reserving) {
+                 when (command.result.getOrNull()) {
+@@ -134,7 +188,7 @@ fun ActorSystem.checkout(
+             }
+             is CheckoutCommand.Charged -> if (state.stage == Stage.Charging) {
+                 when (val reply = command.reply) {
+-                    is ChargeReply.Charged -> persist(state.copy(stage = Stage.Completed))
++                    is ChargeReply.Charged -> complete()
+                     ChargeReply.Declined -> release("declined")
+                     ChargeReply.NotSent -> if (state.sends < maxSends) charge(state.sends + 1) else release("payment provider unreachable")
+                     ChargeReply.Unknown -> reconcile(0)
+@@ -147,7 +201,7 @@ fun ActorSystem.checkout(
+             }
+             is CheckoutCommand.StatusChecked -> if (state.stage == Stage.Reconciling) {
+                 when (command.status) {
+-                    is ChargeStatus.Charged -> persist(state.copy(stage = Stage.Completed))
++                    is ChargeStatus.Charged -> complete()
+                     ChargeStatus.NoCharge -> release("not charged")
+                     null -> if (state.queries + 1 < maxQueries) reconcile(state.queries + 1) else persist(state.copy(stage = Stage.NeedsAttention))
+                 }
+@@ -155,6 +209,25 @@ fun ActorSystem.checkout(
+             is CheckoutCommand.Released -> if (state.stage == Stage.Releasing) {
+                 if (command.acknowledged) persist(state.copy(stage = Stage.Failed)) else release(state.reason ?: "payment failed")
+             }
++            is CheckoutCommand.AwardSent -> if (state.award == Award.Awarding) {
++                when (command.reply) {
++                    AwardReply.Awarded -> persist(state.copy(award = Award.Awarded))
++                    AwardReply.NotSent -> award(state.awardSends + 1)
++                    AwardReply.Unknown -> reconcileAward(0)
++                }
++            }
++            CheckoutCommand.CheckAward -> if (state.award == Award.Reconciling) {
++                ask(loyalty, askTimeoutMillis, { reply: CompletableDeferred<AwardStatus> ->
++                    LoyaltyCommand.QueryAward(state.order.id, reply)
++                }) { CheckoutCommand.AwardChecked(it.getOrNull()) }
++            }
++            is CheckoutCommand.AwardChecked -> if (state.award == Award.Reconciling) {
++                when (command.status) {
++                    is AwardStatus.Awarded -> persist(state.copy(award = Award.Awarded))
++                    AwardStatus.NotAwarded -> award(state.awardSends + 1)
++                    null -> if (state.awardQueries + 1 < maxQueries) reconcileAward(state.awardQueries + 1) else persist(state.copy(award = Award.NeedsAttention))
++                }
++            }
+         }
+     }
+ }
+diff --git a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt
+index 9a68c64..dce27dc 100644
+--- a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt
++++ b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt
+@@ -1,5 +1,6 @@
+ package bench.careful.actors.protocol
+ 
++import bench.env.AwardStatus
+ import bench.env.ChargeStatus
+ import bench.env.Order
+ import kotlinx.coroutines.CompletableDeferred
+@@ -28,6 +29,14 @@ sealed interface PaymentCommand {
+     data class QueryStatus(val orderId: String, val replyTo: CompletableDeferred<ChargeStatus>) : PaymentCommand
+ }
+ 
++/** What one award request established, as the loyalty actor reports it. */
++enum class AwardReply { Awarded, NotSent, Unknown }
++
++sealed interface LoyaltyCommand {
++    data class Award(val orderId: String, val points: Int, val replyTo: CompletableDeferred<AwardReply>) : LoyaltyCommand
++    data class QueryAward(val orderId: String, val replyTo: CompletableDeferred<AwardStatus>) : LoyaltyCommand
++}
++
+ sealed interface CheckoutCommand {
+     /** Starts or, after recovery, resumes the current stage. A charge that may have been sent is not sent again. */
+     data object Drive : CheckoutCommand
+@@ -40,14 +49,32 @@ sealed interface CheckoutCommand {
+     /** The provider's status, or null when it could not be read. */
+     data class StatusChecked(val status: ChargeStatus?) : CheckoutCommand
+     data class Released(val acknowledged: Boolean) : CheckoutCommand
++    data class AwardSent(val reply: AwardReply) : CheckoutCommand
++
++    /** The timer that ends the wait past the loyalty service's delivery horizon. */
++    data object CheckAward : CheckoutCommand
++
++    /** The loyalty service's status, or null when it could not be read. */
++    data class AwardChecked(val status: AwardStatus?) : CheckoutCommand
+ }
+ 
+ /**
+  * The durable state of one checkout actor. [Stage.Charging] is persisted before
+- * every charge request, so after a restart it means "possibly charged".
++ * every charge request, so after a restart it means "possibly charged";
++ * [Award.Awarding] likewise before every award request of a completed checkout.
+  */
+-data class CheckoutState(val order: Order, val stage: Stage, val sends: Int = 0, val queries: Int = 0, val reason: String? = null) {
++data class CheckoutState(
++    val order: Order,
++    val stage: Stage,
++    val sends: Int = 0,
++    val queries: Int = 0,
++    val reason: String? = null,
++    val award: Award? = null,
++    val awardSends: Int = 0,
++    val awardQueries: Int = 0,
++) {
+     enum class Stage { Reserving, Charging, Reconciling, Releasing, Completed, Failed, NeedsAttention }
++    enum class Award { Awarding, Reconciling, Awarded, NeedsAttention }
+ }
+ 
+ /** The durable state of the inventory actor. */

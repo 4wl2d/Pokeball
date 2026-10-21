@@ -1,0 +1,133 @@
+diff --git a/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt b/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
+index 83b51f8..673507d 100644
+--- a/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
++++ b/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
+@@ -2,6 +2,7 @@ package bench.mvu.app
+ 
+ import bench.env.CheckoutSystem
+ import bench.env.Order
++import bench.env.OrderCancellation
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -17,7 +18,7 @@ import bench.mvu.kit.Program
+ import kotlinx.coroutines.withTimeout
+ 
+ /** Wires the program: persistence of the model, and the effects of commands. */
+-class MvuSystem : CheckoutSystem {
++class MvuSystem : CheckoutSystem, OrderCancellation {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var program: Program<Model, Msg, Cmd>
+@@ -37,13 +38,16 @@ class MvuSystem : CheckoutSystem {
+                 perform = { cmd ->
+                     when (cmd) {
+                         is Cmd.Charge -> Msg.ChargeCompleted(cmd.orderId, runCatching { withTimeout(1_000) { client.charge(cmd.orderId, cmd.amount) } })
++                        is Cmd.Refund -> Msg.RefundCompleted(cmd.orderId, runCatching { withTimeout(1_000) { client.refund(cmd.orderId, cmd.amount) } })
+                     }
+                 },
+             )
+         }
+     }
+ 
+-    override fun start(order: Order) = process.execute { program.dispatch(Msg.Place(order)) }
++    override fun start(order: Order) = process.execute { program.dispatch(Msg.Place(order, world.scheduler.now())) }
++
++    override fun cancel(orderId: String) = process.execute { program.dispatch(Msg.Cancel(orderId, world.scheduler.now())) }
+ 
+     override fun crash() = process.kill()
+ 
+@@ -52,9 +56,11 @@ class MvuSystem : CheckoutSystem {
+     override fun outcome(orderId: String): Terminal? = when (saved?.orders?.get(orderId)?.stage) {
+         OrderModel.Stage.Completed -> Terminal.Completed
+         OrderModel.Stage.Failed -> Terminal.Failed
++        OrderModel.Stage.Refunded -> Terminal.Refunded
+         else -> null
+     }
+ 
+     override fun reserved(): Map<String, Int> =
+-        saved?.orders?.values.orEmpty().filter { it.stage != OrderModel.Stage.Failed }.associate { it.order.id to it.order.quantity }
++        saved?.orders?.values.orEmpty().filter { it.stage != OrderModel.Stage.Failed && it.stage != OrderModel.Stage.Refunded }
++            .associate { it.order.id to it.order.quantity }
+ }
+diff --git a/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt b/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
+index 1ab5a63..092f61d 100644
+--- a/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
++++ b/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
+@@ -1,29 +1,35 @@
+ package bench.mvu.core
+ 
++import bench.env.Changes
+ import bench.env.ChargeResult
+ import bench.env.Order
++import bench.env.RefundResult
+ 
+ /** The whole application state, one store (as in Redux). */
+ data class Model(val stock: Int, val orders: Map<String, OrderModel> = emptyMap())
+ 
+-data class OrderModel(val order: Order, val stage: Stage, val reference: String? = null) {
+-    enum class Stage { Paying, Completed, Failed }
++data class OrderModel(val order: Order, val stage: Stage, val reference: String? = null, val placedAt: Long = 0) {
++    enum class Stage { Paying, Completed, Failed, Refunding, Refunded }
+ }
+ 
+ sealed interface Msg {
+-    data class Place(val order: Order) : Msg
++    data class Place(val order: Order, val at: Long) : Msg
+     data class ChargeCompleted(val orderId: String, val result: Result<ChargeResult>) : Msg
++    data class Cancel(val orderId: String, val at: Long) : Msg
++    data class RefundCompleted(val orderId: String, val result: Result<RefundResult>) : Msg
+ }
+ 
+ sealed interface Cmd {
+     data class Charge(val orderId: String, val amount: Long) : Cmd
++    data class Refund(val orderId: String, val amount: Long) : Cmd
+ }
+ 
+-/** Starts from the persisted model and re-issues the commands of orders that were being paid. */
++/** Starts from the persisted model and re-issues the commands of orders that were being paid or refunded. */
+ fun init(saved: Model?, stock: Int): Pair<Model, List<Cmd>> {
+     val model = saved ?: Model(stock)
+     val resume = model.orders.values.filter { it.stage == OrderModel.Stage.Paying }.map { Cmd.Charge(it.order.id, it.order.amount) }
+-    return model to resume
++    val refunds = model.orders.values.filter { it.stage == OrderModel.Stage.Refunding }.map { Cmd.Refund(it.order.id, it.order.amount) }
++    return model to resume + refunds
+ }
+ 
+ /** Pure: the next model and the commands to perform. */
+@@ -34,7 +40,7 @@ fun update(model: Model, msg: Msg): Pair<Model, List<Cmd>> = when (msg) {
+             model.copy(orders = model.orders + (msg.order.id to OrderModel(msg.order, OrderModel.Stage.Failed))) to emptyList()
+         else -> model.copy(
+             stock = model.stock - msg.order.quantity,
+-            orders = model.orders + (msg.order.id to OrderModel(msg.order, OrderModel.Stage.Paying)),
++            orders = model.orders + (msg.order.id to OrderModel(msg.order, OrderModel.Stage.Paying, placedAt = msg.at)),
+         ) to listOf(Cmd.Charge(msg.order.id, msg.order.amount))
+     }
+     is Msg.ChargeCompleted -> {
+@@ -53,4 +59,26 @@ fun update(model: Model, msg: Msg): Pair<Model, List<Cmd>> = when (msg) {
+             }
+         }
+     }
++    is Msg.Cancel -> {
++        val current = model.orders[msg.orderId]
++        if (current == null || current.stage != OrderModel.Stage.Completed || msg.at - current.placedAt > Changes.CANCEL_WINDOW_MILLIS) {
++            model to emptyList()
++        } else {
++            model.copy(orders = model.orders + (msg.orderId to current.copy(stage = OrderModel.Stage.Refunding))) to
++                listOf(Cmd.Refund(msg.orderId, current.order.amount))
++        }
++    }
++    is Msg.RefundCompleted -> {
++        val current = model.orders[msg.orderId]
++        if (current == null || current.stage != OrderModel.Stage.Refunding) {
++            model to emptyList()
++        } else if (msg.result.isSuccess) {
++            model.copy(
++                stock = model.stock + current.order.quantity,
++                orders = model.orders + (msg.orderId to current.copy(stage = OrderModel.Stage.Refunded)),
++            ) to emptyList()
++        } else {
++            model.copy(orders = model.orders + (msg.orderId to current.copy(stage = OrderModel.Stage.Completed))) to emptyList()
++        }
++    }
+ }

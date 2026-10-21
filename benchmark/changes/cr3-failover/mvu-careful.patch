@@ -1,0 +1,104 @@
+diff --git a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
+index 7fe8ba3..f8fa2b2 100644
+--- a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
++++ b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
+@@ -37,7 +37,8 @@ class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem
+     override fun boot(world: World) {
+         this.world = world
+         process = Process(world.scheduler)
+-        val client = ProviderClient(world.provider)
++        val primary = ProviderClient(world.provider)
++        val secondary = ProviderClient(world.secondaryProvider)
+         process.execute {
+             program = Program(
+                 scope = process.scope,
+@@ -46,10 +47,10 @@ class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem
+                 persist = { model -> world.db.transaction { it.put("mvu/model", model) } },
+                 perform = { cmd ->
+                     when (cmd) {
+-                        is Cmd.Charge -> Msg.ChargeCompleted(cmd.orderId, charge(client, cmd))
++                        is Cmd.Charge -> Msg.ChargeCompleted(cmd.orderId, charge(if (cmd.secondary) secondary else primary, cmd))
+                         is Cmd.CheckStatus -> {
+                             delay(cmd.afterMillis)
+-                            Msg.StatusChecked(cmd.orderId, status(client, cmd.orderId))
++                            Msg.StatusChecked(cmd.orderId, status(if (cmd.secondary) secondary else primary, cmd.orderId))
+                         }
+                     }
+                 },
+diff --git a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
+index 47070c3..560843d 100644
+--- a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
++++ b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
+@@ -7,9 +7,10 @@ data class Model(val stock: Int, val orders: Map<String, OrderModel> = emptyMap(
+ 
+ /**
+  * [Stage.Paying] is persisted before its charge command runs, so after a
+- * restart it means "possibly charged"; [sends] counts the requests made.
++ * restart it means "possibly charged"; [sends] counts the requests made, at
++ * the secondary provider when [onSecondary].
+  */
+-data class OrderModel(val order: Order, val stage: Stage, val sends: Int = 0, val queries: Int = 0, val reference: String? = null) {
++data class OrderModel(val order: Order, val stage: Stage, val sends: Int = 0, val queries: Int = 0, val reference: String? = null, val onSecondary: Boolean = false) {
+     enum class Stage { Paying, Reconciling, Completed, Failed, NeedsAttention }
+ }
+ 
+@@ -39,10 +40,10 @@ sealed interface Msg {
+ }
+ 
+ sealed interface Cmd {
+-    data class Charge(val orderId: String, val amount: Long) : Cmd
++    data class Charge(val orderId: String, val amount: Long, val secondary: Boolean = false) : Cmd
+ 
+     /** Waits [afterMillis], then asks the provider's status endpoint. */
+-    data class CheckStatus(val orderId: String, val afterMillis: Long) : Cmd
++    data class CheckStatus(val orderId: String, val afterMillis: Long, val secondary: Boolean) : Cmd
+ }
+ 
+ /** The program's flags: the provider's delivery horizon and the retry budgets. */
+@@ -57,7 +58,7 @@ fun init(config: Config, saved: Model?, stock: Int): Pair<Model, List<Cmd>> {
+     val model = saved ?: Model(stock)
+     val open = model.orders.values.filter { it.stage == OrderModel.Stage.Paying || it.stage == OrderModel.Stage.Reconciling }
+     val reconciling = open.fold(model) { m, o -> m.put(if (o.stage == OrderModel.Stage.Paying) o.copy(stage = OrderModel.Stage.Reconciling, queries = 0) else o) }
+-    return reconciling to open.map { Cmd.CheckStatus(it.order.id, config.horizonMillis) }
++    return reconciling to open.map { Cmd.CheckStatus(it.order.id, config.horizonMillis, it.onSecondary) }
+ }
+ 
+ /** Pure: the next model and the commands to perform. */
+@@ -78,23 +79,32 @@ private fun charged(config: Config, model: Model, order: OrderModel, outcome: Ch
+     is ChargeOutcome.Charged -> model.put(order.copy(stage = OrderModel.Stage.Completed, reference = outcome.reference)) to emptyList()
+     ChargeOutcome.Declined -> model.fail(order) to emptyList()
+     ChargeOutcome.NotSent ->
+-        if (order.sends < config.maxSends) model.put(order.copy(sends = order.sends + 1)) to listOf(Cmd.Charge(order.order.id, order.order.amount))
+-        else model.fail(order) to emptyList()
++        if (order.sends < config.maxSends) model.put(order.copy(sends = order.sends + 1)) to listOf(Cmd.Charge(order.order.id, order.order.amount, order.onSecondary))
++        else notCharged(model, order)
+     ChargeOutcome.Unknown ->
+-        model.put(order.copy(stage = OrderModel.Stage.Reconciling, queries = 0)) to listOf(Cmd.CheckStatus(order.order.id, config.horizonMillis))
++        model.put(order.copy(stage = OrderModel.Stage.Reconciling, queries = 0)) to listOf(Cmd.CheckStatus(order.order.id, config.horizonMillis, order.onSecondary))
+ }
+ 
+ private fun checked(config: Config, model: Model, order: OrderModel, status: StatusOutcome): Pair<Model, List<Cmd>> = when (status) {
+     is StatusOutcome.Charged -> model.put(order.copy(stage = OrderModel.Stage.Completed, reference = status.reference)) to emptyList()
+-    StatusOutcome.NoCharge -> model.fail(order) to emptyList()
++    StatusOutcome.NoCharge -> notCharged(model, order)
+     StatusOutcome.Unavailable ->
+         if (order.queries + 1 < config.maxQueries) {
+-            model.put(order.copy(queries = order.queries + 1)) to listOf(Cmd.CheckStatus(order.order.id, config.horizonMillis))
++            model.put(order.copy(queries = order.queries + 1)) to listOf(Cmd.CheckStatus(order.order.id, config.horizonMillis, order.onSecondary))
+         } else {
+             model.put(order.copy(stage = OrderModel.Stage.NeedsAttention)) to emptyList()
+         }
+ }
+ 
++/** The provider in use provably did not charge: the order is charged at the secondary, or fails if it already was. */
++private fun notCharged(model: Model, order: OrderModel): Pair<Model, List<Cmd>> =
++    if (order.onSecondary) {
++        model.fail(order) to emptyList()
++    } else {
++        model.put(order.copy(stage = OrderModel.Stage.Paying, sends = 1, onSecondary = true)) to
++            listOf(Cmd.Charge(order.order.id, order.order.amount, secondary = true))
++    }
++
+ private fun Model.put(order: OrderModel) = copy(orders = orders + (order.order.id to order))
+ 
+ private fun Model.fail(order: OrderModel) = copy(stock = stock + order.order.quantity).put(order.copy(stage = OrderModel.Stage.Failed))

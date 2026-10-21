@@ -1,0 +1,145 @@
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/adapters/DbRepositories.kt b/benchmark/layered/src/main/kotlin/bench/layered/adapters/DbRepositories.kt
+index 671bfb4..3fb61f2 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/adapters/DbRepositories.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/adapters/DbRepositories.kt
+@@ -1,7 +1,6 @@
+ package bench.layered.adapters
+ 
+ import bench.env.SimDb
+-import bench.layered.application.InventoryRepository
+ import bench.layered.application.OrderRepository
+ import bench.layered.domain.CheckoutOrder
+ 
+@@ -13,23 +12,3 @@ class DbOrderRepository(private val db: SimDb) : OrderRepository {
+     override fun unfinished(): List<CheckoutOrder> =
+         db.keys("order/").map { db.get(it) as CheckoutOrder }.filter { !it.isTerminal }
+ }
+-
+-class DbInventoryRepository(private val db: SimDb, private val initialStock: Map<String, Int>) : InventoryRepository {
+-    override fun reserve(orderId: String, sku: String, quantity: Int): Boolean = db.transaction { tx ->
+-        if (tx.get<Int>("reservation/$orderId") != null) return@transaction true
+-        val stock = tx.get<Int>("stock/$sku") ?: initialStock[sku] ?: 0
+-        if (stock < quantity) return@transaction false
+-        tx.put("stock/$sku", stock - quantity)
+-        tx.put("reservation/$orderId", quantity)
+-        tx.put("reservation-sku/$orderId", sku)
+-        true
+-    }
+-
+-    override fun release(orderId: String) = db.transaction { tx ->
+-        val quantity = tx.get<Int>("reservation/$orderId") ?: return@transaction
+-        val sku = tx.get<String>("reservation-sku/$orderId")!!
+-        tx.put("stock/$sku", (tx.get<Int>("stock/$sku") ?: 0) + quantity)
+-        tx.delete("reservation/$orderId")
+-        tx.delete("reservation-sku/$orderId")
+-    }
+-}
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt b/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
+index cd5774b..8e8fccf 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
+@@ -4,10 +4,8 @@ import bench.env.CheckoutSystem
+ import bench.env.Order
+ import bench.env.Process
+ import bench.env.ProviderClient
+-import bench.env.Scenario
+ import bench.env.Terminal
+ import bench.env.World
+-import bench.layered.adapters.DbInventoryRepository
+ import bench.layered.adapters.DbOrderRepository
+ import bench.layered.adapters.ProviderPaymentGateway
+ import bench.layered.application.CheckoutInteractor
+@@ -16,17 +14,14 @@ import kotlinx.coroutines.launch
+ 
+ /** Main component: wires the layers and starts a background job that resumes interrupted orders. */
+ class LayeredSystem : CheckoutSystem {
+-    private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var interactor: CheckoutInteractor
+     private lateinit var orders: DbOrderRepository
+ 
+     override fun boot(world: World) {
+-        this.world = world
+         process = Process(world.scheduler)
+         orders = DbOrderRepository(world.db)
+-        val inventory = DbInventoryRepository(world.db, mapOf(Scenario.SKU to Scenario.STOCK))
+-        interactor = CheckoutInteractor(orders, inventory, ProviderPaymentGateway(ProviderClient(world.provider)))
++        interactor = CheckoutInteractor(orders, ProviderPaymentGateway(ProviderClient(world.provider)))
+         process.scope.launch { interactor.resumeUnfinished() }
+     }
+ 
+@@ -45,6 +40,5 @@ class LayeredSystem : CheckoutSystem {
+         else -> null
+     }
+ 
+-    override fun reserved(): Map<String, Int> =
+-        world.db.keys("reservation/").associate { it.removePrefix("reservation/") to world.db.get(it) as Int }
++    override fun reserved(): Map<String, Int> = emptyMap()
+ }
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt b/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
+index 1cc34be..1399001 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
+@@ -17,7 +17,6 @@ interface CheckoutInputPort {
+  */
+ class CheckoutInteractor(
+     private val orders: OrderRepository,
+-    private val inventory: InventoryRepository,
+     private val payments: PaymentGateway,
+ ) : CheckoutInputPort {
+     override fun place(order: CheckoutOrder) {
+@@ -27,18 +26,9 @@ class CheckoutInteractor(
+     override suspend fun process(orderId: String) {
+         var order = orders.find(orderId) ?: return
+         if (order.status == Status.NEW) {
+-            if (!inventory.reserve(order.id, order.sku, order.quantity)) {
+-                orders.save(order.failed("out of stock"))
+-                return
+-            }
+-            order = order.reserved()
+-            orders.save(order)
+-        }
+-        if (order.status == Status.RESERVED) {
+             order = try {
+                 order.paid(payments.charge(order.id, order.amount))
+             } catch (e: PaymentFailedException) {
+-                inventory.release(order.id)
+                 orders.save(order.failed(e.message ?: "payment failed"))
+                 return
+             }
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt b/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt
+index e1b6960..ba253d9 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt
+@@ -9,13 +9,6 @@ interface OrderRepository {
+     fun unfinished(): List<CheckoutOrder>
+ }
+ 
+-/** Output port: stock reservations, one per order. */
+-interface InventoryRepository {
+-    /** Reserves [quantity] for [orderId]; repeating it for the same order changes nothing. Returns false when out of stock. */
+-    fun reserve(orderId: String, sku: String, quantity: Int): Boolean
+-    fun release(orderId: String)
+-}
+-
+ /** Output port: the payment provider. */
+ interface PaymentGateway {
+     /** Charges [amount] for [orderId]. Throws [PaymentFailedException] when the payment did not succeed. */
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt b/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
+index 19af1c2..90f40e9 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
+@@ -10,12 +10,10 @@ data class CheckoutOrder(
+     val paymentReference: String? = null,
+     val failureReason: String? = null,
+ ) {
+-    enum class Status { NEW, RESERVED, PAID, COMPLETED, FAILED }
++    enum class Status { NEW, PAID, COMPLETED, FAILED }
+ 
+     val isTerminal: Boolean get() = status == Status.COMPLETED || status == Status.FAILED
+ 
+-    fun reserved() = copy(status = Status.RESERVED)
+-
+     fun paid(reference: String) = copy(status = Status.PAID, paymentReference = reference)
+ 
+     fun completed() = copy(status = Status.COMPLETED)

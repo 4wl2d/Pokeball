@@ -1,0 +1,182 @@
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/adapters/ProviderPaymentGateway.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/adapters/ProviderPaymentGateway.kt
+index 5e6bfca..7cf236c 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/adapters/ProviderPaymentGateway.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/adapters/ProviderPaymentGateway.kt
+@@ -36,4 +36,13 @@ class ProviderPaymentGateway(private val client: ProviderClient, private val tim
+     } catch (e: IOException) {
+         PaymentStatus.Unavailable
+     }
++
++    override suspend fun refund(orderId: String, amount: Long): Boolean = try {
++        withTimeout(timeoutMillis) { client.refund(orderId, amount) }
++        true
++    } catch (e: TimeoutCancellationException) {
++        false
++    } catch (e: IOException) {
++        false
++    }
+ }
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
+index 4a423a1..a94c798 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
+@@ -1,7 +1,9 @@
+ package bench.hardened.app
+ 
++import bench.env.Changes
+ import bench.env.CheckoutSystem
+ import bench.env.Order
++import bench.env.OrderCancellation
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -16,7 +18,7 @@ import bench.hardened.domain.CheckoutOrder
+ import kotlinx.coroutines.launch
+ 
+ /** Main component: wires the layers and starts a background job that resumes interrupted orders. */
+-class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = ::ProviderPaymentGateway) : CheckoutSystem {
++class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = ::ProviderPaymentGateway) : CheckoutSystem, OrderCancellation {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var interactor: CheckoutInteractor
+@@ -27,7 +29,9 @@ class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = :
+         process = Process(world.scheduler)
+         orders = DbOrderRepository(world.db)
+         val inventory = DbInventoryRepository(world.db, mapOf(Scenario.SKU to Scenario.STOCK))
+-        interactor = CheckoutInteractor(orders, inventory, gateway(ProviderClient(world.provider)), Scenario.PROVIDER_HORIZON_MILLIS)
++        interactor = CheckoutInteractor(
++            orders, inventory, gateway(ProviderClient(world.provider)), Scenario.PROVIDER_HORIZON_MILLIS, world.scheduler::now, Changes.CANCEL_WINDOW_MILLIS,
++        )
+         process.scope.launch { interactor.resumeUnfinished() }
+     }
+ 
+@@ -36,6 +40,8 @@ class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = :
+         process.scope.launch { interactor.process(order.id) }
+     }
+ 
++    override fun cancel(orderId: String) = process.execute { process.scope.launch { interactor.cancel(orderId) } }
++
+     override fun crash() = process.kill()
+ 
+     override fun accepted(orderId: String) = orders.find(orderId) != null
+@@ -44,6 +50,7 @@ class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = :
+         CheckoutOrder.Status.COMPLETED -> Terminal.Completed
+         CheckoutOrder.Status.FAILED -> Terminal.Failed
+         CheckoutOrder.Status.NEEDS_ATTENTION -> Terminal.NeedsAttention
++        CheckoutOrder.Status.REFUNDED -> Terminal.Refunded
+         else -> null
+     }
+ 
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
+index 55c8343..25ec2a6 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
+@@ -7,6 +7,7 @@ import kotlinx.coroutines.delay
+ interface CheckoutInputPort {
+     fun place(order: CheckoutOrder)
+     suspend fun process(orderId: String)
++    suspend fun cancel(orderId: String)
+ }
+ 
+ /**
+@@ -16,18 +17,23 @@ interface CheckoutInputPort {
+  * - a charge is repeated only after evidence that it was not sent;
+  * - an uncertain charge is reconciled: wait until no request can still arrive,
+  *   then ask the provider's status endpoint, and never charge again;
+- * - after a restart, CHARGING orders are reconciled, never re-charged.
++ * - after a restart, CHARGING orders are reconciled, never re-charged;
++ * - a completed order cancelled within the window is refunded, then its stock
++ *   is released; a refund can be repeated, since the provider never refunds
++ *   more than it charged.
+  */
+ class CheckoutInteractor(
+     private val orders: OrderRepository,
+     private val inventory: InventoryRepository,
+     private val payments: PaymentGateway,
+     private val horizonMillis: Long,
++    private val clock: () -> Long,
++    private val cancelWindowMillis: Long,
+     private val maxSends: Int = 3,
+     private val maxQueries: Int = 3,
+ ) : CheckoutInputPort {
+     override fun place(order: CheckoutOrder) {
+-        if (orders.find(order.id) == null) orders.save(order)
++        if (orders.find(order.id) == null) orders.save(order.copy(placedAt = clock()))
+     }
+ 
+     override suspend fun process(orderId: String) {
+@@ -43,6 +49,14 @@ class CheckoutInteractor(
+         if (order.status == Status.RESERVED) order = pay(order)
+         if (order.status == Status.CHARGING) order = reconcile(order)
+         if (order.status == Status.PAID) orders.save(order.completed())
++        if (order.status == Status.REFUNDING) refund(order)
++    }
++
++    override suspend fun cancel(orderId: String) {
++        val order = orders.find(orderId) ?: return
++        if (!order.cancellable(clock(), cancelWindowMillis)) return
++        orders.save(order.refunding())
++        process(orderId)
+     }
+ 
+     suspend fun resumeUnfinished() {
+@@ -74,6 +88,17 @@ class CheckoutInteractor(
+         return order.needsAttention().also(orders::save)
+     }
+ 
++    private suspend fun refund(order: CheckoutOrder) {
++        repeat(maxSends) {
++            if (payments.refund(order.id, order.amount)) {
++                inventory.release(order.id)
++                orders.save(order.refunded())
++                return
++            }
++        }
++        orders.save(order.needsAttention())
++    }
++
+     private fun fail(order: CheckoutOrder, reason: String): CheckoutOrder {
+         inventory.release(order.id)
+         return order.failed(reason).also(orders::save)
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt
+index 4acaa6d..b9d000e 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt
+@@ -35,4 +35,7 @@ sealed interface PaymentStatus {
+ interface PaymentGateway {
+     suspend fun charge(orderId: String, amount: Long): ChargeAttempt
+     suspend fun status(orderId: String): PaymentStatus
++
++    /** True when the provider confirmed that nothing charged for the order is left to refund. Safe to repeat. */
++    suspend fun refund(orderId: String, amount: Long): Boolean
+ }
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
+index 5e48e3a..8a4fc0e 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
+@@ -12,10 +12,14 @@ data class CheckoutOrder(
+     val status: Status = Status.NEW,
+     val paymentReference: String? = null,
+     val failureReason: String? = null,
++    val placedAt: Long = 0,
+ ) {
+-    enum class Status { NEW, RESERVED, CHARGING, PAID, COMPLETED, FAILED, NEEDS_ATTENTION }
++    enum class Status { NEW, RESERVED, CHARGING, PAID, COMPLETED, FAILED, NEEDS_ATTENTION, REFUNDING, REFUNDED }
+ 
+-    val isTerminal: Boolean get() = status == Status.COMPLETED || status == Status.FAILED || status == Status.NEEDS_ATTENTION
++    val isTerminal: Boolean get() = status == Status.COMPLETED || status == Status.FAILED || status == Status.NEEDS_ATTENTION || status == Status.REFUNDED
++
++    /** A completed order may be cancelled within [windowMillis] of being placed. */
++    fun cancellable(now: Long, windowMillis: Long) = status == Status.COMPLETED && now - placedAt <= windowMillis
+ 
+     fun reserved() = copy(status = Status.RESERVED)
+ 
+@@ -28,4 +32,8 @@ data class CheckoutOrder(
+     fun failed(reason: String) = copy(status = Status.FAILED, failureReason = reason)
+ 
+     fun needsAttention() = copy(status = Status.NEEDS_ATTENTION)
++
++    fun refunding() = copy(status = Status.REFUNDING)
++
++    fun refunded() = copy(status = Status.REFUNDED)
+ }

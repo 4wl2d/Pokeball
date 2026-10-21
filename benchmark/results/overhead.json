@@ -1,0 +1,126 @@
+{
+  "note": "Machine-dependent; not part of the byte-for-byte check of results.json. Each statistic is the median of the rounds; rounds lists every round. Regenerate with ./gradlew :benchmark:runner:overhead (it writes this file).",
+  "measuredAt": "2026-10-21T08:37:08.892189646Z",
+  "jvm": "OpenJDK 64-Bit Server VM 21.0.12.1+1-1-24.04.4-Ubuntu (Ubuntu)",
+  "os": "Linux 6.18.44-fc-v139 amd64",
+  "availableProcessors": 4,
+  "rounds": 3,
+  "variants": {
+    "direct": {
+      "description": "the decider called on the caller's thread with a fresh context: the same work without the runtime",
+      "warmupIterations": 20000,
+      "iterations": 100000,
+      "medianNanos": 39,
+      "p99Nanos": 199,
+      "meanNanos": 87,
+      "callerThreadBytesPerRequest": 39,
+      "rounds": [
+        {
+          "medianNanos": 87,
+          "p99Nanos": 360,
+          "meanNanos": 166,
+          "callerThreadBytesPerRequest": 48
+        },
+        {
+          "medianNanos": 39,
+          "p99Nanos": 199,
+          "meanNanos": 87,
+          "callerThreadBytesPerRequest": 39
+        },
+        {
+          "medianNanos": 27,
+          "p99Nanos": 35,
+          "meanNanos": 56,
+          "callerThreadBytesPerRequest": 24
+        }
+      ]
+    },
+    "runtimeSameThread": {
+      "description": "Runtime.request with an in-memory store; the test kit's SimScheduler runs its tasks on the caller's thread (no hand-off)",
+      "warmupIterations": 20000,
+      "iterations": 100000,
+      "medianNanos": 677,
+      "p99Nanos": 1530,
+      "meanNanos": 833,
+      "callerThreadBytesPerRequest": 1144,
+      "rounds": [
+        {
+          "medianNanos": 1328,
+          "p99Nanos": 8189,
+          "meanNanos": 2311,
+          "callerThreadBytesPerRequest": 1460
+        },
+        {
+          "medianNanos": 677,
+          "p99Nanos": 1530,
+          "meanNanos": 833,
+          "callerThreadBytesPerRequest": 1144
+        },
+        {
+          "medianNanos": 343,
+          "p99Nanos": 838,
+          "meanNanos": 509,
+          "callerThreadBytesPerRequest": 1144
+        }
+      ]
+    },
+    "runtimeThread": {
+      "description": "Runtime.request with an in-memory store on ThreadScheduler, the production scheduler; the caller waits for the answer",
+      "warmupIterations": 20000,
+      "iterations": 100000,
+      "medianNanos": 45964,
+      "p99Nanos": 121217,
+      "meanNanos": 50187,
+      "callerThreadBytesPerRequest": 247,
+      "rounds": [
+        {
+          "medianNanos": 45964,
+          "p99Nanos": 117588,
+          "meanNanos": 50101,
+          "callerThreadBytesPerRequest": 247
+        },
+        {
+          "medianNanos": 45118,
+          "p99Nanos": 126638,
+          "meanNanos": 50187,
+          "callerThreadBytesPerRequest": 247
+        },
+        {
+          "medianNanos": 45971,
+          "p99Nanos": 121217,
+          "meanNanos": 50507,
+          "callerThreadBytesPerRequest": 247
+        }
+      ]
+    },
+    "runtimeThreadFileStore": {
+      "description": "as runtimeThread, with the durable FileStore, which forces every commit to the device, in a temporary directory",
+      "warmupIterations": 200,
+      "iterations": 2000,
+      "medianNanos": 1246955,
+      "p99Nanos": 3519818,
+      "meanNanos": 1358062,
+      "callerThreadBytesPerRequest": 248,
+      "rounds": [
+        {
+          "medianNanos": 1133991,
+          "p99Nanos": 3519818,
+          "meanNanos": 1248659,
+          "callerThreadBytesPerRequest": 248
+        },
+        {
+          "medianNanos": 1263251,
+          "p99Nanos": 3394540,
+          "meanNanos": 1359586,
+          "callerThreadBytesPerRequest": 248
+        },
+        {
+          "medianNanos": 1246955,
+          "p99Nanos": 3717618,
+          "meanNanos": 1358062,
+          "callerThreadBytesPerRequest": 248
+        }
+      ]
+    }
+  }
+}

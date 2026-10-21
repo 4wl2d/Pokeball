@@ -1,0 +1,245 @@
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt
+index 02fc4ec..a72fbb8 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt
+@@ -1,6 +1,7 @@
+ package bench.ballarch.api
+ 
+ import ballarch.kernel.BallPort
++import ballarch.kernel.Topic
+ import bench.env.Order
+ 
+ // Inventory: one instance per SKU.
+@@ -32,3 +33,8 @@ val PaymentsPort = BallPort<Capture, PaymentReply>("payment")
+ 
+ // Checkout: one instance per order.
+ data class StartCheckout(val order: Order)
++
++/** Published once, when an order is completed. */
++data class OrderCompleted(val orderId: String)
++
++val OrderCompletions = Topic<OrderCompleted>("checkout.completed")
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
+index dc245f6..0d51c7c 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
+@@ -6,20 +6,31 @@ import ballarch.runtime.AdapterResult
+ import ballarch.runtime.Composition
+ import ballarch.runtime.MemoryStore
+ import ballarch.runtime.Runtime
++import bench.ballarch.api.OrderCompletions
+ import bench.ballarch.api.StartCheckout
+ import bench.ballarch.checkout.CheckoutFlow
+ import bench.ballarch.checkout.CheckoutState
+ import bench.ballarch.inventory.InventoryBall
+ import bench.ballarch.inventory.Stock
++import bench.ballarch.loyalty.AwardRequest
++import bench.ballarch.loyalty.LoyaltyAward
++import bench.ballarch.loyalty.LoyaltyBall
++import bench.ballarch.loyalty.LoyaltyState
++import bench.ballarch.loyalty.LoyaltyStatus
+ import bench.ballarch.payment.ChargeRequest
+ import bench.ballarch.payment.PaymentBall
+ import bench.ballarch.payment.ProviderCharge
+ import bench.ballarch.payment.ProviderStatus
++import bench.env.AwardStatus
+ import bench.env.ChargeResult
+ import bench.env.ChargeStatus
++import bench.env.Changes
+ import bench.env.CheckoutSystem
+ import bench.env.ConnectionRefused
++import bench.env.LoyaltyPoints
++import bench.env.LoyaltyService
+ import bench.env.Order
++import bench.env.Points
+ import bench.env.Provider
+ import bench.env.Reply
+ import bench.env.Scenario
+@@ -42,21 +53,35 @@ fun statusAdapter(provider: Provider) = Adapter<String, ChargeStatus> { invocati
+     null
+ }
+ 
++fun awardAdapter(loyalty: LoyaltyService) = Adapter<AwardRequest, String> { invocation, done ->
++    loyalty.award(invocation.request.orderId, invocation.request.points) { done(report(it)) }
++    null
++}
++
++fun awardStatusAdapter(loyalty: LoyaltyService) = Adapter<String, AwardStatus> { invocation, done ->
++    loyalty.status(invocation.request) { done(report(it)) }
++    null
++}
++
+ /** The composition root. */
+-fun composition(provider: Provider): Composition = Composition()
++fun composition(provider: Provider, loyalty: LoyaltyService): Composition = Composition()
+     .ball(InventoryBall(Scenario.STOCK))
+     .ball(PaymentBall(horizonMillis = Scenario.PROVIDER_HORIZON_MILLIS))
+     .ball(CheckoutFlow())
++    .ball(LoyaltyBall(Changes.POINTS, horizonMillis = Scenario.PROVIDER_HORIZON_MILLIS))
+     .adapter(ProviderCharge, chargeAdapter(provider))
+     .adapter(ProviderStatus, statusAdapter(provider))
++    .adapter(LoyaltyAward, awardAdapter(loyalty))
++    .adapter(LoyaltyStatus, awardStatusAdapter(loyalty))
++    .subscribe(OrderCompletions, "loyalty") { it.orderId }
+ 
+-class BallarchSystem(private val wiring: (Provider) -> Composition = ::composition) : CheckoutSystem {
++class BallarchSystem(private val wiring: (Provider, LoyaltyService) -> Composition = ::composition) : CheckoutSystem, LoyaltyPoints {
+     private lateinit var store: MemoryStore
+     private lateinit var runtime: Runtime
+ 
+     override fun boot(world: World) {
+         store = world.db.durable("ballarch.store") { MemoryStore() }
+-        runtime = Runtime(wiring(world.provider), world.scheduler, store)
++        runtime = Runtime(wiring(world.provider, world.loyalty), world.scheduler, store)
+         runtime.start()
+     }
+ 
+@@ -76,5 +101,11 @@ class BallarchSystem(private val wiring: (Provider) -> Composition = ::compositi
+         else -> null
+     }
+ 
++    override fun points(orderId: String): Points? = when (store.load(BallId("loyalty", orderId))?.state) {
++        LoyaltyState.Awarded -> Points.Awarded
++        LoyaltyState.NeedsAttention -> Points.NeedsAttention
++        else -> null
++    }
++
+     override fun reserved(): Map<String, Int> = (store.load(BallId("inventory", Scenario.SKU))?.state as Stock?)?.reservations.orEmpty()
+ }
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt
+index 04bbe4f..ec21a96 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt
+@@ -8,6 +8,7 @@ import ballarch.kernel.Context
+ import ballarch.kernel.Decision
+ import ballarch.kernel.NotDoneReason
+ import ballarch.kernel.Outcome
++import ballarch.kernel.Publish
+ import ballarch.kernel.RequestContext
+ import ballarch.kernel.Step
+ import ballarch.kernel.accept
+@@ -17,6 +18,8 @@ import bench.ballarch.api.Capture
+ import bench.ballarch.api.InventoryPort
+ import bench.ballarch.api.InventoryReply
+ import bench.ballarch.api.InventoryRequest
++import bench.ballarch.api.OrderCompleted
++import bench.ballarch.api.OrderCompletions
+ import bench.ballarch.api.PaymentReply
+ import bench.ballarch.api.PaymentsPort
+ import bench.ballarch.api.StartCheckout
+@@ -35,7 +38,8 @@ sealed interface CheckoutState {
+ /**
+  * The checkout workflow (a Flow): reserve, capture, complete; release when the
+  * payment is not captured. Inventory and payment requests are idempotent per
+- * order, so a step whose outcome is unknown is asked again.
++ * order, so a step whose outcome is unknown is asked again. A completed order
++ * is published.
+  */
+ class CheckoutFlow(private val stepTimeoutMillis: Long = 10_000, private val maxAttempts: Int = 3) :
+     Ball<CheckoutState, StartCheckout, Unit> {
+@@ -61,7 +65,7 @@ class CheckoutFlow(private val stepTimeoutMillis: Long = 10_000, private val max
+     }
+ 
+     private fun paid(s: CheckoutState.Paying, o: Outcome<PaymentReply>, ctx: Context) = when (val r = (o as? Outcome.Done)?.value) {
+-        is PaymentReply.Captured -> step(CheckoutState.Completed(s.order, r.reference))
++        is PaymentReply.Captured -> step(CheckoutState.Completed(s.order, r.reference), Publish(OrderCompletions, OrderCompleted(s.order.id)))
+         is PaymentReply.NotCaptured -> release(s.order, ctx, 1)
+         PaymentReply.Unresolved -> step(CheckoutState.NeedsAttention(s.order))
+         null -> retry(s.order, s.attempts) { pay(s.order, ctx, it) } // Capture is idempotent per order
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/loyalty/LoyaltyBall.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/loyalty/LoyaltyBall.kt
+new file mode 100644
+index 0000000..ffa1607
+--- /dev/null
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/loyalty/LoyaltyBall.kt
+@@ -0,0 +1,91 @@
++package bench.ballarch.loyalty
++
++import ballarch.kernel.AdapterPort
++import ballarch.kernel.Ball
++import ballarch.kernel.Call
++import ballarch.kernel.CallKey
++import ballarch.kernel.Completion
++import ballarch.kernel.Context
++import ballarch.kernel.Decision
++import ballarch.kernel.EffectClass
++import ballarch.kernel.Notice
++import ballarch.kernel.Outcome
++import ballarch.kernel.RequestContext
++import ballarch.kernel.Step
++import ballarch.kernel.Timer
++import ballarch.kernel.outcomeOf
++import ballarch.kernel.payloadOf
++import ballarch.kernel.reject
++import ballarch.kernel.step
++import bench.ballarch.api.OrderCompletions
++import bench.env.AwardStatus
++
++data class AwardRequest(val orderId: String, val points: Int)
++
++/** The loyalty service has no idempotency keys: every delivered award awards again. */
++val LoyaltyAward = AdapterPort<AwardRequest, String>("loyalty.award", EffectClass.NonIdempotent)
++
++val LoyaltyStatus = AdapterPort<String, AwardStatus>("loyalty.status", EffectClass.Safe)
++
++sealed interface LoyaltyState {
++    data object None : LoyaltyState
++    data class Awarding(val call: CallKey, val sends: Int) : LoyaltyState
++    data class Reconciling(val call: CallKey, val sends: Int, val queries: Int) : LoyaltyState
++    data object Awarded : LoyaltyState
++    data object NeedsAttention : LoyaltyState
++}
++
++/**
++ * Awards one order's loyalty points when the checkout publishes that the order
++ * completed, with the payment Ball's policy: an award is sent again only after
++ * evidence that it did not take effect (`NotDone`, or a status read after the
++ * horizon that says so); `Unknown` starts reconciliation. It takes no requests.
++ */
++class LoyaltyBall(
++    private val points: Int,
++    private val horizonMillis: Long,
++    private val timeoutMillis: Long = 1_000,
++    private val maxSends: Int = 3,
++    private val maxQueries: Int = 3,
++) : Ball<LoyaltyState, Unit, Unit> {
++    override val type = "loyalty"
++
++    override fun initial(key: String): LoyaltyState = LoyaltyState.None
++
++    override fun decide(state: LoyaltyState, request: Unit, ctx: RequestContext): Decision<LoyaltyState, Unit> = reject(Unit)
++
++    override fun observe(state: LoyaltyState, notice: Notice<*>, ctx: Context): Step<LoyaltyState, Unit> =
++        if (notice.payloadOf(OrderCompletions) != null && state == LoyaltyState.None) send(1, ctx) else step(state)
++
++    override fun complete(state: LoyaltyState, completion: Completion<*>, ctx: Context): Step<LoyaltyState, Unit> = when {
++        state is LoyaltyState.Awarding && completion.key == state.call ->
++            when (completion.outcomeOf(LoyaltyAward)!!) {
++                is Outcome.Done -> step(LoyaltyState.Awarded)
++                is Outcome.NotDone -> resend(state.sends, ctx)
++                is Outcome.Unknown -> wait(LoyaltyState.Reconciling(ctx.newKey(), state.sends, 0))
++            }
++        state is LoyaltyState.Reconciling && completion.key == state.call -> reconcile(state, completion, ctx)
++        else -> step(state)
++    }
++
++    private fun reconcile(state: LoyaltyState.Reconciling, completion: Completion<*>, ctx: Context): Step<LoyaltyState, Unit> {
++        if (completion.outcomeOf(Timer.port) != null) {
++            val key = ctx.newKey()
++            return step(state.copy(call = key, queries = state.queries + 1), Call(key, LoyaltyStatus, ctx.self.key, timeoutMillis))
++        }
++        val status = completion.outcomeOf(LoyaltyStatus)!!
++        return when {
++            status is Outcome.Done -> if (status.value is AwardStatus.Awarded) step(LoyaltyState.Awarded) else resend(state.sends, ctx)
++            state.queries >= maxQueries -> step(LoyaltyState.NeedsAttention)
++            else -> wait(state.copy(call = ctx.newKey()))
++        }
++    }
++
++    private fun resend(sends: Int, ctx: Context) = if (sends < maxSends) send(sends + 1, ctx) else step(LoyaltyState.NeedsAttention)
++
++    private fun send(sends: Int, ctx: Context) = ctx.newKey().let { key ->
++        step<LoyaltyState, Unit>(LoyaltyState.Awarding(key, sends), Call(key, LoyaltyAward, AwardRequest(ctx.self.key, points), timeoutMillis))
++    }
++
++    private fun wait(state: LoyaltyState.Reconciling) = step<LoyaltyState, Unit>(state, Timer.after(state.call, horizonMillis))
++}
