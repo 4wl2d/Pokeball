@@ -12,8 +12,13 @@ Nothing has been submitted or published. Every step below is the author's decisi
    - the Hitz & Montazeri venue city and pages;
    - the X/Open XA document details;
    - the Elle issue and pages;
-   - the current issues of the Arm and PCIe specifications;
-   - the year of the Chassaing blog post.
+   - the current issues of the Arm and PCIe specifications, and the statement that reads of a prefetchable PCIe memory range have no side effects;
+   - the year of the Chassaing blog post;
+   - Gray 1981: the passage on real actions deferred until commit, and its page, against the primary text (only the proceedings index and secondary sources could be reached);
+   - the DOIs of Maeng and Lucia (PLDI 2019) and of Mukherjee et al. (ECOOP 2019, LIPIcs 134), and the article number of Surbatovich et al. (PACMPL 3, OOPSLA), which could not be confirmed and are left out;
+   - Pardon and Pautasso (WWW 2014): the statement that a participant cancels a reservation not confirmed within its timeout and refuses a later confirmation was checked only against search-engine summaries of Pautasso's slides on the same design (inf.usi.ch, `rest-tcc`) and of a related paper, and against the description of a reviewer; the full text could not be reached from here;
+   - the web sources (gRFC A6, the Temporal documentation, Leach's article, the protobuf and Smithy specifications, the Seata blog, the Narayana source): each `note` says what was checked on 2026-10-21; pin a commit or a date where the source has one;
+   - the OMG Transaction Service specification is not cited, because its document number could not be verified; the paper cites the Narayana source for heuristic merging and interposition instead.
 
    Open each of these entries and check it against the source before submitting.
 4. **Re-run every check** on the commit you submit ([verification guide](../docs/reproducibility.md)):
@@ -22,16 +27,21 @@ Nothing has been submitted or published. Every step below is the author's decisi
    - the Alloy runner;
    - the benchmark;
    - the documentation checks;
-   - `make arxiv` here.
+   - `make arxiv` here;
+   - the character count of the abstract in [`arxiv-metadata.txt`](arxiv-metadata.txt), after the benchmark's results replace its `[NUMBERS PENDING]` marker.
 5. **Software license.** The code has no software license. arXiv does not need one, but artifact evaluation, reuse and a software DOI do. Choose one before tagging any release:
    - set `license` in `CITATION.cff` to its SPDX id (replacing `license-url`), and `"license"` in [`.zenodo.json`](../.zenodo.json) to its Zenodo id;
    - keep the CC BY 4.0 grant for text and diagrams in `message`, `notes` and `NOTICE.md`;
    - until this is done, do not enable the Zenodo GitHub integration: its record carries a single license id and cannot be withdrawn. A DOI for the paper alone can come from a manual Zenodo upload of the PDF and the specification as a `publication` under CC BY 4.0.
-6. **Freeze a version.**
+6. **Repository name (blocking, before tagging or submitting).** The paper's author block and *Artifacts* paragraph name the project Ballarch but still print the repository URL `https://github.com/4wl2d/Pokeball`, and say that the repository keeps the project's earlier name. An arXiv version and a Zenodo record keep whatever URL they carry, so rename first:
+   - rename the GitHub repository to `Ballarch` (Settings, General, Repository name) and run `git remote set-url origin https://github.com/4wl2d/Ballarch`;
+   - replace `https://github.com/4wl2d/Pokeball` with `https://github.com/4wl2d/Ballarch` in `ballarch.tex` (author block and *Artifacts* paragraph; drop the remark about the earlier name there and the comment under `\author`), `references.bib` (`BallarchRepo`, including its note), `arxiv-metadata.txt` (Comments), `CITATION.cff` (`repository-code`, `license-url`), `.zenodo.json`, `NOTICE.md`, `skills/ballarch/NOTICE.md` and `docs/ru/habr.md`;
+   - keep the historical links to `tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e` as they are; GitHub redirects them;
+   - do not replace the URLs before the rename, or they will not resolve; rebuild `ballarch.pdf` afterwards.
+7. **Freeze a version.**
    - Tag the release, for example `v2.0.0-rc.1`, and create a GitHub release; add `date-released` to `CITATION.cff` on that day.
    - With the Zenodo GitHub integration enabled, the release receives a DOI. [`.zenodo.json`](../.zenodo.json) supplies its metadata.
    - Add the DOI to the paper's *Artifacts* paragraph and to `CITATION.cff`.
-7. **Repository name.** The repository is still called `Pokeball`. If it is renamed to `Ballarch`, GitHub redirects old URLs. Update the URLs in the paper, `CITATION.cff`, `.zenodo.json` and `NOTICE.md` afterwards.
 
 ## arXiv
 
@@ -41,11 +51,12 @@ Nothing has been submitted or published. Every step below is the author's decisi
 | Cross-lists | `cs.DC` (Distributed, Parallel, and Cluster Computing), `cs.AR` (Hardware Architecture) |
 | License | CC BY 4.0 (the same as the repository's text) |
 | Source | `make arxiv` writes `build/ballarch-arxiv.tar.gz` (`ballarch.tex`, `references.bib`, `ballarch.bbl`). Upload the source, not the PDF: arXiv usually rejects PDFs produced from TeX. The archive was checked to build with plain `pdflatex`. |
-| Comments field | `16 pages, 5 tables, 1 figure. Artifacts: https://github.com/4wl2d/Pokeball (v2.0.0-rc.1)` |
+| Title, authors, abstract, comments, classes | Paste from [`arxiv-metadata.txt`](arxiv-metadata.txt). The abstract field takes plain ASCII text of at most 1,920 characters, so do not paste the LaTeX abstract; the file's text says the same in plain words. Fill in the page and table counts of the Comments field from the submitted PDF. |
+| ACM classes | `D.2.11; C.2.4; D.4.5; D.2.4` (1998 ACM Computing Classification System), as in `arxiv-metadata.txt`. |
 
 **Policies to be aware of** (checked in October 2026; verify again before submitting):
 
-- **Position papers.** Since 31 October 2025, arXiv's CS section accepts review articles and position papers only after peer review. Research papers are not affected. This paper is written as research: definitions and theorems, a bounded formal model, artifacts, and an evaluation with stated method and threats to validity. Keep that framing; avoid "vision" or "manifesto" language in the abstract and the comments.
+- **Position papers.** Since 31 October 2025, arXiv's CS section accepts review articles and position papers only after peer review. Research papers are not affected. This paper is written as research: definitions and proved propositions, a bounded formal model, artifacts, and an evaluation with stated method and threats to validity. Keep that framing; avoid "vision" or "manifesto" language in the abstract and the comments.
   - Source: https://blog.arxiv.org/2025/10/31/attention-authors-updated-practice-for-review-articles-and-position-papers-in-arxiv-cs-category/
 - **Endorsement.** Since 21 January 2026, an institutional e-mail address alone no longer earns endorsement. A first-time submitter in `cs.SE` needs either an institutional address together with an accepted paper in the area, or a personal endorsement from an established author in the area. Ask one or two researchers whose work the paper cites and who have read it; arXiv discourages mass requests.
   - Sources: https://blog.arxiv.org/2026/01/21/attention-authors-updated-endorsement-policy/ and https://info.arxiv.org/help/endorsement.html
@@ -59,9 +70,9 @@ arXiv is a preprint server. A peer-reviewed venue gives the work standing, and s
 
 | Venue | Fit | What it needs |
 |---|---|---|
-| **Onward! Papers** (SPLASH) | new ideas with a substantial worked example and an implementation | ≤ 17 pages + references, double-blind; anonymize the repository link |
+| **Onward! Papers** (SPLASH) | new ideas with a substantial worked example and an implementation | ≤ 17 pages + references, double-blind; anonymize the repository link; reformat to the `acmart` class with CCS concepts (`\ccsdesc`) and `\keywords` |
 | **The Art, Science, and Engineering of Programming** (*Programming* journal) | programming models and styles, with scholarly placement | ≤ 22 pages; three deadlines per year |
-| **ICSA** (Software Architecture) research track or New and Emerging Ideas | architecture styles with evaluation | research track: empirical evaluation (the benchmark); NEMI: ≤ 5 pages |
+| **ICSA** (Software Architecture) research track or New and Emerging Ideas | architecture styles with evaluation | research track: empirical evaluation (the benchmark); NEMI: ≤ 5 pages; reformat to the IEEE conference template with Index Terms |
 | **EuroPLoP / PLoP** | the rules as a pattern language with known uses | pattern form, shepherding, writers' workshop |
 | **Journal of Systems and Software**, New Ideas and Trends | ideas not yet fully validated | trend analysis, solution outline, preliminary results |
 | **DATE, DAC or FPGA workshops** on HW/SW co-design | the cross-level part | a hardware-focused case study |

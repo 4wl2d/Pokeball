@@ -15,10 +15,18 @@
 \usepackage{listings}
 \usepackage{enumitem}
 \usepackage[numbers,sort&compress]{natbib}
+\renewcommand{\bibfont}{\small\raggedright}
+\setlength{\bibsep}{2pt plus 1pt}
 \usepackage[hidelinks]{hyperref}
 
+\hypersetup{pdftitle={Ballarch: Boundaries in Time and Honest Outcomes, from Register-Transfer Logic to Services},
+  pdfauthor={Vladislav Tomilov},
+  pdfkeywords={software architecture, fault tolerance, idempotency, three-valued logic, output commit, hardware/software co-design}}
+
+\theoremstyle{definition}
 \newtheorem{definition}{Definition}
-\newtheorem{theorem}{Theorem}
+\theoremstyle{plain}
+\newtheorem{proposition}{Proposition}
 \newtheorem{corollary}{Corollary}
 
 \newcommand{\Done}{\textsf{Done}}
@@ -38,20 +46,24 @@
   frame=single,framerule=0.3pt,xleftmargin=1em,xrightmargin=1em,aboveskip=0.8em,belowskip=0.8em}
 
 \title{Ballarch: Boundaries in Time and Honest Outcomes,\\from Register-Transfer Logic to Services}
-\author{Vladislav Tomilov\\Independent researcher\\\texttt{https://github.com/4wl2d/Pokeball}}
+\author{Vladislav Tomilov\\Independent researcher\\[2pt]\small Ballarch repository: \url{https://github.com/4wl2d/Pokeball}}
 % Before submission: add a contact e-mail address in \author.
+% The repository keeps its earlier name until it is renamed to Ballarch; then
+% update the URL here, in the Artifacts paragraph and in references.bib (PUBLISHING.md).
 \date{October 2026\\\small Specification version 2.0.0-rc.1}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-Software architecture styles draw boundaries in space: layers, hexagons and services constrain which code may depend on which. They say little about \emph{when} an effect may leave a component, or about what the component may claim afterwards. When a request times out, two-valued error handling has to choose between ``it happened'' and ``it did not''. When the destination cannot deduplicate requests, either choice can be wrong: retrying can charge a customer twice, and reporting failure can hide a charge that happened.
+Software architecture styles draw boundaries in space: they constrain which code may depend on which. They say little about \emph{when} an effect may leave a component, or what it may claim after a timeout, when retrying can charge a customer twice and reporting failure can hide a charge that happened.
 
-We present Ballarch, an architecture that adds two \emph{boundaries in time} to the usual spatial ones. The \emph{commit horizon} is the atomic commit of the decision that requests an effect. The \emph{send horizon} is the first moment the request may have left the runtime. Each piece of mutable state has one owner that decides in pure functions. A runtime commits the decision's state and its requested effects atomically. Every outbound request then ends in exactly one outcome, \Done, \NotDone\ or \Unknown, chosen mechanically from the request's phase relative to the send horizon and from the effect class of its port. For operations made of several requests, a knowledge algebra over Kleene's strong three-valued logic determines what a component may claim. We show that composing honest parts yields an honest whole, so a composite can be used one level up as a single component.
+We present Ballarch, which adds two \emph{boundaries in time}: the \emph{commit horizon}, the atomic commit of the decision that requests an effect, and the \emph{send horizon}, the first moment the request may have left the runtime. Transactions, transports and durable execution use these instants locally; Ballarch makes them boundaries of every interaction. Each piece of state has one owner that decides in pure functions. A runtime commits state and requested effects atomically, and ends every outbound request in exactly one outcome, \Done, \NotDone\ or \Unknown, chosen from its phase and its port's effect class. For operations made of several requests, a knowledge algebra over Kleene's strong three-valued logic bounds what a component may claim. It is sound, and exact for independent calls; a composite that replies with settled knowledge is an honest component one level up.
 
-The rules are stated once and, where they apply, checked by level-specific mechanisms in three references: a Kotlin service runtime with trace oracles and an Alloy model of the call protocol, C firmware with exhaustive power-loss exploration, and a SystemVerilog block with structural netlist checks. In a benchmark of one checkout feature written in six styles and run 2{,}000 times per fault setting, idiomatic layered, actor, MVU and outbox-plus-saga versions violated a correctness requirement in 12--73\% of runs. Ballarch and a layered version hardened by hand violated none. Against the hardened version, Ballarch used about 29\% more code and many more framework types, its classes scored lower on cohesion, and its code had higher cyclomatic complexity and a larger distance from the main sequence. It had the lowest propagation cost of the six designs and placed 88\% of its code in pure classes.
+The rules are stated once. Level-specific mechanisms check the call-protocol rules in a Kotlin runtime (trace oracles, an Alloy model), C firmware (bounded power-loss exploration) and a SystemVerilog block (netlist checks and a fault-injecting bench). In a benchmark of one checkout feature written in six styles and run 2{,}000 times per fault setting, idiomatic layered, actor, MVU and outbox-plus-saga versions violated a correctness requirement in 12--73\% of runs. Ballarch and a layered version hardened by hand violated none. Against the hardened version, Ballarch used about 29\% more code and many more framework types, its classes scored lower on cohesion, and its code had higher cyclomatic complexity and a larger distance from the main sequence. It had the lowest propagation cost of the six designs and placed 88\% of its code in pure classes.
 \end{abstract}
+
+\noindent\textbf{Keywords:} software architecture; fault tolerance; idempotency; three-valued logic; output commit; hardware/software co-design.
 
 \section{Introduction}
 
@@ -60,7 +72,7 @@ A payment provider that does not deduplicate requests receives a charge request 
   \item If it retries, the customer may be charged twice.
   \item If it reports a failure, a charged customer is told that nothing happened.
 \end{itemize}
-The only honest answer is a third one: the charge \emph{may} have happened, and someone has to find out. The ``third outcome'' of remote procedure calls is old knowledge~\citep{BirrellNelson1984}. Distributed-systems testing records such operations as indeterminate~\citep{Jepsen,KingsburyAlvaro2020Elle}, and transaction standards report heuristic and hazard outcomes~\citep{XA1991}. Hardware solved a related problem long ago: processors retire instructions in order so that exceptions are precise~\citep{SmithPleszkun1985}, and memory types that model devices forbid speculative or repeated accesses~\citep{ArmARM}.
+The only honest answer is a third one: the charge \emph{may} have happened, and someone has to find out. The ``third outcome'' of remote procedure calls is old knowledge~\citep{BirrellNelson1984}. Distributed-systems testing records such operations as indeterminate~\citep{Jepsen,KingsburyAlvaro2020Elle}, and transaction standards report heuristic and hazard outcomes~\citep{XA1991}. HTTP advises a client not to retry a non-idempotent request automatically unless it knows that the request is in fact idempotent or that it was never applied; HTTP/2 lets a server supply evidence of the latter, and gRPC retries transparently on such evidence~\citep{rfc9110,rfc9113,grpcA6}. Durable-execution engines record when each activity is scheduled and when it is dispatched~\citep{TemporalEvents}. Hardware solved a related problem long ago: processors retire instructions in order so that exceptions are precise~\citep{SmithPleszkun1985}, and memory types that model devices forbid speculative or repeated accesses~\citep{ArmARM}.
 
 Architecture styles for application software do not, however, place these facts in the architecture:
 \begin{itemize}[nosep]
@@ -68,14 +80,14 @@ Architecture styles for application software do not, however, place these facts 
   \item Actors~\citep{HewittBishopSteiger1973,Armstrong2003,Bykov2011Orleans} and the Elm architecture~\citep{Czaplicki2012} give state a single owner.
   \item Sagas~\citep{GarciaMolinaSalem1987} and the transactional outbox~\citep{Richardson2018} keep state and messages consistent.
 \end{itemize}
-None of them says when an effect may leave a component, or what the component may claim after a timeout. Each feature author decides. In our benchmark (Section~\ref{sec:evaluation}), straightforward implementations in four styles charged customers twice or reported charged orders as failed in 12--73\% of faulty runs. A version hardened by an expert was correct, but its correctness lived in the feature code.
+None of them says when an effect may leave a component, or what the component may claim after a timeout. Each feature author decides. In our benchmark (Section~\ref{sec:evaluation}), straightforward implementations in four styles charged customers twice or reported charged orders as failed in 12--73\% of runs under injected faults. A version hardened by hand, which writes the reconciliation procedure of our specification into the feature, was correct, but its correctness lived in the feature code.
 
 This paper presents Ballarch, an architecture whose rules make that knowledge structural. Ballarch keeps established mechanisms (single owners, pure decision functions, commit then dispatch, adapters at the edge) and cites them as such. Its contributions are the following:
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Boundaries in time} (Section~\ref{sec:time}). Every interaction crosses two instants in order: the \emph{commit horizon} and the \emph{send horizon}. They are architectural boundaries alongside spatial ones, and every implementation must make them observable.
-  \item \textbf{Outcomes from phase and effect class} (Section~\ref{sec:outcomes}). A runtime chooses each request's single outcome mechanically. It never reports \NotDone\ without evidence and never re-sends a non-idempotent request.
-  \item \textbf{A knowledge algebra with composition closure} (Section~\ref{sec:knowledge}). Knowledge of a composite operation is a pair (\emph{all}, \emph{any}) over Kleene's strong logic, with absorbing compensations. Sound parts compose into a sound and coordinate-wise exact whole, so a composite can be exposed as one honest port.
-  \item \textbf{One rule set, checked at every level} (Section~\ref{sec:levels}). Fourteen rules are stated once. Wherever they apply, they are checked by level-specific mechanisms, in references for services (Kotlin), firmware (C) and synchronous hardware (SystemVerilog).
+  \item \textbf{Boundaries in time} (Section~\ref{sec:time}). Every interaction crosses two instants in order: the \emph{commit horizon} and the \emph{send horizon}. The instants are known from transaction processing, outboxes, transport protocols and durable execution (Section~\ref{sec:related}). We make them normative boundaries of a general architecture style, alongside the spatial ones: every implementation, whether a service, firmware or a circuit, must expose them as observable events, and the outcome rules are derived from them.
+  \item \textbf{Outcomes from phase and effect class} (Section~\ref{sec:outcomes}). A runtime, not each feature, transport or adapter, chooses each request's single outcome from its durable phase and its port's effect class. It never reports \NotDone\ without evidence and never re-sends a non-idempotent request. Transports and durable-execution engines already tell a request that never left from one that may have run~\citep{rfc9110,rfc9113,grpcA6,TemporalTimeouts}. Ballarch derives the outcome from an effect class declared for each port, refuses retries of \NonIdem\ ports by construction rather than by configuration, and gives the decider a typed three-valued completion that composes.
+  \item \textbf{A knowledge algebra with composition closure} (Section~\ref{sec:knowledge}). Knowledge of a composite operation is a pair (\emph{all}, \emph{any}) over Kleene's strong logic, with absorbing compensations; it refines the heuristic-outcome merge of transaction managers. Because effects and compensations are encoded as read-once formulas, known properties of Kleene's logic make sound parts compose into a sound whole whose two coordinates are each exact when the calls are independent. A composite that counts what it may still do as unknown and replies only with settled knowledge is an honest constituent one level up, given honest adapters, absorbing compensations, and a call ledger kept for as long as the calls' effects persist.
+  \item \textbf{One rule set, checked by level-specific mechanisms} (Section~\ref{sec:levels}). Fourteen rules are stated once, without reference to language, transport or storage. References for services (Kotlin), firmware (C) and synchronous hardware (SystemVerilog) check the call-protocol rules by mechanisms suited to their level, some only in part; the Kotlin reference also checks the other rules that have a mechanism, including the algebra.
 \end{enumerate}
 We evaluate the architecture with an Alloy model of the call protocol, exhaustive checks of the algebra, fault exploration at each level, and a benchmark comparing six architectural styles (Section~\ref{sec:evaluation}). All artifacts are public~\citep{BallarchRepo}.
 
@@ -95,11 +107,11 @@ Outputs are \emph{calls} to ports, \emph{replies}, \emph{notices} and \emph{canc
   \item \Idem: the destination deduplicates by the call's identity;
   \item \NonIdem: every delivery may take effect.
 \end{itemize}
-The vocabulary is HTTP's~\citep{rfc9110}. The same distinction appears in hardware as Normal versus Device memory~\citep{ArmARM} and as posted versus non-posted requests~\citep{PCIe7}.
+The names follow HTTP's safe and idempotent methods~\citep{rfc9110}. HTTP defines idempotence by the intended effect of repeated identical requests; \Idem\ here requires that the destination deduplicate by the call's identity, as an idempotency key or token does~\citep{Leach2017Idempotency,Smithy}. RPC interface languages already declare such classes per operation to decide client retries~\citep{ProtobufDescriptor,Smithy}; Ballarch also derives each call's outcome from its class (Section~\ref{sec:outcomes}). In hardware the same distinction appears as Normal versus Device memory~\citep{ArmARM}, and as prefetchable PCIe memory ranges, whose reads have no side effects~\citep{PCIe7}.
 
 \paragraph{Obligations and outcomes.} A committed call is an \emph{obligation}: the runtime must deliver exactly one completion for it to the caller's \texttt{complete}, by a finite deadline. The completion's outcome is one of the following:
 \begin{itemize}[nosep]
-  \item \Done(value): the destination processed the request;
+  \item \Done(value): the destination processed the request; the value may describe a business refusal, such as a declined charge;
   \item \NotDone(reason): there is evidence that the request had no effect;
   \item \Unknown(reason): the request may or may not have taken effect.
 \end{itemize}
@@ -144,7 +156,7 @@ The mechanisms behind both horizons are established:
   \item operating systems that hold external output until it no longer depends on uncommitted state~\citep{Nightingale2005Speculator,Nightingale2006Rethink};
   \item in-order retirement in processors~\citep{SmithPleszkun1985}.
 \end{itemize}
-Real-time architectures specify component interfaces in the temporal domain~\citep{KopetzBauer2003}, but for timing predictability rather than for knowledge about effects. To our knowledge, no software architecture style has named these instants as architectural boundaries and attached rules about outcomes to them.
+Real-time architectures specify component interfaces in the temporal domain~\citep{KopetzBauer2003}, but for timing predictability rather than for knowledge about effects. The instants themselves are known in practice. Transaction processing defers real actions, which cannot be undone, until commit~\citep{Gray1981}, and the transactional outbox commits messages together with state~\citep{Richardson2018}. Service-design guidance commits each local atomic phase before a foreign state mutation, and counts the request as committed once the first such mutation is made~\citep{Leach2017Idempotency}. Durable-execution engines record when an activity is scheduled and when it is dispatched to a worker~\citep{TemporalEvents}. What we add is to make both instants normative boundaries of a general architecture style, which every implementation must expose as observable events, and to derive from them outcome rules that keep \Unknown\ apart from failure (Section~\ref{sec:outcomes}). The service-design guidance above, for example, marks a timed-out non-idempotent call as failed. Section~\ref{sec:related} compares the outcome rules with the retry rules of transports and durable execution.
 
 \section{Outcomes from Phase and Effect Class}
 \label{sec:outcomes}
@@ -158,13 +170,14 @@ Situation & \Safe & \Idem & \NonIdem \\
 Destination answered & \Done & \Done & \Done \\
 Deadline or cancel before the send horizon & \NotDone & \NotDone & \NotDone \\
 Evidence of non-application, one attempt & \NotDone & \NotDone & \NotDone \\
+Same, after more than one attempt & \NotDone & retry or \Unknown & -- \\
 No answer, attempts and time left & retry & retry & \Unknown \\
 No answer, no attempts or time left & \NotDone & \Unknown & \Unknown \\
 Durable restart after the send horizon & re-send or \NotDone & re-send or \Unknown & \Unknown \\
 Durable restart before the send horizon & send & send & send \\
 \bottomrule
 \end{tabular}
-\caption{The runtime's classification of a call's single outcome. A \Safe\ call that gets no answer ends \NotDone(\textsf{NoAnswer}), because it can have had no effect. A report that arrives after the call resolved is dropped.}
+\caption{The runtime's classification of a call's single outcome. A \Safe\ call that gets no answer ends \NotDone(\textsf{NoAnswer}), because it can have had no effect. Evidence that one attempt was not applied says nothing about earlier attempts, so after several attempts of an \Idem\ call it does not justify \NotDone; a \NonIdem\ call has only one attempt. A report that arrives after the call resolved is dropped.}
 \label{tab:classification}
 \end{table}
 
@@ -187,27 +200,27 @@ when (val outcome = completion.outcomeOf(Mailer)!!) {
 \begin{table}[t]
 \centering\footnotesize
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.9cm}>{\raggedright\arraybackslash}p{1.5cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{1.4cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{1.1cm}@{}}
 \toprule
-Rule & Binds & Statement (abridged) & Checked in this work by \\
+Rule & Binds & Statement (abridged) & Checked in this work by & Levels \\
 \midrule
-R1 Single owner & author & one owner per fact; immutable values & bytecode rules; C object-file check; Yosys single-driver check \\
-R2 Pure decider & author & no I/O, clocks, randomness, globals & bytecode rule; C undefined-symbol check; Yosys latch check \\
-R3 Serial processing & runtime & no concurrent or nested steps per instance & runtime guard; trace oracle \\
-R4 Atomic commit & runtime & state and outputs in one atomic write & store design; Alloy P6; power-loss exploration \\
-R5 Commit before dispatch & runtime & nothing leaves before its commit & Alloy P1; oracles; Yosys path check \\
-R6 One completion per call & runtime & exactly one by the deadline & Alloy P2, L1; oracles \\
-R7 Honest outcomes & runtime, adapter & \NotDone\ only with evidence & Alloy P3, P5; oracles with ground truth \\
-R8 No blind re-send & runtime, adapter & \NonIdem\ sent at most once; write-ahead & Alloy P4; oracles; seeded bugs \\
-R9 One reply per request & runtime, author & at most one reply; overdue replies reported & preflight; oracle \\
-R10 Explicit composition & author & interaction only via calls, replies, notices & kernel API; module-boundary check \\
-R11 Bounds and preflight & runtime & refuse before accepting; reject faulty decisions & preflight \\
-R12 Read-only queries & author & reads do not change state & types \\
-R13 Honest profile claims & runtime & no claim beyond the profile & review \\
-R14 Honest composition & author & claims about composites follow the algebra & \texttt{Knowledge} type; exploration against ground truth \\
+R1 Single owner & author & one owner per fact; immutable values & bytecode rules; C object-file check; Yosys single-driver check & K C R \\
+R2 Pure decider & author & no I/O, clocks, randomness, globals & bytecode rule; C undefined-symbol check; Yosys latch check & K C R \\
+R3 Serial processing & runtime & no concurrent or nested steps per instance & runtime guard; trace oracle & K \\
+R4 Atomic commit & runtime & state and outputs in one atomic write & store design; Alloy P6; power-loss exploration & K C \\
+R5 Commit before dispatch & runtime & nothing leaves before its commit & Alloy P1; oracles; power-loss exploration; Yosys path check & K C R \\
+R6 One completion per call & runtime & exactly one by the deadline & Alloy P2, L1; oracles; C exploration; RTL bench & K C R \\
+R7 Honest outcomes & runtime, adapter & \NotDone\ only with evidence & Alloy P3, P5; oracles with ground truth; C exploration; RTL bench (no false \NotDone) & K C R$^{*}$ \\
+R8 No blind re-send & runtime, adapter & \NonIdem\ sent at most once; write-ahead & Alloy P4; oracles; seeded bugs; C exploration; RTL bench & K C R \\
+R9 One reply per request & runtime, author & at most one reply; overdue replies reported & preflight; oracle & K \\
+R10 Explicit composition & author & interaction only via calls, replies, notices & kernel API; module-boundary check & K \\
+R11 Bounds and preflight & runtime & refuse before accepting; reject faulty decisions & preflight & K \\
+R12 Read-only queries & author & reads do not change state & types & K \\
+R13 Honest profile claims & runtime & no claim beyond the profile & review & -- \\
+R14 Honest composition & author & claims about composites follow the algebra & \texttt{Knowledge} type; exploration against ground truth & K \\
 \bottomrule
 \end{tabularx}
-\caption{The rules of Ballarch Core 2.0 and the mechanisms that check them in the three references.}
+\caption{The rules of Ballarch Core 2.0 and the mechanisms that check them. Levels: the references that check the rule mechanically (K Kotlin service, C firmware, R RTL). R$^{*}$: in part; the RTL bench has no fate in which an accepted command is neither applied nor answered, so it checks that \NotDone\ is never reported for an applied command, but not that an unanswered command ends \Unknown.}
 \label{tab:rules}
 \end{table}
 
@@ -217,21 +230,25 @@ R14 Honest composition & author & claims about composites follow the algebra & \
 A Ball often performs one operation through several calls: a flight and a hotel, a reservation and a charge. Workflows usually report such operations as succeeded or failed. After a partial or uncertain effect, both labels can be false.
 
 \begin{definition}[Truth values]
-Let $\mathbb{T}=\{\yes,\no,\mayb\}$ with Kleene's strong connectives~\citep{Kleene1952} and the information order $\mayb \sqsubseteq \yes$, $\mayb \sqsubseteq \no$. A value $t$ \emph{admits} a Boolean $b$ if $t=\mayb$ or $t=[b]$.
+Let $\mathbb{T}=\{\yes,\no,\mayb\}$ with Kleene's strong connectives~\citep{Kleene1952} and the information order $\mayb \sqsubseteq \yes$, $\mayb \sqsubseteq \no$. A value $t$ \emph{admits} a Boolean $b$ if $t=\mayb$ or $t$ is the truth value of $b$ ($\yes$ for true, $\no$ for false). A pair of values admits a pair of Booleans if each coordinate admits the corresponding Boolean.
 \end{definition}
 
 \begin{definition}[Constituents and knowledge]
-The \emph{effect} $f_i \in \mathbb{T}$ of a call an operation needs, requested or not, is:
+\label{def:knowledge}
+The \emph{constituents} of an operation are the calls it needs, requested or not. A claim about the operation is about its \emph{final} effects, those that hold once none of its requests can still take effect. At any moment, the \emph{effect} $f_i \in \mathbb{T}$ of a constituent is:
 \begin{itemize}[nosep]
-  \item $\yes$ if it completed \Done\ with an answer meaning that the requested effect happened;
-  \item $\no$ if it completed \NotDone, or has not been requested;
-  \item $\mayb$ if it completed \Unknown, or has been requested and has no completion yet, whether or not it was sent.
+  \item $\yes$ if it completed \Done\ with an answer that, by the port's contract, means that the requested effect happened;
+  \item $\no$ if it completed \NotDone, if it completed \Done\ with an answer meaning that the effect did not happen (a recorded refusal), or if the Ball can no longer request it for this operation;
+  \item $\mayb$ if it completed \Unknown, if it completed \Done\ with an answer that leaves the effect open, if it was requested and its completion has not arrived, whether or not it was sent, or if the Ball has not requested it but still may.
 \end{itemize}
-A compensation is \emph{absorbing} if its effect means that no effect of the original request exists or can still take effect. For example, the destination fences the request's reference, or the original request's delivery horizon has passed. With $u_i$ the disjunction of the effects of a constituent's absorbing compensations, its \emph{net effect} is $n_i = f_i \wedge \neg u_i$. The \emph{knowledge} of an operation with constituents $1..k$ is
+If the Ball may request the same effect again after a \NotDone, its attempts, including those it may still make, form one constituent, whose effect $f_i$ is the disjunction of theirs, each defined as above.
+A compensation is \emph{absorbing} if its effect means that no effect of the original request exists or can still take effect. For example, the destination fences the request's reference, as the anti-suspension fence of Try-Confirm/\allowbreak Cancel implementations does~\citep{SeataTCCFence}, or the original request's \emph{delivery horizon}, the age after which the destination no longer applies it, has passed. In Pardon and Pautasso's design, a participant cancels a reservation that is not confirmed within its timeout and refuses a later confirmation~\citep{PardonPautasso2014TCC}; that timeout is the confirmation's delivery horizon. Let $c_{i1},\dots,c_{im}$ be the effects of a constituent's compensation attempts, each defined like $f_i$, and let $u_i$ be their disjunction, joined with $\mayb$ while the Ball may still compensate the constituent. If the compensations are absorbing, the constituent's \emph{net effect} is $n_i = f_i \wedge \neg u_i$. The \emph{knowledge} of an operation with constituents $1..k$ is
 \[ K = (\textit{all}, \textit{any}) = \Big(\bigwedge_{i} n_i,\ \bigvee_{i} n_i\Big), \qquad K_\emptyset = (\yes,\no). \]
 \end{definition}
 
-Composition $(a_1,s_1)+(a_2,s_2)=(a_1\wedge a_2,\ s_1\vee s_2)$ is a commutative monoid with identity $K_\emptyset$, the knowledge of an operation that requested no effect. Seven values can occur:
+Counting every call that the Ball may still make as $\mayb$ makes $K$ a claim about final effects at every moment, not only at the end. A report of the completions received so far is a different claim, and must not be offered as the operation's outcome. An operation is \emph{settled} when none of its calls is open and none can still be made; from then on, only \Unknown\ completions and open answers leave a constituent at $\mayb$.
+
+Composition $(a_1,s_1)+(a_2,s_2)=(a_1\wedge a_2,\ s_1\vee s_2)$ is a commutative monoid with identity $K_\emptyset$, the knowledge of an operation that requested no effect. A constituent contributes the summand $(n_i, n_i)$. A call to a composite port contributes a pair instead: the composite's settled knowledge if the call completed \Done\ with it, $(\no,\no)$ if it completed \NotDone, and $(\mayb,\mayb)$ if it completed \Unknown, was answered before the composite settled, is still open or may still be made. Seven values can occur:
 \begin{itemize}[nosep]
   \item \Done\ $(\yes,\yes)$ and \NotDone\ $(\no,\no)$;
   \item \textsf{Partial} $(\no,\yes)$: some effects happened and some did not;
@@ -239,53 +256,80 @@ Composition $(a_1,s_1)+(a_2,s_2)=(a_1\wedge a_2,\ s_1\vee s_2)$ is a commutative
   \item \Unknown\ $(\mayb,\mayb)$;
   \item \textsf{NoEffects} $(\yes,\no)$.
 \end{itemize}
-Seen as one call, a composite is \Done\ only if \emph{all} is $\yes$, \NotDone\ only if \emph{any} is $\no$, and \Unknown\ otherwise.
+Seen as one call, a composite reports $\pi(K)$: \Done\ if $K=(\yes,\yes)$, \NotDone\ if \emph{any}${}=\no$ (this includes \textsf{NoEffects}), and \Unknown\ otherwise.
 
-\begin{theorem}[Soundness]
-If each net effect $n_i$ admits the true net effect $b_i$, then \emph{all} admits $\bigwedge_i b_i$ and \emph{any} admits $\bigvee_i b_i$.
-\end{theorem}
+Both propositions below rest on standard facts. Kleene's strong connectives are monotone in $\sqsubseteq$~\citep{Kleene1952}. On formulas in which every variable occurs once, they agree with supervaluation, in van Fraassen's sense~\citep{vanFraassen1966}: the value is definite exactly when all ways of resolving the unknowns agree. This agreement is folklore; the proof of Proposition~\ref{prop:exact} includes it. Hardware engineers know the second fact from ternary (0, 1, X) simulation, which goes back to hazard detection in switching circuits~\citep{Eichelberger1965}. Read $\mayb$ as Verilog's \texttt{x}: the proof of Proposition~\ref{prop:exact} also shows why X-propagation is exact through logic without reconvergent fanout, and why it can be pessimistic with it. What is ours is the encoding of effects and absorbing compensations as such formulas, and the closure property that follows from it.
+
+\begin{proposition}[Soundness]
+\label{prop:sound}
+Let $b_i$ be the true final net effect of constituent $i$. If each $n_i$ admits $b_i$, then \emph{all} admits $\bigwedge_i b_i$ and \emph{any} admits $\bigvee_i b_i$. The same holds if some summands are pairs $(a_i,s_i)$, each admitting the conjunction and the disjunction of the true net effects of its own constituents.
+\end{proposition}
 \begin{proof}
-Kleene's strong connectives are monotone in $\sqsubseteq$ and agree with Boolean ones on definite values. Replacing each $\mayb$ in $n$ by the corresponding $b_i$ refines $n$ to $b$, so $\bigwedge n_i \sqsubseteq \bigwedge b_i$, which is the claim. The same holds for $\bigvee$ and for $f_i \wedge \neg u_i$.
+Kleene's strong connectives are monotone in $\sqsubseteq$ and agree with the Boolean ones on definite values. Replacing each $\mayb$ among the $n_i$ by the corresponding $b_i$ refines every $n_i$ to $b_i$, so $\bigwedge_i n_i \sqsubseteq \bigwedge_i b_i$, which is the claim for \emph{all}; the claim for \emph{any} follows in the same way. For pairs, each coordinate of $+$ is monotone, and by associativity the conjunction of the inner conjunctions is the conjunction over all inner constituents; the same holds for disjunctions.
 \end{proof}
 
-\begin{theorem}[Coordinate-wise exactness]
-Let each $f_i$ and the effect of each compensation attempt be the most informative value admitting every possibility for that call alone, with calls independent. Then each coordinate of $K$ is the most informative value admitting every combination of true effects consistent with the calls' outcomes.
-\end{theorem}
+\begin{proposition}[Coordinate-wise exactness]
+\label{prop:exact}
+Let the effect of each call, including each repeated attempt and each compensation attempt, be the most informative value that admits every possibility for that call alone. Assume that the calls are \emph{independent}: the combinations of true effects consistent with the outcomes are exactly the product of the per-call sets of possibilities. Then each coordinate of $K$ is the most informative value that admits every such combination.
+\end{proposition}
 \begin{proof}
-\emph{all}, \emph{any} and $f_i\wedge\neg u_i$ are formulas in which every variable occurs once. On such formulas, strong Kleene evaluation coincides with supervaluation: the value is definite exactly when all completions agree.
+For a formula $\varphi$ over the calls' effects, let $S(\varphi)\subseteq\{0,1\}$ be the set of its Boolean values over the consistent combinations. The most informative value admitting all of them, the supervaluation, is $\yes$, $\no$ or $\mayb$ as $S(\varphi)$ is $\{1\}$, $\{0\}$ or $\{0,1\}$. We show by induction that, on a formula in which each variable occurs at most once, Kleene evaluation equals supervaluation. For a variable, this is the hypothesis. A call that the Ball may still make enters as a variable; since the Ball's later calls often depend on earlier outcomes, independence then usually holds only once the operation is settled. For a constant it is immediate, which covers $K_\emptyset$. For $\neg\varphi$, $S(\neg\varphi)=\{\neg x : x\in S(\varphi)\}$. For $\varphi_1\circ\varphi_2$ with $\circ\in\{\wedge,\vee\}$, the two sides share no variable, so by independence $S(\varphi_1\circ\varphi_2)=\{x\circ y : x\in S(\varphi_1),\ y\in S(\varphi_2)\}$, and the nine cases are Kleene's tables. \emph{all} and \emph{any}, with each $n_i = f_i\wedge\neg(c_{i1}\vee\dots\vee c_{im})$ substituted, and each $f_i$ of repeated attempts written as the disjunction of their effects, are such formulas, because every attempt is a distinct call. Both hypotheses are needed. With a repeated variable, $x\vee\neg x$ evaluates to $\mayb$ although its supervaluation is $\yes$; in a circuit, this is reconvergent fanout. With correlated calls, the product step fails: if a Ball books a hotel only after its flight ends \NotDone, then while the flight is open \emph{all} evaluates to $\mayb$, although no consistent combination has both effects, so its supervaluation is $\no$.
 \end{proof}
 
 \begin{corollary}[Composition closure]
-A Ball that derives every claim about a composite operation from $K$ (rule R14) makes, through its port, only claims that admit the truth. One level up, it is therefore a constituent whose knowledge is honest, and by induction the property holds at any depth of composition.
+\label{cor:closure}
+Assume that:
+\begin{enumerate}[nosep,label=(\roman*)]
+  \item adapters and destinations report honestly (R7, and \Done\ answers follow the port's contract);
+  \item every compensation counted in a net effect is absorbing;
+  \item the Ball keeps its state and call ledger for as long as the effects of its calls persist: under the Durable profile, or under the Transient profile only if a crash also clears those effects;
+  \item the Ball derives every claim about a composite operation from $K$ (rule R14), and answers the request that started the operation only once the operation is settled (a \emph{deferred reply}), with $K$ itself or with $\pi(K)$.
+\end{enumerate}
+Then:
+\begin{enumerate}[nosep,label=(\alph*)]
+  \item at every moment, $K$ admits the conjunction and the disjunction of the constituents' true final net effects;
+  \item the reply admits them as well;
+  \item one level up, the summand that the call to the composite contributes to the caller's knowledge, as described after Definition~\ref{def:knowledge}, admits them too.
+\end{enumerate}
+By induction on the depth of nesting, every claim derived this way, at every level, admits the truth.
 \end{corollary}
+\begin{proof}
+(a) By (iii), every call made for the operation whose effect can still exist is recorded in the Ball's state, so it is counted in some $f_i$ or $u_i$. By (i), the value of each such call admits its true effect at every moment: honest reporting covers \Done\ and \NotDone, a call that can no longer be made never takes effect, and every other case is $\mayb$. By monotonicity, a disjunction of repeated attempts admits whether one of them takes effect, so each $f_i$ admits whether its constituent's request takes effect. While the Ball may still compensate, the disjunction with $\mayb$ keeps $u_i$ at $\mayb$ unless a compensation already took effect, so $u_i$ admits whether some compensation of constituent $i$ takes effect. Because the compensations are absorbing (ii), the true net effect is $b_i=\beta_i\wedge\neg\gamma_i$, where $\beta_i$ says whether the constituent's request takes effect and $\gamma_i$ whether one of its compensations does. By monotonicity, $n_i$ admits $b_i$, and Proposition~\ref{prop:sound} gives (a).
+(b) By (iv), a reply with $K$ is (a) at the moment of settlement. For $\pi(K)$, let the composite's true effect as one call be any Boolean $B$ with $\bigwedge_i b_i\le B\le\bigvee_i b_i$ when $k\ge1$, such as `every effect happened' or `some effect happened', and $B=0$ when $k=0$. If $\pi(K)=\Done$, then \emph{all}${}=\yes$, so $\bigwedge_i b_i=1$ and $B=1$. If $\pi(K)=\NotDone$, then \emph{any}${}=\no$, so $\bigvee_i b_i=0$ and $B=0$. Otherwise $\pi(K)=\Unknown$, which admits $B$.
+(c) A \Done\ completion carries the reply, which (b) covers, read as a pair or as one effect. A \NotDone\ completion of a call to a Ball means that the request was refused or never delivered, so the composite made no call for it, which $(\no,\no)$ admits; $(\mayb,\mayb)$ admits anything. The summand therefore satisfies the hypothesis of Proposition~\ref{prop:sound} one level up, and induction on the depth of nesting completes the proof.
+\end{proof}
+
+The counting rule and the deferred reply both matter. A reply computed this way before settlement is sound, but it says little, because the calls still to come are $\mayb$. A reply that counted them as $\no$ would not be sound: a trip that answers at once that its hotel is not booked is contradicted when the hotel is booked a moment later. A deferred reply takes time, so a caller whose deadline is shorter than the composite's settlement ends its call \Unknown, which is honest. Hypothesis (iii) of Corollary~\ref{cor:closure} matters as well. Under the Transient profile, a trip that crashes after its flight request was sent restarts with an empty ledger. If its caller sends the request again, the new trip books again and can settle with \NotDone, for example after a sold-out answer, while the first seat is held. The projection $\pi$ is sound but not exact: \textsf{Partial}, \textsf{NotAllDone} and \textsf{SomeDone} all become \Unknown. A composite that can end partially should therefore reply with $K$. The caller then holds, by associativity, the knowledge of the flattened operation, to which Proposition~\ref{prop:exact} applies when all leaf calls are independent.
+
+Transaction managers already merge and nest outcomes, more coarsely. Participants report heuristic outcomes~\citep{XA1991}. The Narayana transaction manager, for example, merges one participant's heuristic commit and another's heuristic rollback into \emph{mixed}, which absorbs later outcomes, and its interposed subordinate coordinator reports the merged outcome to its superior as one participant~\citep{Narayana}. \emph{Hazard} does not record which way the known participants went, so it covers \textsf{NotAllDone}, \textsf{SomeDone} and \Unknown: merging hazard with a rollback stays hazard, whereas \textsf{SomeDone}${}+{}$\NotDone${}={}$\textsf{Partial}. In that implementation the merge also depends on arrival order: commit, hazard, rollback gives hazard, while commit, rollback, hazard gives mixed~\citep{Narayana}. Here $+$ is commutative, and both orders give \textsf{Partial}. Heuristic outcomes also signal a failure of atomicity, whereas the algebra describes operations that are not atomic, for which \textsf{Partial} is an ordinary result.
 
 The kernel's \texttt{Knowledge} type implements the algebra. An exhaustive test checks three things:
 \begin{itemize}[nosep]
-  \item the connectives against supervaluation;
+  \item the connectives against supervaluation, which is the inductive step of the proof of Proposition~\ref{prop:exact};
   \item the monoid laws on all seven values;
-  \item soundness and exactness for up to four constituents, each with or without a compensation: 69{,}905 worlds.
+  \item soundness and exactness for up to four constituents, each with at most one compensation: 69{,}905 worlds.
 \end{itemize}
-Associativity extends the result to any number of constituents.
+The propositions hold for any number of constituents and compensation attempts; the test checks small cases directly.
 
-Exactness is relative to the constituents' individual outcomes. If $K(e)$ reads ``it is known that $e$'', conjunction matches epistemic logic, since $K(a\wedge b) \Leftrightarrow Ka \wedge Kb$~\citep{HalpernMoses1990}, but disjunction does not. Evidence that correlates constituents, such as a log showing that one of two calls landed without saying which, can establish more than the algebra derives. The algebra under-approximates such knowledge and never over-approximates it.
+Exactness is relative to the constituents' individual outcomes. If $\mathbf{K}e$ reads ``it is known that $e$'', conjunction matches epistemic logic, since $\mathbf{K}(a\wedge b) \Leftrightarrow \mathbf{K}a \wedge \mathbf{K}b$~\citep{HalpernMoses1990}, but disjunction does not. Evidence that correlates constituents, such as a log showing that one of two calls landed without saying which, can establish more than the algebra derives. The algebra under-approximates such knowledge and never over-approximates it.
 
-\paragraph{Example.} A trip Flow books a flight, which is \NonIdem, and a hotel, which is \Idem. It compensates with absorbing voids when it cannot hold both, and reports only $K$. The exploration ran 1{,}339 runs within a bound of twelve choices per run, covering every combination of five fates per booking attempt, three per compensation attempt, and one crash before any of the first ten scheduler tasks. In every run, its settled knowledge admitted the providers' real bookings. The resulting knowledge values were \Done\ 2, \NotDone\ 282, \textsf{NotAllDone} 620, \textsf{Partial} 64, \textsf{SomeDone} 92, and \Unknown\ 276. On the same runs, a two-valued status (``booked'' if both bookings answered booked, otherwise ``failed'') was wrong in 254 runs. An absorbing compensation turns an \Unknown\ booking into a definite \NotDone, since $\mayb \wedge \neg\yes = \no$. This is why compensation removes most ambiguity in practice.
+\paragraph{Example.} A trip \emph{Flow}, a Ball whose state is a multi-step workflow, books a flight, which is \NonIdem, and a hotel, which is \Idem. It compensates with absorbing voids when it cannot hold both, and answers the booking request only once settled, with its final $K$. Under the Durable profile, the exploration ran 1{,}339 runs within a bound of twelve choices per run, covering every combination of five fates per booking attempt, three per compensation attempt, and one crash before any of the first ten scheduler tasks. In every run that accepted the booking, its settled knowledge admitted the providers' real bookings. The resulting knowledge values were \Done\ 2, \NotDone\ 282, \textsf{NotAllDone} 620, \textsf{Partial} 64, \textsf{SomeDone} 92, and \Unknown\ 276. On the same runs, a two-valued status (``booked'' if both bookings answered booked, otherwise ``failed'') was wrong in 254 runs. An absorbing compensation that completes \Done\ turns an \Unknown\ booking into a definite \NotDone, since $\mayb \wedge \neg\yes = \no$; a compensation whose answer is lost leaves the booking unknown. Compensation narrows ambiguity; it does not remove it.
 
-\section{One Rule Set at Every Level}
+\section{One Rule Set at Three Levels}
 \label{sec:levels}
 
-The rules mention no language, transport or storage. Table~\ref{tab:levels} maps the concepts onto the three references; each reference also carries seeded bugs that its checks must catch.
+The rules mention no language, transport or storage. Table~\ref{tab:levels} maps the concepts onto the three references; each reference also carries seeded bugs that its checks must catch. The references do not check the same rules: the last column of Table~\ref{tab:rules} lists the levels at which each rule is checked.
 
 \begin{table}[t]
 \centering\small
-\begin{tabularx}{\textwidth}{@{}lXXX@{}}
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
 \toprule
 Concept & Service (Kotlin) & Firmware (C11) & Hardware (SystemVerilog) \\
 \midrule
 Owner (R1) & runtime-held state & one NVM record & registers with one writing process \\
 Decider (R2) & pure functions & \texttt{step()} in its own unit & one latch-free \texttt{always\_comb} \\
 Commit horizon & one store write & CRC-checked slot write & the clock edge \\
-Send horizon & write-ahead \texttt{Sending} & write-ahead record & \texttt{valid \&\& ready} (AXI: VALID) \\
+Send horizon & write-ahead \texttt{Sending} & write-ahead record & \texttt{valid \&\& ready} (AXI: VALID~\citep{ArmAXI}) \\
 \Unknown & timeout or restart while \texttt{Sending} & power loss while \texttt{Sending} & accepted transaction without response \\
 Profile & Transient or Durable & Durable & Transient \\
 \bottomrule
@@ -302,7 +346,7 @@ Profile & Transient or Durable & Durable & Transient \\
   \item architecture rules that check R1, R2 and R10 on bytecode.
 \end{itemize}
 
-\paragraph{Firmware.} The C reference commits state and the call ledger as one CRC-checked record in two NVM slots. It records each send ahead of transmission, so a power loss after the write-ahead record turns a dose command into \Unknown\ rather than a second dose. Its example is an infusion-pump controller whose pump has no idempotency key. An exhaustive exploration covers about 220{,}000 runs over every link fate and every power-loss point, including torn writes. No violation of R5--R8 occurred, nor any overdose or mismatch between the controller's belief and the pump. A check of the decider's object file enforces R2 by allowing no undefined symbol, and R1 by allowing no writable data symbol.
+\paragraph{Firmware.} The C reference commits state and the call ledger as one CRC-checked record in two NVM slots. It records each send ahead of transmission, so a power loss after the write-ahead record turns a dose command into \Unknown\ rather than a second dose. Its example is an infusion-pump controller whose pump has no idempotency key. A bounded exhaustive exploration covers about 220{,}000 runs over link fates and power-loss points, including torn writes. No violation of R5--R8 occurred, nor any overdose or mismatch between the controller's belief and the pump. A check of the decider's object file rejects undefined symbols (R2) and writable data (R1). It is necessary but not sufficient, since memory-mapped I/O and inline assembly leave no symbol. Intermittent computing meets the same hazard on energy-harvesting devices (Section~\ref{sec:related}).
 
 \paragraph{Hardware.} The RTL reference is a command issuer:
 \begin{itemize}[nosep]
@@ -310,9 +354,9 @@ Profile & Transient or Durable & Durable & Transient \\
   \item its next-state logic is one latch-free \texttt{always\_comb} block;
   \item its outputs depend on registered state only.
 \end{itemize}
-It issues READ (\Safe), CONFIG (\Idem) and FIRE (\NonIdem) transactions on a bus with id-tagged responses. Yosys checks single drivers, the absence of latches, and the absence of any combinational path from an input to a dispatched output. A fault-injecting bench runs 75 scenarios against a device model. The first draft of the block reported \NotDone\ when a CONFIG retry was withdrawn before acceptance, although the first attempt had already been applied; the bench caught it. Hardware engineers apply such rules by experience. Stating them as rules lets a tool check them.
+It issues READ (\Safe), CONFIG (\Idem) and FIRE (\NonIdem) transactions on a bus with id-tagged responses. Yosys checks single drivers, the absence of latches, and the absence of any combinational path from an input to a dispatched output. A fault-injecting bench runs 75 scenarios against a device model. In that model, every accepted command that gets no answer in time has been applied, so the bench checks that \NotDone\ is never reported for an applied command, but not that an unanswered command ends \Unknown\ rather than \Done. The first draft of the block reported \NotDone\ when a CONFIG retry was withdrawn before acceptance, although the first attempt had already been applied; the bench caught it. Hardware engineers apply such rules by experience. Stating them as rules lets a tool check them.
 
-\paragraph{Closest work.} Bluespec's guarded atomic actions and the Bluespec Codesign Language compile one rule-based semantics to both hardware and software~\citep{Nikhil2004Bluespec,KingDaveArvind2012}. Lingua Franca reactors and synchronous languages give deterministic semantics across targets~\citep{Lohstroh2021LinguaFranca,BerryGonthier1992,Halbwachs1991Lustre}. These unify how computation executes. Ballarch unifies what is known about external effects and checks it at each level.
+\paragraph{Closest work.} Bluespec's guarded atomic actions and the Bluespec Codesign Language compile one rule-based semantics to both hardware and software~\citep{Nikhil2004Bluespec,KingDaveArvind2012}. Lingua Franca reactors and synchronous languages give deterministic semantics across targets~\citep{Lohstroh2021LinguaFranca,BerryGonthier1992,Halbwachs1991Lustre}. These unify how computation executes. Ballarch unifies what is known about external effects, and checks its call protocol at each of the three levels.
 
 \section{Formal Model of the Call Protocol}
 
@@ -353,7 +397,7 @@ In crash cells, the process crashes once, before a scheduler task chosen uniform
 \paragraph{Implementations.} The same author wrote all six against this specification. Code that stands in for a framework is excluded from the structural metrics:
 \begin{description}[leftmargin=1em,nosep]
   \item[Layered] Clean Architecture~\citep{Martin2017Clean}. One attempt with a timeout; any exception fails the order. On restart it resumes unfinished orders.
-  \item[Hardened] The same layers, plus a hand-written write-ahead status, retries only after a refused connection, and reconciliation by status query.
+  \item[Hardened] The same layers, plus a hand-written write-ahead status, retries only after a refused connection, and reconciliation by status query after the provider's delivery horizon: the reconciliation procedure of the specification's guidance, written into the use case.
   \item[Actors] Durable state and \texttt{ask} with a timeout. On restart, actors are re-driven.
   \item[MVU] The Elm architecture~\citep{Czaplicki2012} on the server. The model is persisted before commands run, and \texttt{init} re-issues them.
   \item[Saga] Hexagonal architecture with a transactional outbox, an orchestrated saga and idempotent consumers~\citep{Richardson2018}.
@@ -422,49 +466,57 @@ LCOM4 assumes that cohesive methods share fields. It counts stateless deciders o
 \paragraph{RQ3.} We injected two plausible bugs from outside the correct implementations: a Ballarch payment Ball that treats \Unknown\ as not charged, and a hardened gateway that reports an uncertain charge as not sent. Under Stress with a crash they were detected in 79.4\% and 46.4\% of runs respectively, and under Mild with a crash in 47.3\% and 2.3\%.
 
 \section{Related Work}
+\label{sec:related}
 
 \paragraph{Architecture styles.} Architecture research describes styles as components, connectors and constraints~\citep{PerryWolf1992,ShawGarlan1996}, and modules by the decisions they hide~\citep{Parnas1972}.
 \begin{itemize}[nosep]
   \item Layered, Clean and Hexagonal architectures and domain-driven design~\citep{Martin2017Clean,Cockburn2005,Evans2003} constrain dependencies.
   \item Actor systems give each piece of state one owner~\citep{HewittBishopSteiger1973,Armstrong2003,Bykov2011Orleans}.
   \item The Elm architecture and the Decider pattern separate pure transitions from effects~\citep{Czaplicki2012,Chassaing2021Decider}.
-  \item Durable-execution systems provide deterministic replay and exactly-once semantics for orchestrations~\citep{Burckhardt2021Durable}.
+  \item Durable-execution systems persist the progress of orchestrations and replay them deterministically~\citep{Burckhardt2021Durable}.
 \end{itemize}
 Ballarch keeps the structural constraints of these styles. To them it adds the temporal boundaries, the outcome rules and the algebra. Meng and Jackson's structural pattern for legible software is a recent example of a new structural pattern evaluated on an application~\citep{MengJackson2025}.
 
 \paragraph{Ambiguous outcomes and idempotence.} Several lines of work recognise ambiguous outcomes:
 \begin{itemize}[nosep]
-  \item the ``maybe'' outcome of RPC~\citep{BirrellNelson1984};
+  \item the third outcome of RPC, a failed call that may or may not have been executed~\citep{BirrellNelson1984};
   \item Jepsen's indeterminate operations~\citep{Jepsen,KingsburyAlvaro2020Elle};
   \item the heuristic outcomes of XA~\citep{XA1991}, including mixed and hazard;
   \item Helland's analysis of activities between partners~\citep{Helland2007,HellandCampbell2009}.
 \end{itemize}
-X-ability defines exactly-once correctness for services with side effects and is composable~\citep{FrolundGuerraoui2001XAbility}. Ramalingam and Vaswani make workflows idempotent and therefore safe to retry~\citep{RamalingamVaswani2013}. These approaches hide or remove the third outcome. Ballarch surfaces it, chooses it mechanically, and composes it. Recent studies of LLM agents report duplicated and hidden side effects at tool boundaries~\citep{TrofimovNovikov2026,Li2026ExactlyOnce}, a new setting for the same problem.
+X-ability defines exactly-once correctness for services with side effects and is composable~\citep{FrolundGuerraoui2001XAbility}. Ramalingam and Vaswani make workflows idempotent and therefore safe to retry~\citep{RamalingamVaswani2013}. These approaches hide or remove the third outcome. Recent studies of LLM agents report duplicated and hidden side effects at tool boundaries~\citep{TrofimovNovikov2026,Li2026ExactlyOnce}, a new setting for the same problem.
 
-\paragraph{Compensation and three-valued reasoning.} Sagas~\citep{GarciaMolinaSalem1987} and compensation calculi~\citep{ButlerHoareFerreira2005,BruniMelgrattiMontanari2005} give semantics to long-running transactions, but assume that outcomes are known. Three-valued abstractions and may/must approximations~\citep{LarsenThomsen1988,BrunsGodefroid1999} use the monotonicity argument of our soundness theorem. Knowledge-based analyses of commitment~\citep{HalpernMoses1990,Hadzilacos1987} reason about what processes know. The algebra here is truth-functional by design, so that a runtime can compute it.
+\paragraph{Retry rules in transports and runtimes.} Transport protocols already apply send-horizon reasoning to single requests. HTTP says that a client should not automatically retry a request with a non-idempotent method unless it knows that the request is in fact idempotent, or can detect that the original request was never applied~\citep[Sec.~9.2.2]{rfc9110}. HTTP/2 supplies such evidence: a GOAWAY frame's last stream identifier and the REFUSED\_STREAM error code guarantee that a request was not processed, and a client may then retry it even if it is not idempotent~\citep[Sec.~8.7]{rfc9113}. HTTP/3 defines a rejected request in the same way~\citep[Sec.~4.1.1]{rfc9114}. gRPC retries transparently only while a call has not left the client or has not reached the server's application logic~\citep{grpcA6}; it calls an RPC \emph{committed} when it stops making new attempts, an instant unrelated to our commit horizon. Service-design guidance commits local state before each foreign mutation, retries only mutations that are idempotent or carry a key, and marks a timed-out non-idempotent one as failed~\citep{Leach2017Idempotency}. Durable-execution engines run activities under a retry policy, with unlimited attempts by default in Temporal; an attempt that times out after dispatch is retried if the policy allows it~\citep{TemporalRetry,TemporalTimeouts}. Temporal records which timeout ended an attempt, so a workflow can tell an attempt that never reached a worker (Schedule-To-Start) from one that may have run (Start-To-Close)~\citep{TemporalTimeouts,TemporalEvents}. Mapping that to an outcome, and not retrying a non-idempotent activity, are left to workflow code and retry-policy configuration.
 
-\paragraph{Output commit and hardware.} The output-commit problem~\citep{StromYemini1985,Elnozahy2002}, write-ahead logging~\citep{Mohan1992ARIES}, external synchrony~\citep{Nightingale2005Speculator,Nightingale2006Rethink} and precise interrupts~\citep{SmithPleszkun1985} are the mechanisms behind the horizons. The time-triggered architecture~\citep{KopetzBauer2003} makes time part of interfaces. Bluespec, BCL, Lingua Franca and synchronous languages~\citep{Nikhil2004Bluespec,KingDaveArvind2012,Lohstroh2021LinguaFranca,BerryGonthier1992,Halbwachs1991Lustre} unify execution semantics across hardware and software.
+These rules govern the retries of one protocol, client or service, and report the rest as errors or leave them to configuration. Ballarch makes them one contract of the architecture. The runtime derives each outcome, and whether it may retry, from the effect class declared for the port; it never retries a \NonIdem\ call (R8). The outcome is a typed value delivered once to the owner's committed state, \Unknown\ is kept apart from failure, under the Durable profile the phase survives crashes through the write-ahead record, the result composes through the algebra of Section~\ref{sec:knowledge}, and the same rule is checked in firmware and RTL. Ballarch is also more conservative than HTTP/2: evidence of non-application ends the call as \NotDone, and the decider, not the transport, decides whether to send it again.
+
+\paragraph{Transactions and fault-tolerant runtimes.} Transaction processing defers real actions until commit~\citep{Gray1981}, and a participant in atomic commitment is uncertain of the outcome between its vote and the decision~\citep{BHG1987}; the two horizons carry these instants from transactions to every call of an application. Reliable State Machines are actor-like state machines whose state survives failures, with a proof of failure transparency~\citep{Mukherjee2019RSM}; they are the closest runtime model to Balls. Such systems aim at exactly-once processing inside their boundary. Ballarch addresses destinations outside any such boundary, which may offer no key: it turns the remaining uncertainty into a typed outcome and composes it. The end-to-end argument~\citep{SaltzerReedClark1984} places duplicate suppression and delivery assurance at the endpoints. The \Idem\ class puts deduplication at the destination, and the outcome rules let the caller state only what it can know.
+
+\paragraph{Compensation and three-valued reasoning.} Sagas~\citep{GarciaMolinaSalem1987} and compensation calculi~\citep{ButlerHoareFerreira2005,BruniMelgrattiMontanari2005} give semantics to long-running transactions, but assume that outcomes are known. Try-Confirm/\allowbreak Cancel~\citep{PardonPautasso2014TCC} does not: its implementations fence a request whose cancel arrived first (``empty rollback'' and ``anti-suspension''~\citep{SeataTCCFence}), which is our absorbing compensation. Transaction managers merge heuristic outcomes and pass them up through interposed coordinators~\citep{Narayana}. They thus say what a composite may claim while some outcomes stay unknown, but coarsely, depending on arrival order, and only for atomic transactions; Section~\ref{sec:knowledge} shows how the (\emph{all}, \emph{any}) algebra refines that merge. None of these approaches counts calls still to be made, or compensations, in such a claim. Three-valued abstractions and may/must approximations~\citep{LarsenThomsen1988,BrunsGodefroid1999} use the monotonicity argument of our soundness proposition, and ternary circuit simulation~\citep{Eichelberger1965} uses the same connectives; its pessimism under reconvergent fanout is why exactness needs read-once formulas. Knowledge-based analyses of commitment~\citep{HalpernMoses1990,Hadzilacos1987} reason about what processes know. The algebra here is truth-functional by design, so that a runtime can compute it.
+
+\paragraph{Output commit and hardware.} The output-commit problem~\citep{StromYemini1985,Elnozahy2002}, write-ahead logging~\citep{Mohan1992ARIES}, external synchrony~\citep{Nightingale2005Speculator,Nightingale2006Rethink} and precise interrupts~\citep{SmithPleszkun1985} are the mechanisms behind the horizons. Intermittent computing meets the firmware reference's hazard on energy-harvesting devices: repeating I/O after a power failure causes idempotence bugs~\citep{Surbatovich2019IBIS}, peripherals need just-in-time checkpoints~\citep{Maeng2019Samoyed}, and EaseIO lets programmers annotate each I/O call with its re-execution semantics~\citep{Yildiz2023EaseIO}. Those annotations are the closest firmware analogue of effect classes. These systems aim to make re-execution correct; Ballarch instead never re-executes a \NonIdem\ command whose fate is unknown, reports \Unknown, and applies the same rule at the other levels. The time-triggered architecture~\citep{KopetzBauer2003} makes time part of interfaces. Bluespec, BCL, Lingua Franca and synchronous languages~\citep{Nikhil2004Bluespec,KingDaveArvind2012,Lohstroh2021LinguaFranca,BerryGonthier1992,Halbwachs1991Lustre} unify execution semantics across hardware and software.
 
 \section{Limitations and Threats to Validity}
 
 \begin{itemize}[leftmargin=*]
-  \item \textbf{Construct and internal validity.} One author wrote all implementations and designed the architecture. Each idiomatic baseline is one reading of its style's guidance; the hardened baseline shows that an expert can reach correctness without Ballarch. Independent implementations, written before seeing the results, would strengthen the comparison.
+  \item \textbf{Construct and internal validity.} One author wrote all implementations and designed the architecture. Each idiomatic baseline is one reading of its style's guidance, and the idiomatic baselines deliberately add no fault handling beyond it. The hardened baseline hand-implements the write-ahead status, evidence-based retry and reconciliation procedure of the Ballarch specification. It shows that correctness is reachable without the runtime, not how an independent expert would harden the code. Independent implementations, written before seeing the results, would strengthen the comparison. The benchmark was not pre-registered.
   \item \textbf{External validity.}
   \begin{itemize}[nosep]
     \item The scenario is small and uses a simulated provider without idempotency keys; with idempotency keys, simple retries would become correct.
     \item The fault distributions are assumptions.
-    \item The firmware and RTL references are single examples checked in simulation.
+    \item The firmware and RTL references are single examples checked in simulation. They check the call-protocol rules, not every rule (Table~\ref{tab:rules}).
+    \item No reference composes levels, for instance firmware that drives the RTL block as a Ball behind a port, so closure across levels is proved for the algebra but not exercised.
     \item The Kotlin runtime's file store is single-node and has been tested against killed processes, not power loss; it is not a production database.
   \end{itemize}
   \item \textbf{Metrics.} LCOM4 and CAMC were designed for object-oriented code with shared fields. Propagation cost and CBO depend on how finely code is divided into classes. Change impact, developer effort and runtime overhead were not measured in this study. An earlier prototype comparison, whose data is not published, found that splitting each feature into an API module and an implementation module made cross-feature changes touch more files than single-module baselines in 4 of 5 change requests, and that a local request took a median of 39\,\textmu s more than a direct call, almost all of it thread hand-off.
-  \item \textbf{Formal results.} The Alloy results are bounded. The algebra's theorems are proved, and are also checked exhaustively for small sizes. The absorbing property of compensations and the honesty of adapters are assumptions that are reviewed, not verified.
+  \item \textbf{Formal results.} The Alloy results are bounded. The algebra's propositions and the closure corollary are proved, and the propositions are also checked exhaustively for small sizes. The closure corollary assumes honest adapters, absorbing compensations, a call ledger kept for as long as the calls' effects persist (the Durable profile, or crashes that also clear those effects), and deferred replies; the first two are reviewed, not verified.
 \end{itemize}
 
 \section{Conclusion}
 
-Ballarch places two instants that mechanisms in recovery, operating systems and processors already respect into the architecture itself, as boundaries in time. A runtime derives each outcome from them, and a small algebra carries honesty from parts to wholes. The same rules can be checked from register-transfer logic to services. In our benchmark, correctness under faults required either Ballarch or an expert's hand-written fault handling. Ballarch moved that knowledge from the feature into the architecture, at the price of more code and more concepts. Whether that trade pays off for teams, and for coding agents that write such features, is the next question to measure.
+Ballarch places two instants that mechanisms in recovery, operating systems and processors already respect into the architecture itself, as boundaries in time. A runtime derives each outcome from them, and a small algebra carries honesty from parts to wholes that reply with settled knowledge. The call-protocol rules can be checked by level-specific mechanisms from register-transfer logic to services. In our benchmark, correctness under faults required either Ballarch or the same reconciliation procedure written by hand into the feature. Ballarch moved that knowledge from the feature into the architecture, at the price of more code and more concepts. Whether that trade pays off for teams, and for coding agents that write such features, is the next question to measure.
 
-\paragraph{Artifacts.} The specification, the Kotlin, C and SystemVerilog references, the Alloy model, the benchmark and its raw data are available at \url{https://github.com/4wl2d/Pokeball} (version 2.0.0-rc.1). The file \texttt{docs/problems.md} there maps twelve recurring failures of current architectures to the mechanism, rule and evidence for each, and lists what Ballarch does not solve. Text is licensed under CC~BY~4.0; the code has no software license yet.
+\paragraph{Artifacts.} The specification, the Kotlin, C and SystemVerilog references, the Alloy model, the benchmark and its raw data are available in the Ballarch repository, \url{https://github.com/4wl2d/Pokeball}, which still carries the project's earlier name (version 2.0.0-rc.1). The file \texttt{docs/problems.md} there maps twelve recurring failures of current architectures to the mechanism, rule and evidence for each, and lists what Ballarch does not solve. Text is licensed under CC~BY~4.0; the code has no software license yet.
 
 \paragraph{Use of generative AI.} The author used an AI assistant (Anthropic's Claude) to draft parts of the code, the benchmark and the text, under the author's direction. The author reviewed the material, ran the reported checks, and takes full responsibility for the content.
 

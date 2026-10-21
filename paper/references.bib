@@ -531,7 +531,7 @@
 
 @misc{Li2026ExactlyOnce,
   author        = {Jiapeng Li},
-  title         = {Where Does Exactly-Once Live? Model, Harness, and Tool-Contract Effects on Duplicate Side Effects in {LLM} Agents},
+  title         = {Where Does Exactly-Once Live? {Model}, Harness, and Tool-Contract Effects on Duplicate Side Effects in {LLM} Agents},
   year          = {2026},
   eprint        = {2609.29095},
   archiveprefix = {arXiv}
@@ -589,5 +589,209 @@
   title        = {Ballarch: Core 2.0 Specification, Reference Implementations and Benchmark},
   year         = {2026},
   howpublished = {\url{https://github.com/4wl2d/Pokeball}},
-  note         = {Version 2.0.0-rc.1}
+  note         = {Version 2.0.0-rc.1. The repository keeps the project's earlier name, Pokeball, until it is renamed to Ballarch}
+}
+
+% Added for the related-work and algebra sections. Each entry records the source
+% checked on 2026-10-21; see PUBLISHING.md for the fields still to confirm.
+
+@misc{rfc9113,
+  author       = {Martin Thomson and Cory Benfield},
+  title        = {{HTTP/2}},
+  howpublished = {RFC 9113},
+  publisher    = {RFC Editor},
+  month        = jun,
+  year         = {2022},
+  doi          = {10.17487/RFC9113},
+  url          = {https://www.rfc-editor.org/info/rfc9113},
+  note         = {Section 8.7 checked against the text at https://httpwg.org/specs/rfc9113.html}
+}
+
+@misc{rfc9114,
+  author       = {Mike Bishop},
+  title        = {{HTTP/3}},
+  howpublished = {RFC 9114},
+  publisher    = {RFC Editor},
+  month        = jun,
+  year         = {2022},
+  doi          = {10.17487/RFC9114},
+  url          = {https://www.rfc-editor.org/info/rfc9114},
+  note         = {Section 4.1.1 checked against the text at https://httpwg.org/specs/rfc9114.html}
+}
+
+@misc{grpcA6,
+  author       = {Noah Eisen and Eric Gribkoff},
+  title        = {{gRPC} Retry Design ({gRFC} {A6})},
+  howpublished = {\url{https://github.com/grpc/proposal/blob/master/A6-client-retries.md}},
+  year         = {2024},
+  note         = {Last updated 2024-08-23; section ``Transparent Retries'', accessed 2026-10-21}
+}
+
+@inproceedings{Gray1981,
+  author    = {Jim Gray},
+  title     = {The Transaction Concept: Virtues and Limitations},
+  booktitle = {Proceedings of the Seventh International Conference on Very Large Data Bases (VLDB), Cannes, France, September 1981},
+  pages     = {144--154},
+  year      = {1981},
+  note      = {Also Tandem Technical Report TR 81.3; pages checked against the VLDB 1981 proceedings index}
+}
+
+@book{BHG1987,
+  author    = {Philip A. Bernstein and Vassos Hadzilacos and Nathan Goodman},
+  title     = {Concurrency Control and Recovery in Database Systems},
+  publisher = {Addison-Wesley},
+  year      = {1987},
+  isbn      = {0-201-10715-5}
+}
+
+@misc{Leach2017Idempotency,
+  author       = {Brandur Leach},
+  title        = {Implementing {Stripe}-like Idempotency Keys in {Postgres}},
+  howpublished = {\url{https://brandur.org/idempotency-keys}},
+  month        = oct,
+  year         = {2017},
+  note         = {Published 2017-10-27; text checked against its source in github.com/brandur/sorg, accessed 2026-10-21}
+}
+
+@misc{TemporalEvents,
+  author       = {{Temporal Technologies}},
+  title        = {{Temporal} Events Reference},
+  howpublished = {\url{https://docs.temporal.io/references/events}},
+  year         = {2026},
+  note         = {ActivityTaskScheduled, ActivityTaskStarted (recorded when the task is dispatched to a worker) and ActivityTaskTimedOut (a timeout failure that holds the timeout type); accessed 2026-10-21 via github.com/temporalio/documentation (events.mdx)}
+}
+
+@misc{TemporalRetry,
+  author       = {{Temporal Technologies}},
+  title        = {What is a {Temporal} Retry Policy?},
+  howpublished = {\url{https://docs.temporal.io/encyclopedia/retry-policies}},
+  year         = {2026},
+  note         = {Activities retry by default, with unlimited maximum attempts; accessed 2026-10-21 via github.com/temporalio/documentation}
+}
+
+@misc{TemporalTimeouts,
+  author       = {{Temporal Technologies}},
+  title        = {Detecting Activity Failures},
+  howpublished = {\url{https://docs.temporal.io/encyclopedia/detecting-activity-failures}},
+  year         = {2026},
+  note         = {Schedule-To-Start (until a worker picks up the task; never retried) and Start-To-Close timeouts; accessed 2026-10-21 via github.com/temporalio/documentation (detecting-activity-failures.mdx)}
+}
+
+@misc{ProtobufDescriptor,
+  author       = {{Protocol Buffers authors}},
+  title        = {descriptor.proto: the {\texttt{idempotency\_level}} method option},
+  howpublished = {\url{https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/descriptor.proto}},
+  year         = {2026},
+  note         = {Values IDEMPOTENCY\_UNKNOWN, NO\_SIDE\_EFFECTS and IDEMPOTENT; accessed 2026-10-21}
+}
+
+@misc{Smithy,
+  author       = {{Smithy authors}},
+  title        = {Smithy 2.0 Specification: Behavior Traits},
+  howpublished = {\url{https://smithy.io/2.0/spec/behavior-traits.html}},
+  year         = {2026},
+  note         = {The readonly, idempotent and idempotencyToken traits; checked against docs/source-2.0/spec/behavior-traits.rst in github.com/smithy-lang/smithy, accessed 2026-10-21}
+}
+
+@misc{Narayana,
+  author       = {{Narayana project}},
+  title        = {Narayana Transaction Manager, Source Code},
+  howpublished = {\url{https://github.com/jbosstm/narayana}},
+  year         = {2026},
+  note         = {Methods BasicAction.updateHeuristic (ArjunaCore) and SubordinateAtomicAction.doCommit (ArjunaJTA), main branch, accessed 2026-10-21}
+}
+
+@inproceedings{PardonPautasso2014TCC,
+  author    = {Guy Pardon and Cesare Pautasso},
+  title     = {Atomic Distributed Transactions: A {RESTful} Design},
+  booktitle = {Proceedings of the 23rd International Conference on World Wide Web (WWW '14 Companion)},
+  pages     = {943--948},
+  publisher = {ACM},
+  year      = {2014},
+  doi       = {10.1145/2567948.2579221}
+}
+
+@misc{SeataTCCFence,
+  author       = {{Apache Seata}},
+  title        = {Alibaba {Seata} Resolves Idempotence, Dangling, and Empty Rollback Issues in {TCC} Mode},
+  howpublished = {\url{https://seata.apache.org/blog/seata-tcc-fence/}},
+  year         = {2026},
+  note         = {Describes the TCC fence (table tcc\_fence\_log) introduced in Seata 1.5.1; undated page, accessed 2026-10-21}
+}
+
+@article{vanFraassen1966,
+  author  = {Bas C. van Fraassen},
+  title   = {Singular Terms, Truth-Value Gaps, and Free Logic},
+  journal = {The Journal of Philosophy},
+  volume  = {63},
+  number  = {17},
+  pages   = {481--495},
+  year    = {1966},
+  doi     = {10.2307/2024549}
+}
+
+@article{Eichelberger1965,
+  author  = {Edward B. Eichelberger},
+  title   = {Hazard Detection in Combinational and Sequential Switching Circuits},
+  journal = {IBM Journal of Research and Development},
+  volume  = {9},
+  number  = {2},
+  pages   = {90--99},
+  year    = {1965},
+  doi     = {10.1147/rd.92.0090}
+}
+
+@article{Surbatovich2019IBIS,
+  author  = {Milijana Surbatovich and Limin Jia and Brandon Lucia},
+  title   = {{I/O} Dependent Idempotence Bugs in Intermittent Systems},
+  journal = {Proceedings of the ACM on Programming Languages},
+  volume  = {3},
+  number  = {OOPSLA},
+  year    = {2019},
+  doi     = {10.1145/3360609}
+}
+
+@inproceedings{Maeng2019Samoyed,
+  author    = {Kiwan Maeng and Brandon Lucia},
+  title     = {Supporting Peripherals in Intermittent Systems with Just-In-Time Checkpoints},
+  booktitle = {Proceedings of the 40th ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI '19)},
+  pages     = {1101--1116},
+  publisher = {ACM},
+  year      = {2019},
+  note      = {Pages from the NSF Public Access Repository record, https://par.nsf.gov/biblio/10129925}
+}
+
+@inproceedings{Yildiz2023EaseIO,
+  author    = {Eren Yildiz and Saad Ahmed and Bashima Islam and Josiah Hester and Kasim Sinan Yildirim},
+  title     = {Efficient and Safe {I/O} Operations for Intermittent Systems},
+  booktitle = {Proceedings of the Eighteenth European Conference on Computer Systems (EuroSys '23)},
+  pages     = {63--78},
+  publisher = {ACM},
+  year      = {2023},
+  doi       = {10.1145/3552326.3587435}
+}
+
+@article{SaltzerReedClark1984,
+  author  = {Jerome H. Saltzer and David P. Reed and David D. Clark},
+  title   = {End-to-End Arguments in System Design},
+  journal = {ACM Transactions on Computer Systems},
+  volume  = {2},
+  number  = {4},
+  pages   = {277--288},
+  year    = {1984},
+  doi     = {10.1145/357401.357402}
+}
+
+@inproceedings{Mukherjee2019RSM,
+  author        = {Suvam Mukherjee and Nitin John Raj and Krishnan Govindraj and Pantazis Deligiannis and Chandramouleswaran Ravichandran and Akash Lal and Aseem Rastogi and Raja Krishnaswamy},
+  title         = {Reliable State Machines: A Framework for Programming Reliable Cloud Services},
+  booktitle     = {33rd European Conference on Object-Oriented Programming (ECOOP 2019)},
+  series        = {Leibniz International Proceedings in Informatics (LIPIcs)},
+  volume        = {134},
+  pages         = {18:1--18:29},
+  publisher     = {Schloss Dagstuhl--Leibniz-Zentrum f{\"u}r Informatik},
+  year          = {2019},
+  url           = {https://drops.dagstuhl.de/opus/volltexte/2019/10810},
+  eprint        = {1902.09502},
+  archiveprefix = {arXiv}
 }

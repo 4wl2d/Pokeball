@@ -32,12 +32,18 @@ description: Write, change or review a component on Ballarch Core 2 (Balls, deci
 
 ## Composite operations (R14)
 
-When a Ball reports whether an operation made of several calls took effect, derive the claim with `ballarch.kernel.Knowledge`:
-- a call you have not requested counts as `No`;
-- a requested call without a completion counts as `Maybe`, even if it may not have been sent yet;
+When a Ball reports whether an operation made of several calls took effect, derive the claim with `ballarch.kernel.Knowledge`. Count every call for the operation's final effect:
+- a call counts as `No` only once it completed `NotDone`, or once the Ball can no longer make it for this operation (for example, after the operation is settled);
+- a requested call without a completion counts as `Maybe`, even if it may not have been sent yet, and so does a call the Ball may still make, including a compensation;
 - `Done` with a refusal inside counts as `No`; pass an `effective` predicate to `effect` or `knowledge`.
 
-Count a compensation only if it is absorbing: the destination fences the reference, or the original request's horizon has passed. Combine repeated compensation attempts with `or`.
+Count a compensation only if it is absorbing: the destination fences the reference, or the original request's delivery horizon has passed. Combine repeated attempts at one effect with `or`, and repeated compensation attempts too.
+
+Answer the request that starts the operation only once the operation is settled (no call open, none still to be made): accept it with `acceptLater`, and send a `Reply` carrying the settled knowledge. Give callers a deadline that covers the operation's worst case. A status given earlier that counts calls not yet made as `No` is a snapshot: mark it as one (for example, with the stage) and never offer it as the outcome.
+
+When calling such a composite, take the knowledge in its settled reply as one constituent. Count `NotDone` as `NotDone`, and `Unknown`, a snapshot or a call still open as `Unknown`.
+
+Run the Ball under the Durable profile unless a crash also clears the effects of its calls.
 
 Report `Partial` or `NotAllDone` as such; do not collapse them into "failed". See `examples/trip`.
 
@@ -84,5 +90,5 @@ Reuse the project's equivalent tests when it uses another conforming runtime. St
 - No `Unknown` treated as failure or retried.
 - Every completion branch handles `Done`, `NotDone` and `Unknown`.
 - No decider reads anything but its arguments.
-- Claims about composite operations come from `Knowledge`, and compensations used in them are absorbing.
+- Claims about composite operations come from `Knowledge`, count calls still to be made as `Maybe`, and use only absorbing compensations; the operation's outcome is sent only once it is settled.
 - Tests explore faults and crashes, not only the happy path.

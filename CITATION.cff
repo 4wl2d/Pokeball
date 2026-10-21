@@ -11,11 +11,13 @@ abstract: >-
   pure functions; a runtime commits decisions atomically and gives every
   outbound request exactly one outcome, Done, NotDone or Unknown, chosen from
   two boundaries in time (the commit and send horizons) and the port's effect
-  class. A three-valued knowledge algebra lets composite operations make only
-  honest claims, so that a composite can be used as a single component one
-  level up. The distribution contains the specification, reference
-  implementations in Kotlin, C and SystemVerilog with level-specific checks,
-  an Alloy model, and a benchmark of one feature in six architectural styles.
+  class. A knowledge algebra over Kleene's three-valued logic bounds what a
+  composite operation may claim, so that a composite that replies with its
+  settled knowledge can be used as a single component one level up. The
+  distribution contains the specification, reference implementations in
+  Kotlin, C and SystemVerilog that check the call-protocol rules with
+  level-specific mechanisms, an Alloy model, and a benchmark of one feature in
+  six architectural styles.
 version: 2.0.0-rc.1
 type: software
 license-url: "https://github.com/4wl2d/Pokeball/blob/master/NOTICE.md"
@@ -23,6 +25,9 @@ authors:
   - given-names: Vladislav
     family-names: Tomilov
     alias: 4wl2d
+    # Before a release, add the author's real `orcid` (https://orcid.org/...)
+    # and, if wanted, `email` here (paper/PUBLISHING.md). Leave them out until
+    # then: the CFF schema rejects a malformed ORCID.
 repository-code: "https://github.com/4wl2d/Pokeball"
 keywords:
   - software architecture

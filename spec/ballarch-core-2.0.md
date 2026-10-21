@@ -26,13 +26,13 @@ Ballarch Core specifies how the **stateful components** of a system decide, chan
 2. no external effect is requested before the decision that requests it is committed;
 3. every outbound request ends in exactly one terminal outcome, and that outcome never claims that nothing happened when something may have happened;
 4. a crash never splits a decision: its state change and its requested effects are committed together or not at all;
-5. a statement about an operation made of several requests never claims more than the outcomes of those requests establish, so the operation can be used, one level up, as a single component with the same guarantees.
+5. a statement about an operation made of several requests never claims more than the outcomes of those requests establish; an owner that answers for such an operation once it is settled offers its caller what a single request offers: one completion, and no claim stronger than the evidence (§7.4).
 
 The rules are stated for any level at which a system has owned state and fallible interactions: a hardware block on a bus, firmware that drives a device, an in-memory UI component, a durable backend service, a workflow across services. The profile (§6) and the mechanisms that check the rules (§9, §11) differ between levels; the rules do not.
 
 **Non-goals.** Ballarch Core does not specify: distributed consensus or replication of a Ball across nodes; exactly-once execution of external effects (only idempotency and reconciliation mechanisms that make at-most-once or effectively-once achievable); multi-Ball transactions; a wire format; a UI toolkit; security isolation between Balls in one process; or a deployment topology.
 
-**Applicability.** The architecture targets components with state that matters and asynchronous or fallible interaction with other components or external systems. For stateless transformations and simple CRUD forms without external effects it adds structure without adding protection (see the measured overhead in §10); use plain code there.
+**Applicability.** The architecture targets components with state that matters and asynchronous or fallible interaction with other components or external systems. For stateless transformations and simple CRUD forms without external effects it adds structure without adding protection (see the measured overhead in §10); use plain code there. [Problems Ballarch addresses](../docs/problems.md) lists the failures of current architectures that these properties target, and the problems they leave open.
 
 ## 2. Model
 
@@ -231,13 +231,21 @@ These are bounded model-checking results, not proofs for all sizes.
 
 A Ball often performs one operation through several calls: a booking of a flight and a hotel, a reservation and a charge. What can it truthfully say about the operation as a whole? Ballarch answers with a small algebra over **strong Kleene three-valued logic** (K3), with truth values `Yes`, `No` and `Maybe`.
 
-**Constituents.** Each call the operation needs is a constituent, whether or not the Ball has requested it yet. Its *effect* is a truth value:
+**Constituents.** Each call the operation may make is a constituent, whether or not the Ball has requested it yet. Its *effect* is a truth value:
 
-- `Yes` if it completed `Done` with an answer that means the requested effect happened;
-- `No` if it completed `NotDone`, or if the Ball has not requested it;
-- `Maybe` if it completed `Unknown`, or if it has been requested and has no completion yet. This includes a call still in phase `Pending`, which may yet be sent and take effect.
+- `Yes` if it completed `Done` with an answer that, by the port's contract, means the requested effect happened;
+- `No` if it completed `NotDone`; if it completed `Done` with an answer that means the effect did not happen (a business refusal the destination recorded, §2.2); or if the Ball has not requested it and can no longer request it for this operation, for example because the operation is settled;
+- `Maybe` if it completed `Unknown`; if it has been requested and has no completion yet, whether or not it has been sent (a `Pending` call may still be sent and take effect); or if the Ball has not requested it but may still do so.
 
-A *compensation* of a constituent is a call that undoes it. A compensation is **absorbing** if its effect means that no effect of the original request exists or can still take effect, for example because the destination fences the request's reference, or because the original request's delivery horizon has passed. The *net effect* of a constituent with absorbing compensations is `effect ∧ ¬undone`, where `undone` is the disjunction of the effects of its compensation attempts.
+A decider sees no call phases and needs none: these values follow from its own state. If the Ball may make a further attempt at the same effect after a `NotDone`, its attempts, including those it may still make, form one constituent whose effect is the disjunction of theirs.
+
+A call to a port whose reply reports the knowledge of a composite operation (§7.4) is a *composite constituent*. It contributes a pair instead of a single effect:
+
+- the knowledge in its reply, if it completed `Done` with a reply that describes the settled operation;
+- `NotDone`, if it completed `NotDone` (the request had no effect, §2.2) or the Ball can no longer make it;
+- `Unknown`, if it completed `Unknown`, if its reply describes the operation before it settled, or if it is open or may still be made.
+
+A *compensation* of a constituent is a call that undoes it. A compensation is **absorbing** if its effect means that no effect of the original request exists or can still take effect, for example because the destination fences the request's reference, or because the original request's *delivery horizon*, the age after which the destination no longer applies it, has passed. The *net effect* of a constituent with absorbing compensations is `effect ∧ ¬undone`, where `undone` is the disjunction of the effects of its compensation attempts. Each attempt counts like a constituent: one that the Ball may still make counts as `Maybe`.
 
 **Knowledge.** The knowledge of an operation is a pair (*all*, *any*): did every constituent take effect (net), and did at least one? For constituents with net effects *n₁ … nₖ*:
 
@@ -255,24 +263,26 @@ with K3's ∧ and ∨. Composition is a commutative monoid whose identity is the
 | SomeDone | (Maybe, Yes) | something happened; whether everything did is unknown | `Unknown` |
 | NoEffects | (Yes, No) | the operation requested no effect | `NotDone` |
 
-**Composition closure.**
+**Claims over time.** The operation is *settled* when no call for it is open and the Ball will make no further call for it. Counted as above, knowledge is a claim about the operation's *final* effect, the effect once it is settled. Given honest outcomes (§7.4), a completed outcome never changes (P2), a call that completed `NotDone` never takes effect (P3), and `Maybe` admits either value; by monotonicity (below), later completions can therefore refine the knowledge but never contradict it. Once the operation is settled, its knowledge no longer changes. A *snapshot* instead counts a call the Ball has not yet requested as `No`. It describes the effects at the instant it is taken, and a later call may contradict it; R14 limits its use.
+
+**Soundness and exactness.**
 
 - *Soundness.* If the knowledge of every constituent admits what really happened to it, the combined knowledge admits what really happened to the operation.
 - *Coordinate-wise exactness.* Each coordinate is the most informative value that every ground truth consistent with the constituents' outcomes satisfies.
 
-Both follow from two properties of K3's strong connectives: they are monotone in the information order (`Maybe` below `Yes` and `No`), and they coincide with supervaluation on formulas in which every variable occurs once (Kleene 1952). *all*, *any* and the net effect `effect ∧ ¬undone` are such formulas.
+Both follow from two properties of K3's strong connectives. They are monotone in the information order, with `Maybe` below `Yes` and `No` (Kleene 1952). On formulas in which every variable occurs once, they coincide with supervaluation (van Fraassen 1966), provided the constituents' calls are independent: every combination of their individually possible effects is jointly possible. *all*, *any* and the net effect `effect ∧ ¬undone` are such formulas. The second property is also why ternary (0/1/X) simulation of logic, used for hazard detection since Eichelberger (1965), is exact on circuits without reconvergent fanout and can be pessimistic with it: `Maybe` behaves like Verilog's `x` under `&`, `|` and `~`.
 
 The kernel's [`Knowledge`](../reference/kotlin/ballarch-kernel/src/main/kotlin/ballarch/kernel/Knowledge.kt) type implements the algebra. [`KnowledgeTest`](../reference/kotlin/ballarch-kernel/src/test/kotlin/ballarch/kernel/KnowledgeTest.kt) checks three things exhaustively:
 
 - the connectives against supervaluation;
 - the monoid laws on all seven values;
-- soundness and exactness for up to four constituents with or without compensations: 69,905 worlds.
+- soundness and exactness for up to four constituents, each with no compensation or one: 69,905 worlds.
 
-Associativity extends the result to any number of constituents.
+Soundness and exactness hold for any number of constituents and attempts, because the formulas stay read-once; the exhaustive check covers the cases listed. A composite constituent whose reply describes the settled operation enters with `+` like any other. By associativity, the result equals the knowledge of the operation flattened to its single calls.
 
 The exactness is relative to the constituents' individual outcomes. Evidence that correlates constituents, such as "one of these two calls landed", can establish more than the algebra derives. The algebra under-approximates such knowledge and never over-approximates it.
 
-The [trip example](../reference/kotlin/examples/trip/) applies the algebra to a flight and a hotel booking with absorbing compensations. Under exhaustive fault and crash exploration, its claims always admit the providers' real bookings; a two-valued status on the same runs is wrong in 254 of 1,339 runs.
+The [trip example](../reference/kotlin/examples/trip/) applies the algebra to a flight and a hotel booking with absorbing compensations. Under bounded exhaustive fault and crash exploration, the knowledge it reports once the trip is settled always admits the providers' real bookings; a two-valued status on the same runs is wrong in 254 runs.
 
 ## 5. Kernel rules
 
@@ -290,8 +300,8 @@ The [trip example](../reference/kotlin/examples/trip/) applies the algebra to a 
 **R12 — Read-only queries.** Reading a Ball's committed state (for display or diagnostics) MUST NOT change state or request effects. Reads by another Ball MUST be calls to a Safe port.
 *Enforcement:* type system (reads return values, not decisions); `Runtime.watch` observes committed states only.
 
-**R14 — Honest composition.** A Ball that states whether an operation made of several calls took effect, in a reply, a notice, or state that others read, MUST NOT claim more than the knowledge algebra (§4.2) derives from the outcomes of those calls. A call the Ball has not requested counts as `No`. A requested call counts as `Maybe` until its completion arrives, whether or not it has been sent, including a call requested by the decision that makes the claim. Only an absorbing compensation may count as undoing an effect.
-*Enforcement:* the kernel's `Knowledge` type; exploration tests against ground truth (the trip example); review.
+**R14 — Honest composition.** A Ball that states whether an operation made of several calls took effect, in a reply, a notice, or state that others read, MUST NOT claim more than the knowledge algebra (§4.2) derives from the outcomes of those calls. A constituent counts as `Maybe` while the Ball may still make its call, and while the call is open, whether or not it has been sent; this includes a call requested by the decision that makes the claim. It counts as `No` only once its call completed `NotDone` (or `Done` with an answer that means the effect did not happen), or once the Ball can no longer make it for this operation. The same holds for each compensation attempt, and only an absorbing compensation may count as undoing an effect. A snapshot (§4.2), which counts a call not yet requested as `No`, states the effects at the instant it is taken: it MUST say so, for example by carrying the operation's stage, and MUST NOT be offered as the operation's outcome, for example as the reply to the request that started the operation.
+*Enforcement:* the kernel's `Knowledge` type; exploration tests against ground truth (the trip example); review, including whether every compensation counted is absorbing and every call the Ball may still make counts as `Maybe`.
 
 ### 5.2 Runtime rules
 
@@ -307,7 +317,7 @@ The [trip example](../reference/kotlin/examples/trip/) applies the algebra to a 
 **R6 — One completion per call.** Every committed call MUST have a finite deadline. A runtime MUST deliver at most one completion per call and, while it runs (Transient) or across restarts (Durable), exactly one by the deadline plus scheduling delay. A completion MUST NOT be delivered for a call the instance did not commit.
 *Enforcement:* runtime; Alloy P2 and L1; trace oracle R6.
 
-**R7 — Honest outcomes.** `NotDone` MUST be produced only with evidence of non-application: the call was never sent, the destination refused it, an adapter reported evidence covering every attempt that may have been delivered, or the port is Safe and so has no effect to apply. For effectful ports, a call that may have been sent and has no answer MUST end `Unknown`; for Safe ports it ends `NotDone(NoAnswer)`.
+**R7 — Honest outcomes.** `NotDone` MUST be produced only with evidence of non-application: the call was never sent, the destination refused it, an adapter reported evidence covering every attempt that may have been delivered (for example, HTTP/2's REFUSED_STREAM, or a GOAWAY whose last stream identifier is lower than the request's stream), or the port is Safe and so has no effect to apply. For effectful ports, a call that may have been sent and has no answer MUST end `Unknown`; for Safe ports it ends `NotDone(NoAnswer)`.
 *Enforcement:* runtime classification table (§3.2); Alloy P3, P5; trace oracle R7 against simulated ground truth; adapter conformance kit.
 
 **R8 — No blind re-send.** A runtime MUST NOT send a NonIdempotent call more than once, including after a restart; before sending it MUST record durably (Durable profile) that the call may have been sent. Only the runtime MAY retry, within the port's finite attempt budget, and only Safe and Idempotent ports. Adapters MUST NOT retry.
@@ -329,11 +339,11 @@ The [trip example](../reference/kotlin/examples/trip/) applies the algebra to a 
 | R1 Single owner | MUST | author | runtime encapsulation; `noGlobalMutableState`, `immutableValues`; C object-file check (no writable data); Yosys single-driver check |
 | R2 Pure decider | MUST | author | `deciderPurity` (not termination); C undefined-symbol check; Yosys latch check |
 | R3 Serial processing | MUST | runtime | runtime guard; oracle |
-| R4 Atomic commit | MUST | runtime | store design; Alloy; exploration |
-| R5 Commit before dispatch | MUST | runtime | Alloy; oracle; firmware exploration; Yosys path check |
-| R6 One completion per call | MUST | runtime | Alloy; oracle |
-| R7 Honest outcomes | MUST | runtime, adapter | Alloy; oracle with ground truth; conformance kit |
-| R8 No blind re-send | MUST | runtime, adapter | Alloy; oracle; composition check; conformance kit |
+| R4 Atomic commit | MUST | runtime | store design; Alloy; exploration; C power-loss exploration (torn writes) |
+| R5 Commit before dispatch | MUST | runtime | Alloy; oracle; C exploration; RTL bench; Yosys path check |
+| R6 One completion per call | MUST | runtime | Alloy; oracle; C exploration; RTL bench |
+| R7 Honest outcomes | MUST | runtime, adapter | Alloy; oracle with ground truth; conformance kit; C exploration; RTL bench |
+| R8 No blind re-send | MUST | runtime, adapter | Alloy; oracle; composition check; conformance kit; C exploration; RTL bench |
 | R9 One reply per request | MUST / SHOULD | runtime / author | preflight; oracle; leak trace |
 | R10 Explicit composition | MUST / SHOULD | author | kernel API; `featuresUseOnlyPublicApis`; `checkModuleBoundaries` |
 | R11 Bounded resources and preflight | MUST | runtime | preflight; `RuntimeRulesTest` |
@@ -371,12 +381,25 @@ Call cycles between Balls are permitted: no step waits for another, so a cycle c
 
 ### 7.4 Composition closure
 
-A Ball that serves a port and obeys R14 offers through that port what a single call offers:
+A Ball that performs an operation for the requests on its port can answer for it as a single call does, under four conditions:
 
-- one completion per request (R6, R9);
-- no claim stronger than its evidence (R7, R14).
+1. the outcomes it receives are honest: its runtime and adapters conform (§9.1, §9.3), and each Ball it calls for the operation satisfies this section;
+2. every compensation it counts as undoing an effect is absorbing (§4.2);
+3. it keeps its state and call ledger for as long as the effects of its calls persist: under the Durable profile, or under the Transient profile only if a crash also clears those effects;
+4. it obeys R14, so that every call it may still make for the operation, including a compensation, counts as `Maybe`.
 
-A caller can therefore treat it as one component without inspecting its parts. This holds recursively. A register block, the firmware that drives it, the service that calls the firmware and a workflow across services can each be described by the same rules, each level treating the one below as Balls behind ports. A composite that can end with a partial effect SHOULD say so in its reply type, using the knowledge of §4.2, rather than reduce it to a three-valued outcome.
+Then every claim it derives about the operation, other than a snapshot, admits the operation's final effect, when it is made and at every later time (§4.2). The Ball SHOULD answer a request for the operation only once the operation is settled, with a deferred reply (§2.1) that carries the settled knowledge. Such a reply offers the caller what a single call offers:
+
+- one completion per request: the Ball replies at most once (R9), and the caller's runtime delivers exactly one completion by the caller's deadline (R6);
+- no claim stronger than the evidence: the reply's knowledge admits the operation's final effect (R7, R14), and it no longer changes.
+
+One level up, the caller enters the reply's knowledge as a composite constituent of its own operation (§4.2). By associativity, its knowledge then equals what it would derive from all the calls below it, so, by induction, the same holds at any depth of composition.
+
+A status given before the operation settles, such as the answer to a status query, either counts every call the Ball may still make as `Maybe`, and is then usually `Unknown`, or is a snapshot: it states the effects at the instant it was made, and a later completion may contradict it. A caller counts any reply that does not describe the settled operation as `Unknown` (§4.2).
+
+The closure stays sound but can lose information in two places. A caller whose deadline is shorter than the time the operation needs to settle receives `Unknown`; its deadline SHOULD cover the operation's worst case. A composite that reports only a three-valued outcome (the last column of the table in §4.2) is still honest, but `Partial`, `NotAllDone` and `SomeDone` all become `Unknown`; a composite that can end with a partial effect SHOULD therefore return its knowledge in its reply type.
+
+The same argument applies across levels. A register block, the firmware that drives it, the service that calls the firmware and a workflow across services can each be described by the same rules, each level treating the one below as Balls behind ports. The references in this repository check each level separately; none composes levels (§11).
 
 ## 8. Guidance (non-normative)
 
@@ -405,7 +428,7 @@ A runtime conforms to Core 2.0 if, for the profiles it claims, it satisfies R3�
 
 ### 9.2 A conforming application
 
-An application conforms if its Balls satisfy R1, R2, R10, R12 and R14 and run on a conforming runtime. Evidence consists of the architecture rules of [`ballarch-archrules`](../reference/kotlin/ballarch-archrules/) passing on its code, exploration tests of its composite operations against ground truth, and review of ownership boundaries, decider termination and the absorbing property of compensations.
+An application conforms if its Balls satisfy R1, R2, R10, R12 and R14 and run on a conforming runtime. Evidence consists of the architecture rules of [`ballarch-archrules`](../reference/kotlin/ballarch-archrules/) passing on its code, exploration tests of its composite operations against ground truth, and review of ownership boundaries, decider termination, the absorbing property of compensations, and the counting of calls a Ball may still make (R14).
 
 ### 9.3 A conforming adapter
 
@@ -446,6 +469,7 @@ The benchmark is small and was written by one author; see its threats to validit
 - **Cross-Ball invariants.** An invariant that spans Balls cannot be enforced in one decision; it needs a coordinating Ball, a reservation, or a storage constraint.
 - **Information loss.** A late answer after a call resolved is dropped; the application must reconcile explicitly.
 - **Quarantine blocks notices.** Notices to a quarantined subscriber stay in the publisher's outbox and are retried until the subscriber's code is fixed and the runtime restarted (quarantine is not persisted). Once the outbox bound is reached, the publisher's decisions that publish are refused with `Overloaded`.
+- **Levels checked separately.** The firmware and hardware references check the call-protocol rules only (§11). The knowledge algebra is used and checked only in the service reference, and no reference composes levels.
 - **Unchecked obligations.** Termination of deciders, adapter honesty beyond the conformance kit, the absorbing property of compensations, and the choice of ownership boundaries are not mechanically verified.
 
 ## 11. Interpretation across levels (informative)
@@ -465,38 +489,42 @@ The rules mention no language, no transport and no kind of storage. The same con
 | Profile (R13) | Transient or Durable | Durable | Transient (registers do not survive reset) |
 | Composition (R10, R14) | composition root, Flows | one runtime per device | instantiation hierarchy; a block is a Ball to the bus master above it |
 
-Each rule is checked by mechanisms suited to its level:
+The references check the rules with mechanisms suited to each level. A rule with no mechanism in a column is not checked at that level:
 
 | Rule | Service | Firmware | Hardware |
 |---|---|---|---|
-| R1 | `noGlobalMutableState`, `immutableValues` | no writable data in the decider object | Yosys: no register with two drivers |
-| R2 | `deciderPurity` (bytecode) | no external symbol in the decider object | Yosys: no latch in the decider; Verilator lint |
+| R1 | `noGlobalMutableState`, `immutableValues` | no writable data in the decider object (necessary, not sufficient) | Yosys: no register with two drivers |
+| R2 | `deciderPurity` (bytecode) | no external symbol in the decider object (necessary, not sufficient) | Yosys: no latch in the decider; Verilator lint |
+| R4 | single-record store write; Alloy P6; crash exploration | power-loss exploration, including torn writes | — |
 | R5 | trace oracle; Alloy P1 | NVM holds `Sending` at every transmission | bench check; Yosys: no combinational path from input to dispatched output |
-| R6–R8 | trace oracles against ground truth; Alloy | exploration over every link fate and power-loss point, including torn writes | bench over every fate of every attempt |
+| R6–R8 | trace oracles against ground truth; Alloy | bounded exhaustive exploration of link fates and power-loss points, including torn writes | bench over every combination of the modelled fates of the first two attempts, against the device model |
+| R3, R9–R12, R14 | the mechanisms of §5.3 | — | — |
+| R13 | documentation review | documentation review | documentation review |
 
-Every column has seeded bugs that its checks must catch. The firmware and hardware references are small and are checked in simulation; they show that the rules can be stated and checked the same way at these levels, not that a given product conforms.
+Every column has seeded bugs that its checks must catch. The firmware and hardware references are small and are checked in simulation. They show that the call-protocol rules can be stated once and checked at these levels, not that a given product conforms. The knowledge algebra (R14) is used and checked only in the service reference, and no reference composes levels.
 
 ## 12. Lineage and what is new (informative)
 
-Ballarch reuses established mechanisms. What it adds is where it puts them: in the architecture, as rules with checks, rather than in each feature.
+Ballarch reuses established mechanisms. What it adds is where it puts them: in the architecture, as rules with checks, rather than in each feature, transport or client.
 
 | Ballarch element | Closest prior work | Difference |
 |---|---|---|
 | Single owner, serial steps | actors (Hewitt et al. 1973; Erlang/OTP); aggregates (Evans 2003); grains (Orleans) | none in mechanism; Ballarch adds the outcome rules below to the owner |
 | Pure decider, commit then dispatch | Elm architecture; Decider (Chassaing); functional core, imperative shell; transactional outbox; Akka persist-then-run | the step is defined with its crash semantics and checked by oracles and a model |
 | Dependency direction, adapters at the edge | Ports and Adapters (Cockburn 2005); Clean Architecture (Martin 2017) | these are spatial boundaries; Ballarch keeps them and adds boundaries in time |
-| Commit horizon | output commit in rollback recovery (Strom and Yemini 1985; Elnozahy et al. 2002); external synchrony (Nightingale et al. 2006); precise interrupts and in-order retirement (Smith and Pleszkun 1985) | a mechanism inside recovery protocols, operating systems or processors; here an architectural boundary every interaction crosses |
-| Send horizon, three outcomes | RPC's "maybe" (Birrell and Nelson 1984); Jepsen's `:info`; XA heuristic outcomes; ambiguous-commit errors in databases | the outcome is chosen mechanically from the phase and the port's effect class, and the rule is checked |
-| Effect classes | HTTP safe and idempotent methods (RFC 9110); Arm Device memory (no speculative or repeated access); PCIe posted and non-posted requests | used as the primary type of every interface, with mechanical consequences for retries and outcomes |
-| Knowledge of composites | Kleene's three-valued logic; XA `HEURMIX` and `HEURHAZ`; X-ability (Frølund and Guerraoui 2001); compensation calculi (Butler, Hoare and Ferreira 2005) | an (all, any) algebra with absorbing compensation and a closure property that lets a composite act as one honest port |
-| One model across hardware and software | Bluespec and BCL (Nikhil 2004; King, Dave and Arvind 2012); Lingua Franca reactors; synchronous languages (Esterel, Lustre) | these unify how computation executes; Ballarch unifies what is known about external effects, and checks it at each level |
+| Commit horizon | output commit in rollback recovery (Strom and Yemini 1985; Elnozahy et al. 2002); external synchrony (Nightingale et al. 2006); precise interrupts and in-order retirement (Smith and Pleszkun 1985); real actions, which cannot be undone, deferred until commit (Gray 1981); local atomic phases committed before each foreign state mutation (Leach 2017); just-in-time checkpoints around peripheral operations in intermittent computing (Maeng and Lucia 2019) | a mechanism inside recovery protocols, operating systems, processors or transaction managers, or a design heuristic for one service; here an architectural boundary that every interaction crosses and every implementation must make observable (§2.5) |
+| Send horizon, three outcomes | RPC's "maybe" (Birrell and Nelson 1984); Jepsen's `:info` for a timed-out write, `:fail` for a timed-out read (Kingsbury); XA heuristic outcomes; ambiguous commit results in databases (MongoDB `UnknownTransactionCommitResult`); HTTP's rule that a client does not automatically retry a non-idempotent request unless it can detect that the request was never applied (RFC 9110 §9.2.2), with GOAWAY and REFUSED_STREAM (RFC 9113 §8.7) and H3_REQUEST_REJECTED (RFC 9114 §4.1.1) as that evidence; gRPC's transparent retries of a call that never left the client or never reached the server's application logic (gRFC A6); "request sent" checks in HTTP clients (Apache HttpClient); retry decisions by the idempotence of foreign mutations (Leach 2017); activity scheduling and dispatch events in durable execution (Temporal); PCIe Completion Timeout on non-posted requests | these decide retries inside one transport, client, service or test harness, and report the rest as exceptions or log labels; here one runtime rule covers every port at every level, persists across restarts (§3.2), ends in a typed completion that the decider must handle and that composes (§4.2), and is checked by oracles and a model. Unlike HTTP/2, evidence of non-application ends a NonIdempotent call `NotDone`; the decider, not the transport, decides whether to repeat it |
+| Effect classes | HTTP safe and idempotent methods (RFC 9110); per-operation annotations in interface languages: protobuf `idempotency_level` (`NO_SIDE_EFFECTS`, `IDEMPOTENT`, unknown), Smithy `@readonly` and `@idempotent`; client retry guidance that retries a request only if repeating it causes no unintended state change (Google AIP-194); duplicate suppression at the endpoints (Saltzer, Reed and Clark 1984); Arm Device memory (no speculative or repeated access); PCIe prefetchable memory (reads have no side effects); re-execution of I/O after power failure in intermittent computing (Surbatovich, Jia and Lucia 2019), with per-call re-execution semantics (EaseIO, Yildiz et al. 2023) | interface languages, retry guidance and intermittent-computing systems use these classes, per operation, to decide retries or re-execution; Ballarch also derives each call's outcome from its class and phase (§3.2), never repeats a possibly-sent NonIdempotent call but reports it `Unknown`, and applies the same classes to services, firmware and hardware |
+| Knowledge of composites | Kleene's three-valued logic (Kleene 1952); supervaluation (van Fraassen 1966); ternary simulation (Eichelberger 1965); XA `HEURMIX` and `HEURHAZ` (X/Open 1991); heuristic-outcome merging and interposition in transaction managers (Narayana); X-ability (Frølund and Guerraoui 2001); compensation calculi (Butler, Hoare and Ferreira 2005); Try-Confirm/Cancel (Pardon and Pautasso 2014) and its fence against a request that arrives after its cancel (Seata 1.5.1) | transaction managers already merge participants' heuristic outcomes (commit with rollback gives mixed, which absorbs later outcomes), and an interposed subordinate coordinator reports the merged outcome to its superior as one participant: a coarser closure under nesting. Ballarch refines the merge into an (all, any) pair that keeps apart what hazard conflates (`NotAllDone`, `SomeDone`, `Unknown`), so `SomeDone` with `NotDone` gives `Partial`. The pair forms a commutative monoid, whereas a deployed merge (Narayana) depends on the order in which outcomes arrive. Only absorbing compensations, such as a TCC fence or a passed delivery horizon, count as undoing an effect; every claim is counted for the final effect (R14); and the algebra applies to any port of a non-atomic operation, not only to two-phase-commit participants |
+| One model across hardware and software | Bluespec and BCL (Nikhil 2004; King, Dave and Arvind 2012); Lingua Franca reactors; synchronous languages (Esterel, Lustre) | these unify how computation executes; Ballarch unifies what is known about external effects, and checks its call-protocol rules in references at three levels (§11) |
+| Durable execution | Temporal; Azure Durable Functions (Burckhardt et al. 2021) | orchestration code is replayed deterministically, but activities are retried under a policy (in Temporal, by default with unlimited attempts), and what an activity that timed out after dispatch did is left to user code; Ballarch refuses retry policies on NonIdempotent ports (R8) and delivers `Unknown` as a value that composes (§4.2) |
 
-**Contributions.** As far as the author could establish, the following are new:
+**Contributions.** The mechanisms above are established, and the table cites them. As far as the author could establish, what remains new is the following:
 
-1. **Boundaries in time.** The commit horizon and the send horizon are architectural boundaries (§2.5), next to the spatial ones.
-2. **Outcomes from phase and effect class.** A mechanical rule (§3.2) chooses each call's outcome from its phase and its port's effect class, and never reports `NotDone` without evidence.
-3. **Knowledge of composites.** The knowledge algebra (§4.2) and rule R14 give composition closure (§7.4): a composite of honest parts is one honest part.
-4. **One rule set, checked at each level.** The same rules are stated once and checked by level-specific mechanisms from register-transfer logic to services (§11).
+1. **Boundaries in time.** The commit and send instants are known from transaction processing, service design, transport protocols and durable-execution engines. Ballarch makes them normative boundaries of a general architecture, next to the spatial ones: every implementation, at every level, must make them observable (§2.5), and the outcome rules are stated in terms of them.
+2. **One runtime rule for outcomes, across every port.** Protocols and clients already decide whether to retry from whether a request was sent and whether it is idempotent, and test harnesses record timed-out writes as indeterminate. Ballarch moves that decision into the runtime, once for every port: the outcome follows from the call's durable phase and the port's effect class (§3.2), survives restarts, and reaches the decider as a typed `Done`, `NotDone` or `Unknown` completion. Adapters never retry (R8).
+3. **Knowledge of composites.** Transaction managers already merge heuristic outcomes and pass them up through interposed coordinators. The (all, any) algebra (§4.2) refines that merge: it keeps apart what a manager reports as hazard, does not depend on order, counts only absorbing compensations, and counts every call the Ball may still make as `Maybe`, so that a claim holds for the operation's final effect. With rule R14 it gives composition closure for non-atomic operations on any port (§7.4): a settled composite of honest parts answers like one honest call. Its soundness and coordinate-wise exactness follow from known properties of Kleene's connectives.
+4. **One rule set, checked at three levels.** The rules are stated once, without reference to language, transport or storage. The call-protocol rules are checked by level-specific mechanisms in references for services, firmware and register-transfer logic; §9.4 and §11 list which rules each level checks. The knowledge algebra is checked only in the service reference, and no reference composes levels.
 
 The other elements are established practice and are cited as such. [Problems Ballarch addresses](../docs/problems.md) maps recurring failures of current architectures to these elements and marks which are new.
 
@@ -504,7 +532,7 @@ The other elements are established practice and are cited as such. [Problems Bal
 
 | Term | Meaning |
 |---|---|
-| Absorbing compensation | A compensation whose effect excludes any present or later effect of the request it undoes (§4.2). |
+| Absorbing compensation | A compensation whose effect excludes any present or later effect of the request it undoes, for example because the destination fences the request's reference (§4.2). |
 | Accept / Reject | Results of `decide`: commit (with a reply plan and outputs) or refuse without committing. |
 | Attempt | One invocation of a transport for a call; a call has one or more attempts. |
 | Ball, Ball type, instance | See §2. |
@@ -513,6 +541,7 @@ The other elements are established practice and are cited as such. [Problems Bal
 | Completion | The terminal outcome of a call, delivered once to the caller's `complete`. |
 | Composition root | See §2. |
 | Deadline | The time by which a call or request must resolve; finite by rule R6. |
+| Delivery horizon | The age after which a destination no longer applies a request; once it has passed, a request that has not taken effect never will (§4.2, §8.4). |
 | Effect class | Safe, Idempotent or NonIdempotent; see §2. |
 | Flow | A Ball whose state is a multi-Ball workflow. |
 | Knowledge | The pair (all, any) of three-valued truths about the effects of a composite operation (§4.2). |
@@ -526,23 +555,51 @@ The other elements are established practice and are cited as such. [Problems Bal
 | Quarantine | A runtime stops an instance whose completion or notice handler failed or produced a decision that failed preflight (§3.5). |
 | Revision | The number of an instance's committed decisions; starts at 1. |
 | Send horizon (send point) | The first moment a call may have left the runtime (§2.5). Under the Durable profile a write-ahead record precedes it (R8); in a synchronous circuit it is the bus handshake (§11). |
+| Settled | An operation is settled when no call for it is open and its Ball will make no further call for it (§4.2, §7.4). |
+| Snapshot | A statement of an operation's effects that counts calls not yet requested as `No`; it holds at the instant it is taken, not for the final effect (§4.2, R14). |
 | Step | One dequeue–decide–commit–dispatch cycle of one instance. |
 | Timer | A call on the built-in Safe port `ballarch.timer`; see §2.4. |
 
 ## Appendix B. References
 
+Web sources were accessed on 2026-10-21.
+
+- Apache Seata. Seata TCC fence (introduced in Seata 1.5.1). https://seata.apache.org/blog/seata-tcc-fence/
+- Apache Software Foundation. HttpClient 4.5, `DefaultHttpRequestRetryHandler`. https://github.com/apache/httpcomponents-client/blob/4.5.x/httpclient/src/main/java/org/apache/http/impl/client/DefaultHttpRequestRetryHandler.java
 - Birrell, A. D., Nelson, B. J. (1984). Implementing remote procedure calls. *ACM TOCS* 2(1), 39–59.
+- Bishop, M. (2022). HTTP/3. RFC 9114.
+- Burckhardt, S., Gillum, C., Justo, D., Kallas, K., McMahon, C., Meiklejohn, C. S. (2021). Durable functions: semantics for stateful serverless. *Proceedings of the ACM on Programming Languages* 5(OOPSLA), 133:1–133:27.
 - Butler, M., Hoare, T., Ferreira, C. (2005). A trace semantics for long-running transactions. In *Communicating Sequential Processes: The First 25 Years*, LNCS 3525, 133–150.
 - Cockburn, A. (2005). Hexagonal architecture (Ports and Adapters). https://alistair.cockburn.us/hexagonal-architecture/
+- Eichelberger, E. B. (1965). Hazard detection in combinational and sequential switching circuits. *IBM Journal of Research and Development* 9(2), 90–99.
+- Eisen, N., Gribkoff, E. gRFC A6: gRPC retry design. https://github.com/grpc/proposal/blob/master/A6-client-retries.md
 - Elnozahy, E. N., Alvisi, L., Wang, Y.-M., Johnson, D. B. (2002). A survey of rollback-recovery protocols in message-passing systems. *ACM Computing Surveys* 34(3), 375–408.
 - Evans, E. (2003). *Domain-Driven Design*. Addison-Wesley.
 - Fielding, R., Nottingham, M., Reschke, J. (2022). HTTP Semantics. RFC 9110.
 - Frølund, S., Guerraoui, R. (2001). X-Ability: a theory of replication. *Distributed Computing* 14(4), 231–249.
+- Google. AIP-194: Automatic retry configuration. https://google.aip.dev/194
+- Gray, J. (1981). The transaction concept: virtues and limitations. *VLDB 1981*, 144–154.
 - Hewitt, C., Bishop, P., Steiger, R. (1973). A universal modular ACTOR formalism for artificial intelligence. *IJCAI 1973*, 235–245.
 - King, M., Dave, N., Arvind (2012). Automatic generation of hardware/software interfaces. *ASPLOS 2012*, 325–336.
+- Kingsbury, K. Jepsen tutorial, part 6 (refining tests). https://github.com/jepsen-io/jepsen/blob/main/doc/tutorial/06-refining.md
 - Kleene, S. C. (1952). *Introduction to Metamathematics*. North-Holland.
+- Leach, B. (2017). Implementing Stripe-like idempotency keys in Postgres. https://brandur.org/idempotency-keys
+- Maeng, K., Lucia, B. (2019). Supporting peripherals in intermittent systems with just-in-time checkpoints. *PLDI 2019*.
 - Martin, R. C. (2017). *Clean Architecture*. Prentice Hall.
+- MongoDB. Driver transactions specification (`UnknownTransactionCommitResult`). https://github.com/mongodb/specifications/blob/master/source/transactions/transactions.md
+- Narayana project. Narayana transaction manager, source code: `BasicAction.updateHeuristic` (ArjunaCore) and `SubordinateAtomicAction.doCommit` (ArjunaJTA). https://github.com/jbosstm/narayana
 - Nightingale, E. B., Veeraraghavan, K., Chen, P. M., Flinn, J. (2006). Rethink the sync. *OSDI 2006*, 1–14.
 - Nikhil, R. (2004). Bluespec System Verilog: efficient, correct RTL from high-level specifications. *MEMOCODE 2004*, 69–70.
+- Pardon, G., Pautasso, C. (2014). Atomic distributed transactions: a RESTful design. *WWW 2014 Companion*, 943–948.
+- Protocol Buffers. `descriptor.proto`, `MethodOptions.idempotency_level`. https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/descriptor.proto
+- Saltzer, J. H., Reed, D. P., Clark, D. D. (1984). End-to-end arguments in system design. *ACM TOCS* 2(4), 277–288.
 - Smith, J. E., Pleszkun, A. R. (1985). Implementation of precise interrupts in pipelined processors. *ISCA 1985*, 36–44.
+- Smithy. Smithy 2.0 specification: behavior traits. https://smithy.io/2.0/spec/behavior-traits.html
 - Strom, R. E., Yemini, S. (1985). Optimistic recovery in distributed systems. *ACM TOCS* 3(3), 204–226.
+- Surbatovich, M., Jia, L., Lucia, B. (2019). I/O dependent idempotence bugs in intermittent systems. *Proceedings of the ACM on Programming Languages* 3(OOPSLA).
+- Temporal Technologies. Events reference. https://docs.temporal.io/references/events
+- Temporal Technologies. Retry policies. https://docs.temporal.io/encyclopedia/retry-policies
+- Thomson, M., Benfield, C. (2022). HTTP/2. RFC 9113.
+- van Fraassen, B. C. (1966). Singular terms, truth-value gaps, and free logic. *The Journal of Philosophy* 63(17), 481–495.
+- X/Open (1991). *Distributed Transaction Processing: The XA Specification*. X/Open Company.
+- Yildiz, E., Ahmed, S., Islam, B., Hester, J., Yildirim, K. S. (2023). Efficient and safe I/O operations for intermittent systems. *EuroSys 2023*, 63–78.

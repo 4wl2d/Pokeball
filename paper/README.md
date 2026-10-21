@@ -5,8 +5,8 @@
 The paper presents Ballarch Core 2.0:
 - the boundaries in time;
 - the outcome classification;
-- the knowledge algebra and its closure theorems;
-- the rules checked at three levels;
+- the knowledge algebra, its soundness and exactness propositions and the composition-closure corollary;
+- the rules, with the mechanisms that check them at each of three levels;
 - the Alloy model;
 - the benchmark.
 
@@ -19,4 +19,4 @@ make          # ballarch.pdf
 make arxiv    # build/ballarch-arxiv.tar.gz, the source archive for arXiv
 ```
 
-[PUBLISHING.md](PUBLISHING.md) lists what to check before submitting, the arXiv policies that apply, candidate venues, and where to announce the work. Nothing has been submitted yet.
+[arxiv-metadata.txt](arxiv-metadata.txt) holds the plain-text title, abstract, comments and classes for the arXiv form. [PUBLISHING.md](PUBLISHING.md) lists what to check before submitting, the arXiv policies that apply, candidate venues, and where to announce the work. Nothing has been submitted yet.
