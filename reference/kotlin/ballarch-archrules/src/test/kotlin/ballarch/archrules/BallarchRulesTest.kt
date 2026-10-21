@@ -89,21 +89,26 @@ class BallarchRulesTest {
         val examples = load("ballarch.examples")
         assertEquals(
             sortedSetOf(
-                "ballarch.examples.catalog", "ballarch.examples.orderdraft", "ballarch.examples.shop.checkout",
-                "ballarch.examples.shop.inventory", "ballarch.examples.shop.orders", "ballarch.examples.shop.payments",
-                "ballarch.examples.trip",
+                "ballarch.examples.catalog", "ballarch.examples.itinerary", "ballarch.examples.orderdraft",
+                "ballarch.examples.shop.checkout", "ballarch.examples.shop.inventory", "ballarch.examples.shop.orders",
+                "ballarch.examples.shop.payments", "ballarch.examples.trip",
             ),
             BallarchRules.deciderPackages(examples),
         )
         for (rule in BallarchRules.all(examples)) rule.check(examples)
+        // Composition roots (`.app` packages) wire implementations together, so they are not checked.
+        val features = examples.that(com.tngtech.archunit.base.DescribedPredicate.describe("outside composition roots") { !it.packageName.endsWith(".app") })
         BallarchRules.featuresUseOnlyPublicApis(
             mapOf(
                 "ballarch.examples.shop.payments" to "ballarch.examples.shop.payments.api",
                 "ballarch.examples.shop.inventory" to "ballarch.examples.shop.inventory.api",
                 "ballarch.examples.shop.orders" to "ballarch.examples.shop.orders.api",
                 "ballarch.examples.shop.checkout" to "ballarch.examples.shop.checkout.api",
+                // The itinerary uses the trip only through its port.
+                "ballarch.examples.trip" to "ballarch.examples.trip.api",
+                "ballarch.examples.itinerary" to "ballarch.examples.itinerary.api",
             ),
-        ).check(examples)
+        ).check(features)
     }
 
     @Test

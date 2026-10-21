@@ -3,6 +3,7 @@ package ballarch.runtime
 import ballarch.kernel.BallId
 import ballarch.kernel.CallId
 import ballarch.kernel.CallKey
+import ballarch.kernel.EffectClass
 import ballarch.kernel.Outcome
 import ballarch.kernel.RequestId
 import java.util.concurrent.ConcurrentHashMap
@@ -26,6 +27,8 @@ public data class InstanceRecord(
     val nextNoticeSequence: Long = 1,
     /** Highest notice sequence applied from each publisher (subscriber-side deduplication). */
     val lastSeen: Map<BallId, Long> = emptyMap(),
+    /** [ballarch.kernel.Ball.stateVersion] of the code that committed [state]. */
+    val stateVersion: Int = 1,
 )
 
 /** Durable phase of an open call (see the write-ahead rule in the specification). */
@@ -40,6 +43,12 @@ public enum class Phase {
 public data class CallRecord(
     val key: CallKey,
     val portName: String,
+    /**
+     * Effect class of the port when the call was committed. The runtime
+     * classifies the call by it for its whole life, including after a restart
+     * under a composition that binds the port differently.
+     */
+    val effect: EffectClass,
     val target: String?,
     val request: Any?,
     val deadlineAt: Long,
@@ -86,7 +95,20 @@ public interface Store {
 
     public fun save(record: InstanceRecord)
 
+    /**
+     * The ids of every stored record. A store whose records hold the id apart
+     * from the encoded state lists them even when the state cannot be decoded.
+     */
     public fun ids(): Set<BallId>
+
+    /**
+     * Removes the record of [id] atomically, if there is one. This retires an
+     * instance for good: an operator removes the records of a Ball type that a
+     * new composition no longer registers, after draining their open calls,
+     * owed replies and undelivered notices under one that does. Removing a
+     * record that still holds obligations loses them. A runtime never calls it.
+     */
+    public fun delete(id: BallId)
 
     /** Increments and returns the incarnation counter; called once per runtime start. */
     public fun nextIncarnation(): Long
@@ -113,6 +135,10 @@ public class MemoryStore : Store {
     }
 
     override fun ids(): Set<BallId> = records.keys.toSet()
+
+    override fun delete(id: BallId) {
+        records.remove(id)
+    }
 
     @Synchronized
     override fun nextIncarnation(): Long = ++incarnation

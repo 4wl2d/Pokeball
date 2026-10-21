@@ -128,7 +128,7 @@ class RuntimeTest {
     fun `late answer after the deadline is dropped, not applied twice`() {
         val h = payOnce(listOf(Fate.ReplyLate))
         assertEquals(Outcome.Done("unknown:DeadlineAfterSend"), h.externalOutcomes[0])
-        assertTrue(h.tracer.events.any { it is TraceEvent.LateReportDropped })
+        assertEquals(listOf("Ok"), h.tracer.events.filterIsInstance<TraceEvent.LateReportDropped>().map { it.report })
     }
 
     @Test

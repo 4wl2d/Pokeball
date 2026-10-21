@@ -66,7 +66,7 @@ Feature code excludes the shared simulated environment and the `kit` packages th
 |---|---|---|---|---|---|---|
 | Source lines (SLOC) | 166 | 216 | 163 | 96 | 184 | 279 |
 | Toolkit SLOC excluded | — | — | 34 | 30 | 36 | — |
-| Bytecode instructions | 2535 | 3947 | 2889 | 2088 | 3039 | 5036 |
+| Bytecode instructions | 2535 | 3947 | 2889 | 2088 | 3039 | 5105 |
 | Units (named classes) | 12 | 20 | 15 | 10 | 18 | 35 |
 | Packages | 4 | 4 | 3 | 2 | 5 | 5 |
 | CBO, mean (max) | 4.00 (9) | 4.70 (16) | 3.47 (14) | 4.00 (9) | 4.11 (13) | 3.94 (18) |
@@ -79,7 +79,7 @@ Feature code excludes the shared simulated environment and the `kit` packages th
 | McCabe CCN, total | 41 | 49 | 32 | 21 | 32 | 68 |
 | Framework types used | 5 | 6 | 5 | 3 | 6 | 45 |
 | `catch` clauses | 3 | 5 | 0 | 0 | 2 | 0 |
-| Share of code in pure units | 26% | 27% | 26% | 59% | 44% | 88% |
+| Share of code in pure units | 26% | 27% | 26% | 59% | 44% | 89% |
 
 ## 5. Package metrics (Martin)
 

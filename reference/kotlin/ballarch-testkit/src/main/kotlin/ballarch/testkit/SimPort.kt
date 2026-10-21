@@ -72,20 +72,40 @@ public enum class Fate {
 
     /** The destination refuses the request without applying it. */
     Refuse,
+
+    /**
+     * The request is held up in the network and reaches the destination after
+     * the call's deadline, by `lateDeliveryMillis`; no answer arrives. It may
+     * land after the caller has given up on it, for example after a
+     * compensation, which tests whether that compensation is absorbing. Not in
+     * [classic]: explorations opt in.
+     */
+    DeliverLate,
+    ;
+
+    public companion object {
+        /** Fates in which a request lands no later than its answer would: the default for [SimPort]. */
+        public val classic: List<Fate> = listOf(Reply, ReplyLate, LoseRequest, LoseReply, ErrorAfterApply, RefuseConnection, Refuse)
+    }
 }
 
 /**
  * A simulated adapter plus destination. Each attempt's fate is taken from the
  * [chooser]; the destination deduplicates by call identity when the port is
  * [EffectClass.Idempotent], like a provider honouring idempotency keys.
+ *
+ * @param lateDeliveryMillis how long after the call's deadline a [Fate.DeliverLate]
+ *   request arrives. The default, ten network latencies, puts it after a
+ *   compensation that the deadline triggers and sends at once.
  */
 public class SimPort<Req, Res>(
     public val port: AdapterPort<Req, Res>,
     private val scheduler: SimScheduler,
     private val chooser: Chooser,
     private val truth: GroundTruth,
-    private val fates: List<Fate> = Fate.entries,
+    private val fates: List<Fate> = Fate.classic,
     private val latencyMillis: Long = 10,
+    private val lateDeliveryMillis: Long = 10 * latencyMillis,
     private val refuse: ((Req) -> Res)? = null,
     private val handle: (Req) -> Res,
 ) : Adapter<Req, Res> {
@@ -127,6 +147,8 @@ public class SimPort<Req, Res>(
                 truth.processed += id
                 done(AdapterResult.Refused(refuse!!(invocation.request)))
             }
+            Fate.DeliverLate ->
+                scheduler.schedule((invocation.deadlineAt - scheduler.now()).coerceAtLeast(0) + lateDeliveryMillis) { deliver() }
         }
         return null
     }

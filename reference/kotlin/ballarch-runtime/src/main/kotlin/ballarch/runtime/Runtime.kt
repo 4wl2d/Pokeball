@@ -42,6 +42,15 @@ import ballarch.kernel.UnknownReason
  * Every method except [inspect] may be called from any thread; work is
  * executed on the [scheduler]'s loop. [inspect] reads committed state and is
  * meant for tests and single-threaded simulations.
+ *
+ * A Durable store may hold records committed by an earlier version of the
+ * application. Construction reads every record and, before writing anything,
+ * throws [IncompatibleStoreException] if one cannot be read or the
+ * composition cannot serve it: a record of an unregistered Ball type, a state
+ * version its Ball type cannot [migrate][Ball.migrate], an open call on a port
+ * that is no longer bound, or an undelivered notice for a subscription that no
+ * longer exists. A call is classified by the effect class recorded when it
+ * was committed, never by the port's current binding.
  */
 public class Runtime(
     composition: Composition,
@@ -60,6 +69,8 @@ public class Runtime(
 
     init {
         composition.validate()
+        val problems = storeProblems()
+        if (problems.isNotEmpty()) throw IncompatibleStoreException(problems)
     }
 
     /** Distinguishes runtime starts; stale callbacks from an earlier incarnation are ignored. */
@@ -206,9 +217,15 @@ public class Runtime(
     private fun instanceOrNull(id: BallId): Instance? {
         instances[id]?.let { return it }
         val ball = balls[id.type] ?: return null
-        val record = store.load(id) ?: InstanceRecord(id = id, state = ball.initial(id.key), revision = 0)
+        val record = store.load(id)?.let { migrated(ball, it) }
+            ?: InstanceRecord(id = id, state = ball.initial(id.key), revision = 0, stateVersion = ball.stateVersion)
         return Instance(id, ball, record).also { instances[id] = it }
     }
+
+    /** [record] with its state in the shape [ball] commits now. The store keeps the old shape until the next commit. */
+    private fun migrated(ball: Ball<Any?, Any?, Any?>, record: InstanceRecord): InstanceRecord =
+        if (record.stateVersion == ball.stateVersion) record
+        else record.copy(state = ball.migrate(record.stateVersion, record.state), stateVersion = ball.stateVersion)
 
     private fun drainOne(inst: Instance) {
         inst.drainScheduled = false
@@ -306,7 +323,7 @@ public class Runtime(
     private fun handleCompletion(inst: Instance, input: Input.CompletionInput) {
         val call = inst.record.calls[input.key]
         if (call == null) {
-            tracer.record(TraceEvent.LateReportDropped(scheduler.now(), CallId(inst.id, input.key), "completion for closed call"))
+            tracer.record(TraceEvent.LateReportDropped(scheduler.now(), CallId(inst.id, input.key), "Completion"))
             return
         }
         val ctx = RtContext(inst.id, scheduler.now(), inst.record.revision + 1)
@@ -448,7 +465,8 @@ public class Runtime(
         for (o in outputs) {
             when (o) {
                 is Call<*, *> -> {
-                    calls[o.key] = CallRecord(o.key, o.port.name, o.target, o.request, now + o.timeoutMillis, Phase.Pending, attempts = 0)
+                    val effect = adapters[o.port.name]?.port?.effect ?: o.port.effect
+                    calls[o.key] = CallRecord(o.key, o.port.name, effect, o.target, o.request, now + o.timeoutMillis, Phase.Pending, attempts = 0)
                     newCalls += o.key
                 }
                 is Cancel -> {
@@ -472,6 +490,7 @@ public class Runtime(
         val lastSeen = if (lastSeenUpdate == null) old.lastSeen else old.lastSeen + lastSeenUpdate
         val record = old.copy(
             state = newState,
+            stateVersion = inst.ball.stateVersion,
             revision = old.revision + 1,
             calls = calls,
             inbound = inbound,
@@ -598,7 +617,7 @@ public class Runtime(
         val call = inst.record.calls[key]
         val callId = CallId(inst.id, key)
         if (call == null || key in inst.resolved) {
-            tracer.record(TraceEvent.LateReportDropped(scheduler.now(), callId, result.toString()))
+            tracer.record(TraceEvent.LateReportDropped(scheduler.now(), callId, reportKind(result)))
             return
         }
         val bound = adapters.getValue(call.portName)
@@ -610,7 +629,7 @@ public class Runtime(
         // Evidence of non-application covers only the attempt that produced it. It is
         // conclusive for the call when no other attempt can have been delivered, or
         // when the port has no effects at all.
-        val conclusive = call.attempts == 1 || bound.port.effect == EffectClass.Safe
+        val conclusive = call.attempts == 1 || call.effect == EffectClass.Safe
         when (result) {
             is AdapterResult.Ok -> resolve(inst, key, Outcome.Done(result.value))
             is AdapterResult.Refused ->
@@ -623,8 +642,22 @@ public class Runtime(
         }
     }
 
+    /** The kind of an adapter's report, without its values, for [TraceEvent.LateReportDropped]. */
+    private fun reportKind(result: AdapterResult<*>): String = when (result) {
+        is AdapterResult.Ok -> "Ok"
+        is AdapterResult.Refused -> "Refused"
+        is AdapterResult.NotApplied -> "NotApplied"
+        is AdapterResult.Failed -> "Failed"
+    }
+
+    private fun outcomeKind(outcome: Outcome<*>): String = when (outcome) {
+        is Outcome.Done -> "Done"
+        is Outcome.NotDone -> "NotDone"
+        is Outcome.Unknown -> "Unknown"
+    }
+
     private fun failAttempt(inst: Instance, key: CallKey, call: CallRecord, bound: BoundAdapter) {
-        val effect = bound.port.effect
+        val effect = call.effect
         val retry = bound.retry
         val now = scheduler.now()
         val canRetry = effect != EffectClass.NonIdempotent &&
@@ -655,8 +688,7 @@ public class Runtime(
         }
         inst.cancelHandles.remove(key)?.cancel()
         if (inst.currentAttempt.remove(key) != null && call.portName in adapters) releaseSlot(call.portName)
-        val effect = portEffect(call.portName)
-        resolve(inst, key, if (effect == EffectClass.Safe) Outcome.NotDone(NotDoneReason.NoAnswer) else Outcome.Unknown(UnknownReason.DeadlineAfterSend))
+        resolve(inst, key, if (call.effect == EffectClass.Safe) Outcome.NotDone(NotDoneReason.NoAnswer) else Outcome.Unknown(UnknownReason.DeadlineAfterSend))
     }
 
     private fun cancelCall(inst: Instance, key: CallKey) {
@@ -672,11 +704,8 @@ public class Runtime(
         inst.cancelHandles[key]?.cancel()
     }
 
-    private fun portEffect(portName: String): EffectClass =
-        adapters[portName]?.port?.effect ?: EffectClass.Idempotent // Ball ports are idempotent
-
     private fun portOf(inst: Instance, call: CallRecord): Port<*, *> =
-        adapters[call.portName]?.port ?: BallPort<Any?, Any?>(call.portName.removePrefix("ball:"))
+        adapters[call.portName]?.port ?: BallPort<Any?, Any?>(call.portName.removePrefix(BALL_PORT_PREFIX))
 
     /** Chooses the single terminal outcome of a call and queues it for the caller (R6). */
     private fun resolve(inst: Instance, key: CallKey, outcome: Outcome<Any?>) {
@@ -694,7 +723,7 @@ public class Runtime(
     // ---------------------------------------------------------------- Ball-to-Ball requests (R9)
 
     private fun deliverToBall(caller: Instance, call: CallRecord, callId: CallId) {
-        val destType = call.portName.removePrefix("ball:")
+        val destType = call.portName.removePrefix(BALL_PORT_PREFIX)
         val dest = instanceOrNull(BallId(destType, call.target!!))
         if (dest == null) {
             resolve(caller, call.key, Outcome.NotDone(NotDoneReason.NotApplied("unknown Ball type '$destType'")))
@@ -739,7 +768,7 @@ public class Runtime(
         val caller = instanceOrNull(callId.caller) ?: return
         val call = caller.record.calls[callId.key]
         if (call == null || callId.key in caller.resolved) {
-            tracer.record(TraceEvent.LateReportDropped(scheduler.now(), callId, outcome.toString()))
+            tracer.record(TraceEvent.LateReportDropped(scheduler.now(), callId, outcomeKind(outcome)))
             return
         }
         resolve(caller, callId.key, outcome)
@@ -813,6 +842,62 @@ public class Runtime(
 
     // ---------------------------------------------------------------- recovery
 
+    /**
+     * Why this composition cannot take over the store, one entry per offending
+     * record or obligation. Reads only; runs before the runtime writes anything.
+     */
+    private fun storeProblems(): List<String> {
+        val ids = try {
+            store.ids()
+        } catch (e: Exception) {
+            throw IncompatibleStoreException(listOf("the store cannot list its records: ${e.message ?: e}"), e)
+        }
+        val problems = ArrayList<String>()
+        for (id in ids.sortedBy { it.toString() }) {
+            val ball = balls[id.type]
+            if (ball == null) {
+                problems += "record $id names Ball type '${id.type}', which the composition no longer registers; drain the " +
+                    "record under a composition that registers it, then remove the type's records with Store.delete"
+                continue
+            }
+            val record = try {
+                store.load(id)
+            } catch (e: Exception) {
+                problems += "record $id cannot be read: ${e.message ?: e}"
+                continue
+            } ?: continue
+            if (record.stateVersion != ball.stateVersion) {
+                try {
+                    ball.migrate(record.stateVersion, record.state)
+                } catch (e: VirtualMachineError) {
+                    throw e
+                } catch (e: Throwable) {
+                    problems += "record $id holds state version ${record.stateVersion}, which Ball type '${id.type}' " +
+                        "(state version ${ball.stateVersion}) cannot migrate: ${e.message}"
+                }
+            }
+            for (call in record.calls.values.sortedBy { it.key.value }) {
+                if (!serves(call.portName)) {
+                    problems += "open call ${CallId(id, call.key)} uses port '${call.portName}', which the composition " +
+                        "no longer binds; drain the call before removing the port"
+                }
+            }
+            for (n in record.outbox) {
+                for (sub in n.pendingSubscribers) {
+                    if (subscriptions[n.topic].orEmpty().none { it.subscriberType == sub.type }) {
+                        problems += "notice ${n.topic}#${n.sequence} of $id is still owed to $sub, but the composition no longer " +
+                            "subscribes Ball type '${sub.type}' to topic '${n.topic}'; deliver it before removing the subscription"
+                    }
+                }
+            }
+        }
+        return problems
+    }
+
+    /** Whether an open call on [portName] can still be sent and answered: a bound adapter or a registered Ball type. */
+    private fun serves(portName: String): Boolean =
+        portName in adapters || (portName.startsWith(BALL_PORT_PREFIX) && portName.removePrefix(BALL_PORT_PREFIX) in balls)
+
     private fun recover() {
         val now = scheduler.now()
         val recovered = store.ids().mapNotNull { instanceOrNull(it) }
@@ -821,7 +906,7 @@ public class Runtime(
                 if (now >= call.deadlineAt) {
                     val outcome: Outcome<Any?> = when {
                         call.phase == Phase.Pending -> Outcome.NotDone(NotDoneReason.DeadlineBeforeSend)
-                        portEffect(call.portName) == EffectClass.Safe -> Outcome.NotDone(NotDoneReason.NoAnswer)
+                        call.effect == EffectClass.Safe -> Outcome.NotDone(NotDoneReason.NoAnswer)
                         else -> Outcome.Unknown(UnknownReason.DeadlineAfterSend)
                     }
                     resolve(inst, call.key, outcome)
@@ -830,16 +915,18 @@ public class Runtime(
                 armDeadline(inst, call.key)
                 when {
                     call.phase == Phase.Pending -> startSend(inst, call.key)
-                    portEffect(call.portName) == EffectClass.NonIdempotent ->
+                    call.effect == EffectClass.NonIdempotent ->
                         resolve(inst, call.key, Outcome.Unknown(UnknownReason.RecoveredAfterCrash))
                     else -> {
+                        // The attempt budget is the current binding's. A port since rebound as
+                        // NonIdempotent allows one attempt, so such a call is never re-sent.
                         val bound = adapters[call.portName]
                         if (bound == null || call.attempts < bound.retry.maxAttempts) {
                             startSend(inst, call.key) // Ball ports deduplicate; repeatable adapters retry
                         } else {
                             resolve(
                                 inst, call.key,
-                                if (bound.port.effect == EffectClass.Safe) Outcome.NotDone(NotDoneReason.NoAnswer)
+                                if (call.effect == EffectClass.Safe) Outcome.NotDone(NotDoneReason.NoAnswer)
                                 else Outcome.Unknown(UnknownReason.RetriesExhausted),
                             )
                         }
@@ -882,7 +969,23 @@ public class Runtime(
         override val requestId: RequestId,
         override val caller: Caller,
     ) : RtContext(self, now, revision), RequestContext
+
+    private companion object {
+        /** Name prefix of every [BallPort]. */
+        const val BALL_PORT_PREFIX = "ball:"
+    }
 }
+
+/**
+ * The store holds records that the composition cannot serve, or that cannot
+ * be read, so the runtime refused to start and wrote nothing. Each entry of
+ * [problems] names one record or obligation; [cause] is the store's error when
+ * it could not list or read its records. Drain open calls and notices under
+ * the old composition, migrate the state, remove the records of a retired Ball
+ * type with [Store.delete], or restore what is missing.
+ */
+public class IncompatibleStoreException(public val problems: List<String>, cause: Throwable? = null) :
+    IllegalStateException("the store holds records this composition cannot serve:\n  " + problems.joinToString("\n  "), cause)
 
 /**
  * The built-in timer adapter: answers at the timer's due time, on the runtime's scheduler.

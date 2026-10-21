@@ -37,9 +37,37 @@ public interface Ball<S, M, R> {
     /** Handle a notice from a subscribed topic. The default fails fast like [complete]. */
     public fun observe(state: S, notice: Notice<*>, ctx: Context): Step<S, R> =
         throw UnhandledInput("Ball type '$type' is subscribed to ${notice.topic} but does not override observe()")
+
+    /**
+     * Version of the shape of [S] that this code commits, at least 1. A Durable
+     * runtime stores it with every committed state. Increase it when states
+     * committed by earlier code can no longer be read as [S], and override
+     * [migrate] to convert them.
+     */
+    public val stateVersion: Int get() = 1
+
+    /**
+     * Converts a state committed under an earlier [stateVersion] into the
+     * current shape. A Durable runtime calls it when it loads a record whose
+     * version differs from [stateVersion]. It must be pure, like the deciders.
+     *
+     * The default accepts no other version, so a Ball type that changes its
+     * version without overriding this method makes the runtime refuse to start
+     * instead of misreading committed state.
+     */
+    public fun migrate(fromVersion: Int, state: Any?): S {
+        if (fromVersion != stateVersion) {
+            throw UnhandledInput("Ball type '$type' commits state version $stateVersion and cannot read version $fromVersion; override migrate()")
+        }
+        @Suppress("UNCHECKED_CAST")
+        return state as S
+    }
 }
 
-/** Raised by the default [Ball.complete] and [Ball.observe]; the runtime treats it as a programming fault. */
+/**
+ * Raised by the default [Ball.complete], [Ball.observe] and [Ball.migrate]; the
+ * runtime treats it as a programming fault.
+ */
 public class UnhandledInput(message: String) : RuntimeException(message)
 
 /** The result of [Ball.decide]. */

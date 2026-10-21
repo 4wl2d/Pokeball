@@ -37,7 +37,12 @@ public sealed interface TraceEvent {
     /** A terminal outcome was chosen for a call and queued for its caller. */
     public data class CallResolved(override val at: Long, val callId: CallId, val outcome: Outcome<*>) : TraceEvent
 
-    /** A report arrived for a call that was already resolved or is unknown; it was dropped. */
+    /**
+     * A report arrived for a call that was already resolved or is unknown; it was dropped.
+     * [report] names its kind and never holds application values: `Ok`, `Refused`,
+     * `NotApplied` or `Failed` for an adapter's report, `Done`, `NotDone` or `Unknown`
+     * for another Ball's reply, and `Completion` for a completion of a closed call.
+     */
     public data class LateReportDropped(override val at: Long, val callId: CallId, val report: String) : TraceEvent
 
     public data class RequestRejected(override val at: Long, val id: BallId, val requestId: RequestId, val outcome: Outcome<*>) : TraceEvent

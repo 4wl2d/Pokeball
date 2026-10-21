@@ -18,6 +18,7 @@ public class Composition {
     @Suppress("UNCHECKED_CAST")
     public fun <S, M, R> ball(ball: Ball<S, M, R>): Composition = apply {
         require(ball.type !in balls) { "Ball type '${ball.type}' is registered twice" }
+        require(ball.stateVersion >= 1) { "Ball type '${ball.type}' has state version ${ball.stateVersion}; versions start at 1" }
         balls[ball.type] = ball as Ball<Any?, Any?, Any?>
     }
 

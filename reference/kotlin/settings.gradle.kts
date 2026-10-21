@@ -12,6 +12,7 @@ include(
     ":examples:order-draft",
     ":examples:tutorial",
     ":examples:trip",
+    ":examples:itinerary",
     ":examples:catalog",
     ":examples:shop:payments-api",
     ":examples:shop:payments",

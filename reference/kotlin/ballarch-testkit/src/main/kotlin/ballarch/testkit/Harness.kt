@@ -9,6 +9,7 @@ import ballarch.runtime.MemoryStore
 import ballarch.runtime.RecordingTracer
 import ballarch.runtime.Runtime
 import ballarch.runtime.TraceEvent
+import java.nio.file.Path
 
 /** Which state survives a crash (the profile under test). */
 public enum class Profile { Transient, Durable }
@@ -59,7 +60,10 @@ public class Harness(
     public fun crashAndRestart(delay: Long = restartDelay) {
         runtime.crash()
         crashes++
-        if (profile == Profile.Transient) truth.epoch++
+        // A Transient restart begins a new world. The trace starts its next epoch at the next
+        // Recovered event, so a runtime that crashed before it recovered did not use the world
+        // it was given, and its successor keeps that epoch.
+        if (profile == Profile.Transient && tracer.events.count { it is TraceEvent.Recovered } > truth.epoch) truth.epoch++
         scheduler.schedule(delay) {
             if (profile == Profile.Transient) store = MemoryStore()
             runtime = Runtime(wiring(), scheduler, store, limits, tracer)
@@ -81,6 +85,15 @@ public class Harness(
     /** Checks every runtime invariant on the trace and ground truth. */
     public fun violations(): List<String> =
         Oracles.check(tracer.events, truth, quiescent = scheduler.pending == 0, profile = profile, crashed = crashes > 0)
+
+    /**
+     * Writes this run as a conformance trace ([TraceJson]): the trace so far,
+     * the ground truth of every epoch, and whether the simulation is quiescent.
+     * `tools/oracles.py` checks the file without the JVM.
+     */
+    public fun writeTrace(path: Path) {
+        TraceJson.write(path, tracer.events, truth, profile, quiescent = scheduler.pending == 0)
+    }
 
     public fun assertInvariants() {
         val v = violations()

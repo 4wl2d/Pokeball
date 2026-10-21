@@ -53,13 +53,26 @@ public enum class Tri {
  * [Knowledge.Unknown]. Constituents combine with [plus]; [NoEffects], the
  * knowledge of an operation with no constituents, is its identity.
  *
+ * A claim about an operation is a claim about its final effect (rule R14). A
+ * constituent counts as [Tri.No] only once it completed `NotDone` (or with an
+ * answer meaning the effect did not happen), or once the Ball can no longer make
+ * it for this operation. A call that is open, committed but not yet sent, or
+ * that the Ball may still make counts as [Tri.Maybe], and so does the undoing of
+ * a constituent the Ball may still compensate.
+ *
  * **Composition closure.** If every constituent's knowledge is honest (it
  * admits what really happened), the combined knowledge is honest too, and each
- * of its two coordinates is the most informative honest value. A Ball that
- * derives every claim about a composite operation from this algebra (rule R14)
- * can therefore be used, one level up, as a single port with honest outcomes.
- * The kernel tests check both properties exhaustively for up to four
- * constituents; associativity extends them to any number.
+ * of its two coordinates is the most informative honest value. Honest
+ * constituents need honest adapters (R7) and absorbing compensations. A Ball
+ * that derives every claim about a composite operation from this algebra,
+ * counting every call it may still make as [Tri.Maybe], makes through its port
+ * only claims that admit the final truth. If it answers the request for the
+ * operation once the operation is settled, a caller one level up enters that
+ * reply as one summand of its own knowledge ([reportedKnowledge]); since [plus]
+ * is associative, the result equals the knowledge of the flattened operation.
+ * The kernel tests check soundness and exactness exhaustively for up to four
+ * constituents, and that a settled composite entered one level up equals the
+ * flattened knowledge (associativity).
  */
 public class Knowledge private constructor(public val all: Tri, public val any: Tri) {
     /** Combine with an independent constituent (or composite) of the same operation. */
@@ -82,9 +95,10 @@ public class Knowledge private constructor(public val all: Tri, public val any: 
 
     /**
      * The honest three-valued outcome of this composite seen as one call:
-     * `Done` only if every constituent took effect, `NotDone` only if none did,
-     * otherwise `Unknown`. A partial effect has no three-valued description, so a
-     * composite that can end [isPartial] should report this knowledge itself.
+     * `Done` only if every constituent took effect, `NotDone` only if none did
+     * (including [NoEffects]), otherwise `Unknown`. The projection is sound but
+     * not exact: [Partial], [NotAllDone] and [SomeDone] all become `Unknown`. A
+     * composite that can end that way should report this knowledge itself.
      */
     public fun <R> toOutcome(value: R, notDone: NotDoneReason<R>, unknown: UnknownReason): Outcome<R> = when {
         isDone -> Outcome.Done(value)
@@ -164,34 +178,86 @@ public class Knowledge private constructor(public val all: Tri, public val any: 
  * `Unknown` is [Tri.Maybe], and `Done(value)` is [effective] of the value.
  *
  * `Done` means that the destination processed the request; its value may
- * still describe a business refusal (a declined charge). Pass [effective] to
- * say which answers mean the requested effect happened.
+ * still describe a business refusal (a declined charge). Callers must pass
+ * [effective] to say which answers mean the requested effect happened; only a
+ * port whose sole answer is `Unit` has a predicate-free overload. A committed
+ * call whose completion has not arrived is [Tri.Maybe] (rule R14), whether or
+ * not the runtime has sent it.
  */
-public fun <R> Outcome<R>.effect(effective: (R) -> Boolean = { true }): Tri = when (this) {
+public fun <R> Outcome<R>.effect(effective: (R) -> Boolean): Tri = when (this) {
     is Outcome.Done -> Tri.of(effective(value))
     is Outcome.NotDone -> Tri.No
     is Outcome.Unknown -> Tri.Maybe
 }
 
+/** [effect] for a port whose only answer is `Unit`: `Done` can only mean the effect happened. */
+public fun Outcome<Unit>.effect(): Tri = effect { true }
+
 /** What this outcome establishes about the effect of its call (see [effect]). */
-public fun <R> Outcome<R>.knowledge(effective: (R) -> Boolean = { true }): Knowledge = Knowledge.single(effect(effective))
+public fun <R> Outcome<R>.knowledge(effective: (R) -> Boolean): Knowledge = Knowledge.single(effect(effective))
+
+/** [knowledge] for a port whose only answer is `Unit`. */
+public fun Outcome<Unit>.knowledge(): Knowledge = knowledge { true }
 
 /**
- * The net effect of this call after a compensating call whose outcome is [undo]
- * (or of the call alone when [undo] is `null`).
+ * What a call to a composite tells its caller when the composite's reply reports
+ * its own knowledge (Core §7.4). [settled] returns that knowledge only if the
+ * reply describes the composite once no call is open and none is still to be
+ * made; otherwise it returns `null`. An interim reply may be overtaken by later
+ * completions, so it counts as [Knowledge.Unknown], and so does an `Unknown`
+ * outcome. The result enters the caller's knowledge as one summand of
+ * [Knowledge.plus].
  *
- * Only an *absorbing* compensation may be used here: its effect must mean that
- * no effect of the original request exists or can still take effect, for
+ * A `NotDone` request was never accepted: the composite refused it, or the
+ * runtime never handed it over (its deadline passed in the inbox, the inbox was
+ * full, or the instance is quarantined). Pass [onlyRequest] `true` only if no
+ * other request, from this caller or any other, could start the same operation;
+ * then the composite made no call for it, and `NotDone` is [Knowledge.NotDone].
+ * Otherwise another request may have started the operation, a `NotDone` says
+ * nothing about its effects, and it counts as [Knowledge.Unknown]. Two replies
+ * about the same operation are never added with [Knowledge.plus]: the caller
+ * keeps one of them, a settled one if it has one.
+ *
+ * A Boolean reading of such a reply (`knowledge { it.knowledge.isDone }`) would
+ * turn a settled `Unknown` or `Partial` composite into a false `NotDone`.
+ */
+public fun <R> Outcome<R>.reportedKnowledge(onlyRequest: Boolean, settled: (R) -> Knowledge?): Knowledge = when (this) {
+    is Outcome.Done -> settled(value) ?: Knowledge.Unknown
+    is Outcome.NotDone -> if (onlyRequest) Knowledge.NotDone else Knowledge.Unknown
+    is Outcome.Unknown -> Knowledge.Unknown
+}
+
+/**
+ * The net effect of this call after compensating calls whose outcomes are
+ * [undos], in any number: `effect ∧ ¬(u1 ∨ … ∨ uk)`. With no compensation it is
+ * the call's own effect.
+ *
+ * Only *absorbing* compensations may be used here: the effect of one must mean
+ * that no effect of the original request exists or can still take effect, for
  * example because the destination fences the request's reference, or because
- * the original request's delivery horizon has passed. Then the net effect is
- * `effect ∧ ¬undone`, which turns an `Unknown` call into a definite `NotDone`
- * once its compensation took effect.
+ * the original request's delivery horizon has passed. Then one compensation
+ * that took effect turns an `Unknown` call into a definite `NotDone`. A
+ * compensation the Ball may still make is not in [undos]; until it is made, the
+ * net effect is not final (see [Knowledge]).
  */
 public fun <R, U> Outcome<R>.compensatedBy(
+    undos: List<Outcome<U>>,
+    effective: (R) -> Boolean,
+    undone: (U) -> Boolean,
+): Knowledge = Knowledge.single(effect(effective) and !undos.fold(Tri.No) { u, o -> u or o.effect(undone) })
+
+/** [compensatedBy] with at most one compensating call, [undo] (`null` when there was none). */
+public fun <R, U> Outcome<R>.compensatedBy(
     undo: Outcome<U>?,
-    effective: (R) -> Boolean = { true },
-    undone: (U) -> Boolean = { true },
-): Knowledge = Knowledge.single(if (undo == null) effect(effective) else effect(effective) and !undo.effect(undone))
+    effective: (R) -> Boolean,
+    undone: (U) -> Boolean,
+): Knowledge = compensatedBy(listOfNotNull(undo), effective, undone)
+
+/** [compensatedBy] for a `Unit` request and `Unit` compensations. */
+public fun Outcome<Unit>.compensatedBy(undos: List<Outcome<Unit>>): Knowledge = compensatedBy(undos, { true }, { true })
+
+/** [compensatedBy] for a `Unit` request and at most one `Unit` compensation. */
+public fun Outcome<Unit>.compensatedBy(undo: Outcome<Unit>?): Knowledge = compensatedBy(listOfNotNull(undo))
 
 /** The combined knowledge of independent constituents. */
 public fun Iterable<Knowledge>.combine(): Knowledge = fold(Knowledge.NoEffects, Knowledge::plus)

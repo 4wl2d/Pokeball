@@ -425,7 +425,8 @@ class RuntimeRulesTest {
         assertEquals(second, a.sent[2].invocation.callId.key)
         a.sent[1].report(AdapterResult.Failed("too late"))
         r.scheduler.runReady()
-        assertTrue(r.events<TraceEvent.LateReportDropped>().any { it.callId.key == first })
+        // The dropped report is named by its kind; its values never reach the trace.
+        assertEquals(listOf("Failed"), r.events<TraceEvent.LateReportDropped>().filter { it.callId.key == first }.map { it.report })
         assertEquals(1, r.completions(s).size)
     }
 
@@ -537,7 +538,7 @@ class RuntimeRulesTest {
         assertEquals(Outcome.Unknown(UnknownReason.DeadlineAfterSend), r.outcomeOf(key))
         val rid = r.log(dest).single() as RequestId
         r.send(dest, Act("answer") { ds, _ -> accept(ds, "ok", Reply(rid, "late")) })
-        assertTrue(r.events<TraceEvent.LateReportDropped>().any { it.callId == CallId(s, key) })
+        assertEquals(listOf("Done"), r.events<TraceEvent.LateReportDropped>().filter { it.callId == CallId(s, key) }.map { it.report })
         assertEquals(1, r.completions(s).size)
     }
 
@@ -613,7 +614,9 @@ class RuntimeRulesTest {
         store.save(
             InstanceRecord(
                 id = s, state = emptyList<Any?>(), revision = 1,
-                calls = mapOf(k to CallRecord(k, nonIdem.name, null, "req", deadlineAt = 1_500, phase = Phase.Pending, attempts = 0, cancelRequested = true)),
+                calls = mapOf(
+                    k to CallRecord(k, nonIdem.name, nonIdem.effect, null, "req", deadlineAt = 1_500, phase = Phase.Pending, attempts = 0, cancelRequested = true),
+                ),
             ),
         )
         val r = rig(store = store) { adapter(nonIdem, a) }

@@ -16,6 +16,7 @@ dependencies {
     testImplementation(project(":examples:order-draft"))
     testImplementation(project(":examples:catalog"))
     testImplementation(project(":examples:trip"))
+    testImplementation(project(":examples:itinerary"))
     testImplementation(project(":examples:shop:checkout"))
     testImplementation(project(":examples:shop:payments"))
     testImplementation(project(":examples:shop:inventory"))

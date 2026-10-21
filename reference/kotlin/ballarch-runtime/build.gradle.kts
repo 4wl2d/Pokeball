@@ -16,7 +16,20 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
-tasks.test { useJUnitPlatform() }
+// The exploration tests write sample conformance traces (tools/TRACE-FORMAT.md) here and,
+// when python3 is available, check that tools/oracles.py agrees with Oracles.check on them.
+val conformanceTraces = layout.buildDirectory.dir("conformance-traces")
+val traceOracles = rootProject.file("../../tools/oracles.py")
+val traceFormat = rootProject.file("../../tools/TRACE-FORMAT.md")
+
+tasks.test {
+    useJUnitPlatform()
+    systemProperty("ballarch.traceDir", conformanceTraces.get().asFile.absolutePath)
+    systemProperty("ballarch.oracles", traceOracles.absolutePath)
+    inputs.files(traceOracles, traceFormat).withPropertyName("traceTools").withPathSensitivity(PathSensitivity.NAME_ONLY)
+    outputs.dir(conformanceTraces).withPropertyName("conformanceTraces")
+    doFirst { delete(conformanceTraces) }
+}
 
 // Optional mutation testing of the runtime: ./gradlew :ballarch-runtime:pitest
 configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {

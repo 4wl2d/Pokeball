@@ -17,6 +17,11 @@ import ballarch.runtime.TraceEvent
  * begins a new world (fresh state, reused call identities), so its trace is
  * split into epochs at each recovery and every epoch is checked against its
  * own ground truth.
+ *
+ * The same checks, named T3 and T5–T9, are defined over the language-neutral
+ * trace format of `tools/TRACE-FORMAT.md` and implemented by `tools/oracles.py`,
+ * which reports the same messages with `T` in place of `R`. [TraceJson] writes
+ * that format, so a test can check that both agree.
  */
 public object Oracles {
     public fun check(

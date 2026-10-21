@@ -20,11 +20,15 @@ import ballarch.kernel.UnknownReason
 import ballarch.kernel.acceptLater
 import ballarch.kernel.outcomeOf
 import ballarch.kernel.step
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.io.IOException
+import java.io.ObjectOutputStream
 import java.io.Serializable
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
+import java.util.zip.CRC32
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -64,6 +68,33 @@ class FileStoreTest {
 
         Files.write(file, bytes.copyOf(bytes.size - 3))
         assertTrue(assertFailsWith<IOException> { FileStore(directory).load(record.id) }.message!!.contains("truncated"))
+    }
+
+    @Test
+    fun `delete removes a record for good, and deleting a missing record does nothing`() {
+        val record = everything()
+        FileStore(directory).save(record)
+        FileStore(directory).delete(record.id)
+        assertNull(FileStore(directory).load(record.id))
+        assertEquals(emptySet(), FileStore(directory).ids())
+        FileStore(directory).delete(record.id)
+        assertTrue(recordFiles().isEmpty())
+    }
+
+    @Test
+    fun `a file of the earlier record format, which held the codec's bytes alone, is refused with an explanation`() {
+        val payload = ByteArrayOutputStream().also { out -> ObjectOutputStream(out).use { it.writeObject("an old record") } }.toByteArray()
+        val framed = ByteArrayOutputStream().also { out ->
+            DataOutputStream(out).use { data ->
+                data.writeInt(0x42414C4C)
+                data.writeInt(payload.size)
+                data.writeLong(CRC32().apply { update(payload) }.value)
+                data.write(payload)
+            }
+        }.toByteArray()
+        Files.write(directory.resolve("old.record"), framed)
+        val e = assertFailsWith<IOException> { FileStore(directory).ids() }
+        assertTrue("old.record was written by an earlier FileStore (record format 1)" in e.message!!, e.message)
     }
 
     @Test
@@ -128,8 +159,11 @@ class FileStoreTest {
             state = Till.Charging(CallKey("1.0"), RequestId("ext:1:0")),
             revision = 9,
             calls = mapOf(
-                CallKey("1.0") to CallRecord(CallKey("1.0"), "charge", null, 42, deadlineAt = 2_000, phase = Phase.Sending, attempts = 1),
-                CallKey("1.1") to CallRecord(CallKey("1.1"), "lookup", "k", "q", deadlineAt = 2_500, phase = Phase.Pending, attempts = 0, cancelRequested = true),
+                CallKey("1.0") to CallRecord(CallKey("1.0"), "charge", EffectClass.NonIdempotent, null, 42, deadlineAt = 2_000, phase = Phase.Sending, attempts = 1),
+                CallKey("1.1") to CallRecord(
+                    CallKey("1.1"), "lookup", EffectClass.Safe, "k", "q", deadlineAt = 2_500, phase = Phase.Pending, attempts = 0, cancelRequested = true,
+                ),
+                CallKey("1.2") to CallRecord(CallKey("1.2"), "ball:order", EffectClass.Idempotent, "o-7", "q", deadlineAt = 2_600, phase = Phase.Sending, attempts = 2),
             ),
             inbound = listOf<Pair<ReplyTarget, Outcome<Any?>?>>(
                 ReplyTarget.External to null,
@@ -149,6 +183,7 @@ class FileStoreTest {
             outbox = listOf(NoticeRecord(4, "till.closed", Ring(7), linkedSetOf(BallId("audit", "a"), BallId("audit", "b")))),
             nextNoticeSequence = 5,
             lastSeen = mapOf(BallId("counter", "c") to 12L),
+            stateVersion = 3,
         )
     }
 }
