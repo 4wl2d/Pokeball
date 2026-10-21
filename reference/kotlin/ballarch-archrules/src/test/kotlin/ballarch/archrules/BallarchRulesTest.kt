@@ -91,6 +91,7 @@ class BallarchRulesTest {
             sortedSetOf(
                 "ballarch.examples.catalog", "ballarch.examples.orderdraft", "ballarch.examples.shop.checkout",
                 "ballarch.examples.shop.inventory", "ballarch.examples.shop.orders", "ballarch.examples.shop.payments",
+                "ballarch.examples.trip",
             ),
             BallarchRules.deciderPackages(examples),
         )

@@ -11,6 +11,7 @@ include(":ballarch-kernel", ":ballarch-runtime", ":ballarch-testkit", ":ballarch
 include(
     ":examples:order-draft",
     ":examples:tutorial",
+    ":examples:trip",
     ":examples:catalog",
     ":examples:shop:payments-api",
     ":examples:shop:payments",
