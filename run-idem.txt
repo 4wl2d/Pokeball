@@ -1,0 +1,28 @@
+layered              Stress crash=false violations  73.4% {FalseFailure=1468}  needsAttention/order 0.000 completed/run 0.33
+layered              Stress crash=true  violations  64.2% {FalseFailure=1284}  needsAttention/order 0.000 completed/run 0.29
+layered              Mild   crash=false violations  11.7% {FalseFailure=234}  needsAttention/order 0.000 completed/run 1.79
+layered              Mild   crash=true  violations  11.0% {FalseFailure=219}  needsAttention/order 0.000 completed/run 1.40
+hardened             Stress crash=false violations   0.0% {}  needsAttention/order 0.308 completed/run 0.90
+hardened             Stress crash=true  violations   0.0% {}  needsAttention/order 0.272 completed/run 0.80
+hardened             Mild   crash=false violations   0.0% {}  needsAttention/order 0.000 completed/run 1.96
+hardened             Mild   crash=true  violations   0.0% {}  needsAttention/order 0.001 completed/run 1.48
+actors               Stress crash=false violations  73.4% {FalseFailure=1468}  needsAttention/order 0.000 completed/run 0.33
+actors               Stress crash=true  violations  66.6% {FalseFailure=1319, StockLeak=82}  needsAttention/order 0.000 completed/run 0.28
+actors               Mild   crash=false violations  11.7% {FalseFailure=234}  needsAttention/order 0.000 completed/run 1.79
+actors               Mild   crash=true  violations  12.0% {FalseFailure=237, StockLeak=7}  needsAttention/order 0.000 completed/run 1.51
+mvu                  Stress crash=false violations  73.4% {FalseFailure=1468}  needsAttention/order 0.000 completed/run 0.33
+mvu                  Stress crash=true  violations  47.9% {FalseFailure=958}  needsAttention/order 0.000 completed/run 0.18
+mvu                  Mild   crash=false violations  11.7% {FalseFailure=234}  needsAttention/order 0.000 completed/run 1.79
+mvu                  Mild   crash=true  violations  10.4% {FalseFailure=207}  needsAttention/order 0.000 completed/run 0.99
+saga                 Stress crash=false violations  73.4% {FalseFailure=1468}  needsAttention/order 0.000 completed/run 0.33
+saga                 Stress crash=true  violations  70.9% {FalseFailure=1417}  needsAttention/order 0.000 completed/run 0.33
+saga                 Mild   crash=false violations  11.7% {FalseFailure=234}  needsAttention/order 0.000 completed/run 1.79
+saga                 Mild   crash=true  violations  10.7% {FalseFailure=214}  needsAttention/order 0.000 completed/run 1.64
+ballarch             Stress crash=false violations   0.0% {}  needsAttention/order 0.308 completed/run 0.90
+ballarch             Stress crash=true  violations   0.0% {}  needsAttention/order 0.291 completed/run 0.72
+ballarch             Mild   crash=false violations   0.0% {}  needsAttention/order 0.000 completed/run 1.96
+ballarch             Mild   crash=true  violations   0.0% {}  needsAttention/order 0.000 completed/run 1.48
+layered+idem-retry   Stress crash=false violations   0.0% {}  needsAttention/order 0.220 completed/run 1.34
+layered+idem-retry   Stress crash=true  violations   0.0% {}  needsAttention/order 0.148 completed/run 1.38
+layered+idem-retry   Mild   crash=false violations   0.0% {}  needsAttention/order 0.000 completed/run 2.00
+layered+idem-retry   Mild   crash=true  violations   0.0% {}  needsAttention/order 0.000 completed/run 1.51

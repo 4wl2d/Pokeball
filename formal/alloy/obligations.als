@@ -18,7 +18,7 @@
  * Each Mutant switches on one plausible runtime bug. For every mutant
  * the model contains a command that is expected to FIND a counterexample
  * (expect 1); for the correct runtime every property is expected to hold
- * (expect 0) within the stated bounds. `run.sh` checks those expectations.
+ * (expect 0) within the stated bounds. `run.py` checks those expectations.
  */
 module obligations
 

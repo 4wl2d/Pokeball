@@ -107,9 +107,11 @@ Structure, Ballarch against the hand-hardened version (the one that is equally c
 - **Costs:**
   - about 29% more SLOC (279 against 216) and 28% more bytecode;
   - 45 framework types against 6;
-  - more, smaller classes;
-  - lower field-based (LCOM4) and type-based (CAMC) cohesion.
+  - more, smaller classes, with higher cyclomatic complexity (2.19 against 1.81 per function; 68 against 49 in total);
+  - a larger mean distance from the main sequence (0.44 against 0.35) and the highest single-class CBO of all six (18 against 16);
+  - fewer cohesive classes by LCOM4 (8% with LCOM4 = 1, against 71%; mean LCOM4 1.92 against 2.14) and lower mean CAMC (0.33 against 0.52).
 - **Gains:**
+  - a lower mean CBO (3.94 against 4.70);
   - 88% of the code in pure classes against 27%;
   - the lowest propagation cost of all six (13% against 20–31%);
   - no `catch` clause in feature code.

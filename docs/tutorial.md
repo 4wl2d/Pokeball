@@ -1,4 +1,4 @@
-# Tutorial: a reminder that sends one email
+# Tutorial: a reminder that sends an email at most once
 
 This tutorial builds a small feature on Ballarch Core 2: a reminder that waits, then sends an email through a mail service that has no idempotency key. It covers every kernel concept a typical feature needs:
 

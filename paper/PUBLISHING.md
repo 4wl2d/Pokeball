@@ -23,12 +23,15 @@ Nothing has been submitted or published. Every step below is the author's decisi
    - the benchmark;
    - the documentation checks;
    - `make arxiv` here.
-5. **Freeze a version.**
-   - Tag the release, for example `v2.0.0-rc.1`, and create a GitHub release.
+5. **Software license.** The code has no software license. arXiv does not need one, but artifact evaluation, reuse and a software DOI do. Choose one before tagging any release:
+   - set `license` in `CITATION.cff` to its SPDX id (replacing `license-url`), and `"license"` in [`.zenodo.json`](../.zenodo.json) to its Zenodo id;
+   - keep the CC BY 4.0 grant for text and diagrams in `message`, `notes` and `NOTICE.md`;
+   - until this is done, do not enable the Zenodo GitHub integration: its record carries a single license id and cannot be withdrawn. A DOI for the paper alone can come from a manual Zenodo upload of the PDF and the specification as a `publication` under CC BY 4.0.
+6. **Freeze a version.**
+   - Tag the release, for example `v2.0.0-rc.1`, and create a GitHub release; add `date-released` to `CITATION.cff` on that day.
    - With the Zenodo GitHub integration enabled, the release receives a DOI. [`.zenodo.json`](../.zenodo.json) supplies its metadata.
    - Add the DOI to the paper's *Artifacts* paragraph and to `CITATION.cff`.
-6. **Repository name.** The repository is still called `Pokeball`. If it is renamed to `Ballarch`, GitHub redirects old URLs. Update the URLs in the paper, `CITATION.cff`, `.zenodo.json` and `NOTICE.md` afterwards.
-7. **Software license.** The code has no software license. arXiv does not need one, but artifact evaluation and reuse do. Choose one before inviting independent implementations.
+7. **Repository name.** The repository is still called `Pokeball`. If it is renamed to `Ballarch`, GitHub redirects old URLs. Update the URLs in the paper, `CITATION.cff`, `.zenodo.json` and `NOTICE.md` afterwards.
 
 ## arXiv
 

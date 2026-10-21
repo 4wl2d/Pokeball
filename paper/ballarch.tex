@@ -48,9 +48,9 @@
 \begin{abstract}
 Software architecture styles draw boundaries in space: layers, hexagons and services constrain which code may depend on which. They say little about \emph{when} an effect may leave a component, or about what the component may claim afterwards. When a request times out, two-valued error handling has to choose between ``it happened'' and ``it did not''. When the destination cannot deduplicate requests, either choice can be wrong: retrying can charge a customer twice, and reporting failure can hide a charge that happened.
 
-We present Ballarch, an architecture that adds two \emph{boundaries in time} to the usual spatial ones. The \emph{commit horizon} is the atomic commit of the decision that requests an effect. The \emph{send horizon} is the first moment the request may have reached its destination. Each piece of mutable state has one owner that decides in pure functions. A runtime commits the decision's state and its requested effects atomically. Every outbound request then ends in exactly one outcome, \Done, \NotDone\ or \Unknown, chosen mechanically from the request's phase relative to the send horizon and from the effect class of its port. For operations made of several requests, a knowledge algebra over Kleene's strong three-valued logic determines what a component may claim. We show that composing honest parts yields an honest whole, so a composite can be used one level up as a single component.
+We present Ballarch, an architecture that adds two \emph{boundaries in time} to the usual spatial ones. The \emph{commit horizon} is the atomic commit of the decision that requests an effect. The \emph{send horizon} is the first moment the request may have left the runtime. Each piece of mutable state has one owner that decides in pure functions. A runtime commits the decision's state and its requested effects atomically. Every outbound request then ends in exactly one outcome, \Done, \NotDone\ or \Unknown, chosen mechanically from the request's phase relative to the send horizon and from the effect class of its port. For operations made of several requests, a knowledge algebra over Kleene's strong three-valued logic determines what a component may claim. We show that composing honest parts yields an honest whole, so a composite can be used one level up as a single component.
 
-The rules are stated once and, where they apply, checked by level-specific mechanisms in three references: a Kotlin service runtime with trace oracles and an Alloy model of the call protocol, C firmware with exhaustive power-loss exploration, and a SystemVerilog block with structural netlist checks. In a benchmark of one checkout feature written in six styles and run 2{,}000 times per fault setting, idiomatic layered, actor, MVU and outbox-plus-saga versions violated a correctness requirement in 12--73\% of runs. Ballarch and a layered version hardened by hand violated none. Against the hardened version, Ballarch used about 29\% more code and many more framework types, and its classes scored lower on cohesion metrics. It had the lowest propagation cost of the six designs and placed 88\% of its code in pure classes.
+The rules are stated once and, where they apply, checked by level-specific mechanisms in three references: a Kotlin service runtime with trace oracles and an Alloy model of the call protocol, C firmware with exhaustive power-loss exploration, and a SystemVerilog block with structural netlist checks. In a benchmark of one checkout feature written in six styles and run 2{,}000 times per fault setting, idiomatic layered, actor, MVU and outbox-plus-saga versions violated a correctness requirement in 12--73\% of runs. Ballarch and a layered version hardened by hand violated none. Against the hardened version, Ballarch used about 29\% more code and many more framework types, its classes scored lower on cohesion, and its code had higher cyclomatic complexity and a larger distance from the main sequence. It had the lowest propagation cost of the six designs and placed 88\% of its code in pure classes.
 \end{abstract}
 
 \section{Introduction}
@@ -118,7 +118,7 @@ The vocabulary is HTTP's~\citep{rfc9110}. The same distinction appears in hardwa
   \node[align=center,text width=6cm] at (11.7,-0.8) {\texttt{Sending}: \Done, \NotDone\ with evidence, or \Unknown; a \NonIdem\ call is never re-sent};
   \draw[decorate,decoration={brace,amplitude=4pt,mirror}] (3.2,-1.5) -- (14.7,-1.5) node[midway,below=5pt] {exactly one completion by the deadline (Durable: across restarts)};
 \end{tikzpicture}}
-\caption{The two boundaries in time that every call crosses. Before the commit horizon there is nothing to know; between the horizons non-occurrence can still be proved; after the send horizon only the destination's answer or later reconciliation establishes what happened.}
+\caption{The two boundaries in time that every call crosses. Before the commit horizon there is nothing to know; between the horizons non-occurrence can still be proved; after the send horizon only evidence about every attempt, or later reconciliation, establishes what happened to an effectful call.}
 \label{fig:horizons}
 \end{figure}
 
@@ -128,7 +128,7 @@ The vocabulary is HTTP's~\citep{rfc9110}. The same distinction appears in hardwa
 Spatial boundaries constrain which code may refer to which. Ballarch adds two boundaries that constrain \emph{when} effects and knowledge may cross (Figure~\ref{fig:horizons}):
 \begin{description}[leftmargin=1em]
   \item[Commit horizon.] The atomic commit of the decision that requests a call. Before it, the call is part of a decision that can still vanish, and nothing may leave (commit before dispatch). After it, the call is an obligation.
-  \item[Send horizon.] The first moment the request may have left the runtime. Before it, the call can be withdrawn truthfully. After it, \NotDone\ requires evidence from the destination.
+  \item[Send horizon.] The first moment the request may have left the runtime. Before it, the call can be withdrawn truthfully. After it, \NotDone\ requires evidence covering every attempt (a refusal, or an adapter's evidence of non-application), except for a \Safe\ call, which can have had no effect.
 \end{description}
 An implementation must make each horizon an event that its checks can observe:
 \begin{itemize}[nosep]
@@ -170,7 +170,7 @@ Durable restart before the send horizon & send & send & send \\
 
 Table~\ref{tab:classification} gives the classification that a conforming runtime applies. Two rules carry its weight:
 \begin{description}[leftmargin=1em]
-  \item[R7 (honest outcomes).] \NotDone\ is produced only with evidence: the call was never sent, the destination refused it, or an adapter reported evidence covering every attempt that may have been delivered.
+  \item[R7 (honest outcomes).] \NotDone\ is produced only with evidence: the call was never sent, the destination refused it, an adapter reported evidence covering every attempt that may have been delivered, or the port is \Safe\ and so has no effect.
   \item[R8 (no blind re-send).] A \NonIdem\ call is sent at most once, including after a restart. Before each send, the runtime durably records that the call may have been sent.
 \end{description}
 Retries belong to the runtime and are allowed only for \Safe\ and \Idem\ ports. Adapters report each attempt once and never retry. Table~\ref{tab:rules} lists all fourteen rules with the mechanisms that check them.
@@ -201,7 +201,7 @@ R7 Honest outcomes & runtime, adapter & \NotDone\ only with evidence & Alloy P3,
 R8 No blind re-send & runtime, adapter & \NonIdem\ sent at most once; write-ahead & Alloy P4; oracles; seeded bugs \\
 R9 One reply per request & runtime, author & at most one reply; overdue replies reported & preflight; oracle \\
 R10 Explicit composition & author & interaction only via calls, replies, notices & kernel API; module-boundary check \\
-R11 Bounded resources & runtime & refuse before accepting & preflight \\
+R11 Bounds and preflight & runtime & refuse before accepting; reject faulty decisions & preflight \\
 R12 Read-only queries & author & reads do not change state & types \\
 R13 Honest profile claims & runtime & no claim beyond the profile & review \\
 R14 Honest composition & author & claims about composites follow the algebra & \texttt{Knowledge} type; exploration against ground truth \\
@@ -221,11 +221,11 @@ Let $\mathbb{T}=\{\yes,\no,\mayb\}$ with Kleene's strong connectives~\citep{Klee
 \end{definition}
 
 \begin{definition}[Constituents and knowledge]
-The \emph{effect} $f_i \in \mathbb{T}$ of a call made for an operation is:
+The \emph{effect} $f_i \in \mathbb{T}$ of a call an operation needs, requested or not, is:
 \begin{itemize}[nosep]
   \item $\yes$ if it completed \Done\ with an answer meaning that the requested effect happened;
-  \item $\no$ if it completed \NotDone, or was never sent;
-  \item $\mayb$ if it completed \Unknown, or is still open.
+  \item $\no$ if it completed \NotDone, or has not been requested;
+  \item $\mayb$ if it completed \Unknown, or has been requested and has no completion yet, whether or not it was sent.
 \end{itemize}
 A compensation is \emph{absorbing} if its effect means that no effect of the original request exists or can still take effect. For example, the destination fences the request's reference, or the original request's delivery horizon has passed. With $u_i$ the disjunction of the effects of a constituent's absorbing compensations, its \emph{net effect} is $n_i = f_i \wedge \neg u_i$. The \emph{knowledge} of an operation with constituents $1..k$ is
 \[ K = (\textit{all}, \textit{any}) = \Big(\bigwedge_{i} n_i,\ \bigvee_{i} n_i\Big), \qquad K_\emptyset = (\yes,\no). \]
@@ -393,12 +393,13 @@ Metric & Layered & Hardened & Actors & MVU & Saga & Ballarch \\
 \midrule
 SLOC & 166 & 216 & 163 & 96 & 184 & 279 \\
 Classes & 12 & 20 & 15 & 10 & 18 & 35 \\
-CBO, mean & 4.00 & 4.70 & 3.47 & 4.00 & 4.11 & 3.94 \\
+CBO, mean (max) & 4.00 (9) & 4.70 (16) & 3.47 (14) & 4.00 (9) & 4.11 (13) & 3.94 (18) \\
 LCOM4, share $=1$ & 71\% & 71\% & 67\% & 50\% & 67\% & 8\% \\
 CAMC, mean & 0.52 & 0.52 & 0.39 & 0.42 & 0.57 & 0.33 \\
 Distance $D$, mean & 0.34 & 0.35 & 0.42 & 0.39 & 0.47 & 0.44 \\
 Propagation cost & 28.5\% & 20.0\% & 21.8\% & 31.0\% & 20.7\% & 13.1\% \\
 McCabe CCN, mean (max) & 2.05 (8) & 1.81 (7) & 1.60 (4) & 1.75 (7) & 2.46 (13) & 2.19 (8) \\
+McCabe CCN, total & 41 & 49 & 32 & 21 & 32 & 68 \\
 Framework types & 5 & 6 & 5 & 3 & 6 & 45 \\
 \texttt{catch} clauses & 3 & 5 & 0 & 0 & 2 & 0 \\
 Code in pure classes & 26\% & 27\% & 26\% & 59\% & 44\% & 88\% \\
@@ -412,10 +413,11 @@ Code in pure classes & 26\% & 27\% & 26\% & 59\% & 44\% & 88\% \\
 \begin{itemize}[nosep]
   \item 29\% more source lines and 28\% more bytecode;
   \item 45 framework types against 6;
-  \item more, smaller classes;
+  \item more, smaller classes, with higher cyclomatic complexity (2.19 against 1.81 per function, 68 against 49 in total);
+  \item a larger mean distance from the main sequence (0.44 against 0.35), mostly from its shared \texttt{api} package of concrete message types ($D=0.79$), and the most coupled single class of the six designs (CBO 18 against 16);
   \item lower cohesion.
 \end{itemize}
-LCOM4 assumes that cohesive methods share fields. It counts stateless deciders over a state type as uncohesive, which affects MVU's \texttt{update} as well. The type-based CAMC metric does not reverse the result. In exchange, Ballarch has the lowest propagation cost of the six designs. It also places 88\% of its code in classes with no mutable field and no reference to concurrency, I/O, clocks, the database or the provider, against 27\% for the hardened design. Its feature code has no exception handler. The hardened design reaches the same correctness through five \texttt{catch} clauses, a write-ahead status and reconciliation, all written into the use case.
+LCOM4 assumes that cohesive methods share fields. It counts stateless deciders over a state type as uncohesive, which affects MVU's \texttt{update} as well. The type-based CAMC metric does not reverse the result. In exchange, Ballarch has a lower mean CBO than the hardened design (3.94 against 4.70) and the lowest propagation cost of the six designs. It also places 88\% of its code in classes with no mutable field and no reference to concurrency, I/O, clocks, the database or the provider, against 27\% for the hardened design. Its feature code has no exception handler. The hardened design reaches the same correctness through five \texttt{catch} clauses, a write-ahead status and reconciliation, all written into the use case.
 
 \paragraph{RQ3.} We injected two plausible bugs from outside the correct implementations: a Ballarch payment Ball that treats \Unknown\ as not charged, and a hardened gateway that reports an uncertain charge as not sent. Under Stress with a crash they were detected in 79.4\% and 46.4\% of runs respectively, and under Mild with a crash in 47.3\% and 2.3\%.
 
@@ -454,7 +456,7 @@ X-ability defines exactly-once correctness for services with side effects and is
     \item The firmware and RTL references are single examples checked in simulation.
     \item The Kotlin runtime's file store is single-node and has been tested against killed processes, not power loss; it is not a production database.
   \end{itemize}
-  \item \textbf{Metrics.} LCOM4 and CAMC were designed for object-oriented code with shared fields. Propagation cost and CBO depend on how finely code is divided into classes. Change impact, developer effort and runtime overhead were not measured in this study. An earlier, unpublished prototype comparison found wider changes for Ballarch's module structure and a median of 39\,\textmu s of thread hand-off per local request.
+  \item \textbf{Metrics.} LCOM4 and CAMC were designed for object-oriented code with shared fields. Propagation cost and CBO depend on how finely code is divided into classes. Change impact, developer effort and runtime overhead were not measured in this study. An earlier prototype comparison, whose data is not published, found that splitting each feature into an API module and an implementation module made cross-feature changes touch more files than single-module baselines in 4 of 5 change requests, and that a local request took a median of 39\,\textmu s more than a direct call, almost all of it thread hand-off.
   \item \textbf{Formal results.} The Alloy results are bounded. The algebra's theorems are proved, and are also checked exhaustively for small sizes. The absorbing property of compensations and the honesty of adapters are assumptions that are reviewed, not verified.
 \end{itemize}
 

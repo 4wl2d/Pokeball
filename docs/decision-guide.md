@@ -13,11 +13,12 @@ From the benchmark: one checkout, six styles, all written by one author ([result
 - **More feature code.** Ballarch took 279 SLOC against 216 for a layered version hardened by hand to the same correctness. The idiomatic but faulty versions took 96 (MVU) to 184 (outbox + saga).
 - **More concepts.** The feature code used 45 framework types against 3–6.
 - **More, smaller classes, with lower class cohesion.** LCOM4 and CAMC count stateless deciders over a state type as less cohesive than classes that share fields.
+- **Higher complexity and a less balanced package structure.** Cyclomatic complexity was 2.19 per function against 1.81 (68 against 49 in total). The mean distance from the main sequence was 0.44 against 0.35. The most coupled class had a CBO of 18 against 16.
 
 From earlier measurements (not reproducible from this checkout):
 
-- **Wider changes.** Adding or removing a component touched 8–11 files, against 2 in single-module code.
-- **A thread hand-off per request** with the reference scheduler: about 39 µs round trip on a shared 4-vCPU VM. The runtime's own work is about 0.5 µs and 1 KB per request.
+- **Wider changes.** The module structure of Core §7.1 made cross-feature changes touch more files than single-module baselines in 4 of 5 change requests.
+- **A thread hand-off per request.** A local request through the reference runtime took a median of 39 µs more than a direct call on the production thread scheduler, almost all of it thread hand-off. The runtime's own work is about 0.5 µs and 1 KB per request.
 
 Also:
 

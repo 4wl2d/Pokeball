@@ -13,7 +13,7 @@ description: Write, change or review a component on Ballarch Core 2 (Balls, deci
    - the **commit horizon**: the atomic commit of the decision that requests the effect;
    - the **send horizon**: the first moment the request may have left.
 
-   Nothing may leave before the commit horizon. Before the send horizon, `NotDone` is provable; after it, only `Done`, `NotDone` with evidence, or `Unknown`.
+   Nothing may leave before the commit horizon. Before the send horizon, `NotDone` is provable; after it, only `Done`, `NotDone` with evidence of non-application (for a Safe port, the absence of any effect), or `Unknown`.
 4. For every external call, choose the port's effect class honestly:
    - `Safe`: no effect;
    - `Idempotent`: the destination deduplicates by the call identity;
@@ -33,8 +33,8 @@ description: Write, change or review a component on Ballarch Core 2 (Balls, deci
 ## Composite operations (R14)
 
 When a Ball reports whether an operation made of several calls took effect, derive the claim with `ballarch.kernel.Knowledge`:
-- a call not yet sent counts as `No`;
-- an open call counts as `Maybe`;
+- a call you have not requested counts as `No`;
+- a requested call without a completion counts as `Maybe`, even if it may not have been sent yet;
 - `Done` with a refusal inside counts as `No`; pass an `effective` predicate to `effect` or `knowledge`.
 
 Count a compensation only if it is absorbing: the destination fences the reference, or the original request's horizon has passed. Combine repeated compensation attempts with `or`.
@@ -73,7 +73,7 @@ Use the consuming project's build and tests. In the reference implementation, ru
 
 This runs the architecture rules, runtime tests, examples and the knowledge-algebra check. For a changed effectful feature, use `Harness` + `SimPort` + `explore` when available:
 - inject network faults and a crash;
-- assert `h.assertInvariants()`;
+- assert `h.assertInvariants()`, and `h.assertNoReplyLeaks()` where every accepted request should be answered before its deadline;
 - check the feature's state, or its `Knowledge`, against the ground truth.
 
 Reuse the project's equivalent tests when it uses another conforming runtime. State what was actually checked.

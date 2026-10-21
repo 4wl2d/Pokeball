@@ -10,7 +10,7 @@ The paper presents Ballarch Core 2.0:
 - the Alloy model;
 - the benchmark.
 
-Every number in it comes from a check in this repository; the [verification guide](../docs/reproducibility.md) shows how to reproduce each one.
+Every number in it comes from a check in this repository, except the earlier prototype measurements named under Limitations, whose data is not published; the [verification guide](../docs/reproducibility.md) shows how to reproduce the rest.
 
 Build with TeX Live 2023 or later:
 

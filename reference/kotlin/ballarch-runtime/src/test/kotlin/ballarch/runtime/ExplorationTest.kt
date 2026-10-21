@@ -3,14 +3,18 @@ package ballarch.runtime
 import ballarch.kernel.AdapterPort
 import ballarch.kernel.BallId
 import ballarch.kernel.EffectClass
+import ballarch.kernel.accept
+import ballarch.kernel.acceptLater
 import ballarch.testkit.ExhaustiveChooser
 import ballarch.testkit.Fate
 import ballarch.testkit.Harness
 import ballarch.testkit.Profile
+import ballarch.testkit.RandomChooser
 import ballarch.testkit.SimPort
 import ballarch.testkit.explore
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -59,6 +63,20 @@ class ExplorationTest {
             }
         }
         return runs to finals
+    }
+
+    @Test
+    fun `the harness reports an accepted request left unanswered past its deadline`() {
+        fun run(act: Act): Harness = Harness(RandomChooser(1)) { Composition().ball(ScriptBall()) }.apply {
+            start()
+            send(BallId("script", "s"), act, timeoutMillis = 100)
+            runUntilIdle()
+        }
+        val owing = run(Act("owe") { st, ctx -> acceptLater(st + ctx.requestId) })
+        owing.assertInvariants() // at most one reply: R9's MUST half holds
+        assertEquals(1, owing.replyLeaks().size)
+        assertFailsWith<AssertionError> { owing.assertNoReplyLeaks() }
+        run(Act("answer") { st, _ -> accept(st, "ok") }).assertNoReplyLeaks()
     }
 
     @Test

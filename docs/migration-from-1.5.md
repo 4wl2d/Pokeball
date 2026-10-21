@@ -54,7 +54,7 @@ Ballarch was published under the name Pokeball up to Core 1.5. The [previous pub
 | PBA-09 No Reentrant Transition | Kept | R3; no synchronous calls between Balls (§3.4) |
 | PBA-10 Fault Atomicity | Kept | R4 (a fault commits nothing); quarantine (§3.5) |
 | PBA-11 Single Semantic Authority | Kept | R1 |
-| PBA-12 Single Writer | Kept | R1, R3; fencing of a Ball across machines is out of scope of the reference runtime (§10) |
+| PBA-12 Single Writer | Kept | R1, R3; replicating or fencing a Ball across machines is outside Core 2 (§1, Non-goals) |
 | PBA-13 State Isolation | Kept | R10, R12 |
 | PBA-14 Explicit State Kind | Dropped | One state per Ball. UI and transport state is outside the architecture: a value that can change a decision must be in a message or in state |
 | PBA-15 Semantic Handle | By construction | Call keys from `Context.newKey`; `CallId` identifies a call globally |
@@ -72,7 +72,7 @@ Ballarch was published under the name Pokeball up to Core 1.5. The [previous pub
 | PBA-27 No Wildcard Mediator | Kept | R10: no wildcard routing or handler discovery |
 | PBA-28 No Protocol Re-export | Guidance | API modules own their types (§7.1); not a separate rule |
 | PBA-29 Bounded Composition | Kept | R10: the composition root lists every Ball, binding and subscription |
-| PBA-30 Honest Read Consistency | Kept / guidance | R12 read-only queries; consistency claims fall under §9.4 |
+| PBA-30 Honest Read Consistency | Kept / guidance | R12 read-only queries; consistency claims fall under §9.5 (Claims) |
 | PBA-31 Double Quarantine | Guidance | §8.2 and §8.6: validate at adapters and treat inputs as untrusted |
 | PBA-32 Capability-Sealed Effect | Guidance | §8.6: adapters hold capabilities, deciders hold none |
 | PBA-33 Dual Gate | Guidance | §8.2: the decider decides permissions; the adapter enforces technical authorization |
@@ -83,8 +83,8 @@ Ballarch was published under the name Pokeball up to Core 1.5. The [previous pub
 | PBA-38 Bounded Execution | Kept | R11 and the bounds of §3.5 |
 | PBA-39 Profile-Proportional Mechanism | Replaced | Proportionality by construction: a Ball that makes no calls needs no asynchronous machinery |
 | PBA-40 Zero Mandatory Runtime Tax | Dropped | Core 2 is a runtime contract with a measured cost; see Core §10 |
-| PBA-41 Measured Claim | Kept | §9.4 Claims |
-| PBA-42 Honest Guarantee Scope | Kept | R13, §9.4 |
+| PBA-41 Measured Claim | Kept | §9.5 Claims |
+| PBA-42 Honest Guarantee Scope | Kept | R13, §9.5 |
 | PBA-43 Foundation Quarantine | By construction | Shared code holds no mutable state (`noGlobalMutableState`); features share only API modules (R10) |
 | PBA-44 Trusted Actor Context | Kept (reduced) | `RequestContext.caller`, a principal authenticated by the inbound adapter (§2.3, §8.2) |
 

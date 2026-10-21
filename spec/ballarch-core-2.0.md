@@ -12,11 +12,11 @@
 
 ## 0. How to read this document
 
-Sections 2–7 are **normative**. Section 8 is **guidance**: recommended practice that a conforming system may ignore with reason. Section 9 defines **conformance**. Everything else, and every example, is informative. Section 11 interprets the rules for hardware, firmware and services; Section 12 relates the architecture to prior work and states what is new.
+Sections 2–7 are **normative**, except for examples, the 'Standard analogue' column of §2, reported results of checks (the bounded results in §4.1 and the test and exploration results at the end of §4.2), and statements about what the reference implementations do; these are informative. Section 8 is **guidance**: recommended practice that a conforming system may ignore with reason. Section 9 defines **conformance**. Sections 1, 10, 11 and 12 are informative. Section 11 interprets the rules for hardware, firmware and services; Section 12 relates the architecture to prior work and states what is new.
 
 The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are to be interpreted as described in RFC 2119 and RFC 8174 when, and only when, they appear in capitals.
 
-Each rule names its **enforcement**: the mechanism that checks it. Rules marked *runtime* bind implementers of a runtime; rules marked *author* bind people who write Balls. "Checked by" lists what this repository provides; "review" means no mechanism is provided and the rule depends on human judgement.
+Each rule names its **enforcement**: the mechanisms in this repository that check it. Rules in §5.1 bind people who write Balls; rules in §5.2 bind implementers of a runtime. The *Binds* column of §5.3 notes where a rule also binds adapters or authors. "Review" means that no mechanism is provided and the rule, or the named part of it, depends on human judgement.
 
 ## 1. Scope
 
@@ -116,9 +116,9 @@ Architectures usually draw their boundaries in space: layers, modules, services,
 | Horizon | The instant | Before it | After it | Rules |
 |---|---|---|---|---|
 | **Commit horizon** | The atomic commit of the decision that requests the call | The call is part of a decision that can still vanish. Nothing may leave. | The call is an obligation: it will get exactly one outcome, and under the Durable profile it survives crashes. | R4, R5, R6 |
-| **Send horizon** | The first moment the request may have left the runtime | The call can be withdrawn truthfully: `NotDone`. | The outcome is `Done`, `NotDone` with evidence from the destination, or `Unknown`. | R7, R8 |
+| **Send horizon** | The first moment the request may have left the runtime | The call can be withdrawn truthfully: `NotDone`. | The outcome is `Done`; `NotDone` only with evidence covering every attempt (a refusal by the destination, or an adapter's evidence that the request was not applied), or for a Safe port, which has no effect; otherwise `Unknown`. | R7, R8 |
 
-Between the horizons a call is `Pending`; after the send horizon it is `Sending` (§3.2). The horizons mark where knowledge about an effect changes kind. Before the commit horizon there is nothing to know. Between the horizons, non-occurrence can still be proved. After the send horizon, only the destination's answer, or later reconciliation, can establish what happened.
+Between the horizons a call is `Pending`; after the send horizon it is `Sending` (§3.2). The horizons mark where knowledge about an effect changes kind. Before the commit horizon there is nothing to know. Between the horizons, non-occurrence can still be proved. After the send horizon, an effectful call's non-occurrence can be established only by evidence about every attempt (the destination's answer or refusal, or an adapter's proof that the request was not applied) or by later reconciliation.
 
 An implementation MUST make each horizon an event that its checks can observe: under the Durable profile, the commit record and the write-ahead record of §3.2; in a synchronous circuit, the clock edge that commits the request and the bus handshake that hands it over (§11). Spatial boundaries constrain which code may refer to which; these two constrain *when* information and effects may cross.
 
@@ -197,9 +197,9 @@ A runtime MUST enforce finite bounds on at least: inbox length per instance, ope
 - calls a port that the composition root does not bind;
 - replies to a request that is not open, or twice to the same request;
 - makes a timer call other than through `Timer.after` (§2.4);
-- exceeds a bound.
+- exceeds a bound (a resource bound on open calls, outputs or notices is overload; a call timeout above its bound is a fault).
 
-Exceeding a bound while deciding a *request* refuses the request (`NotDone(Overloaded)`); any other failed check, or any failure while deciding a completion or notice, quarantines the instance, because obligations it already holds cannot be refused.
+A request that arrives when the instance's inbox is full is refused with `NotDone(Overloaded)` without being decided. While deciding a *request*, a decision that would exceed the bound on open calls, outputs per decision or unacknowledged notices refuses the request with `NotDone(Overloaded)`. Any other failed check, including a call timeout above its bound, and any decider failure refuse the request with `NotDone(Fault)` and record a fault. In both cases nothing is committed and the instance continues. Any failed check, or any failure, while deciding a completion or notice quarantines the instance, because obligations it already holds cannot be refused.
 
 ### 3.6 Notices
 
@@ -213,7 +213,7 @@ A **crash** stops the runtime abruptly. Under the **Transient** profile, all sta
 
 ### 4.1 The call protocol
 
-The protocol of §3.2 (commit, write-ahead, send, retry, deadline, crash, recovery, lossy and duplicating network) is modelled in Alloy 6 in [`formal/alloy/obligations.als`](../formal/alloy/obligations.als). For the correct protocol, no counterexample to the following exists within the stated bounds (3 calls, traces of up to 14 steps; L1: 2 calls, 12 steps), and each of six seeded runtime bugs yields one ([run the bounded checks](../docs/reproducibility.md#alloy-model)):
+The protocol of §3.2 (commit, write-ahead, send, retry, deadline, crash, recovery, lossy and duplicating network) is modelled in Alloy 6 in [`formal/alloy/obligations.als`](../formal/alloy/obligations.als); [its README](../formal/alloy/README.md) relates the model's transitions to the reference runtime. For the correct protocol, no counterexample to the following exists within the stated bounds (3 calls, traces of up to 14 steps; L1: 2 calls, 12 steps), and each of six seeded runtime bugs yields one ([run the bounded checks](../docs/reproducibility.md#alloy-model)):
 
 | Property | Statement |
 |---|---|
@@ -231,11 +231,11 @@ These are bounded model-checking results, not proofs for all sizes.
 
 A Ball often performs one operation through several calls: a booking of a flight and a hotel, a reservation and a charge. What can it truthfully say about the operation as a whole? Ballarch answers with a small algebra over **strong Kleene three-valued logic** (K3), with truth values `Yes`, `No` and `Maybe`.
 
-**Constituents.** Each call made for the operation is a constituent. Its *effect* is a truth value:
+**Constituents.** Each call the operation needs is a constituent, whether or not the Ball has requested it yet. Its *effect* is a truth value:
 
 - `Yes` if it completed `Done` with an answer that means the requested effect happened;
-- `No` if it completed `NotDone`, or if it was never sent;
-- `Maybe` if it completed `Unknown`, or if it is still open.
+- `No` if it completed `NotDone`, or if the Ball has not requested it;
+- `Maybe` if it completed `Unknown`, or if it has been requested and has no completion yet. This includes a call still in phase `Pending`, which may yet be sent and take effect.
 
 A *compensation* of a constituent is a call that undoes it. A compensation is **absorbing** if its effect means that no effect of the original request exists or can still take effect, for example because the destination fences the request's reference, or because the original request's delivery horizon has passed. The *net effect* of a constituent with absorbing compensations is `effect ∧ ¬undone`, where `undone` is the disjunction of the effects of its compensation attempts.
 
@@ -290,7 +290,7 @@ The [trip example](../reference/kotlin/examples/trip/) applies the algebra to a 
 **R12 — Read-only queries.** Reading a Ball's committed state (for display or diagnostics) MUST NOT change state or request effects. Reads by another Ball MUST be calls to a Safe port.
 *Enforcement:* type system (reads return values, not decisions); `Runtime.watch` observes committed states only.
 
-**R14 — Honest composition.** A Ball that states whether an operation made of several calls took effect, in a reply, a notice, or state that others read, MUST NOT claim more than the knowledge algebra (§4.2) derives from the outcomes of those calls. A call not yet sent counts as `No`; an open call counts as `Maybe`; only an absorbing compensation may count as undoing an effect.
+**R14 — Honest composition.** A Ball that states whether an operation made of several calls took effect, in a reply, a notice, or state that others read, MUST NOT claim more than the knowledge algebra (§4.2) derives from the outcomes of those calls. A call the Ball has not requested counts as `No`. A requested call counts as `Maybe` until its completion arrives, whether or not it has been sent, including a call requested by the decision that makes the claim. Only an absorbing compensation may count as undoing an effect.
 *Enforcement:* the kernel's `Knowledge` type; exploration tests against ground truth (the trip example); review.
 
 ### 5.2 Runtime rules
@@ -298,7 +298,7 @@ The [trip example](../reference/kotlin/examples/trip/) applies the algebra to a 
 **R3 — Serial processing.** A runtime MUST NOT run two steps of the same instance concurrently or nested.
 *Enforcement:* runtime guard; trace oracle R3.
 
-**R4 — Atomic commit.** A runtime MUST commit a decision's new state together with all its outputs (new calls, replies, notices) in one atomic operation. A rejected decision, a failed preflight, or a decider fault MUST commit nothing.
+**R4 — Atomic commit.** A runtime MUST commit a decision's new state together with all its outputs (new calls, replies, notices) in one atomic operation. A rejected decision, a failed preflight, or a decider fault MUST commit nothing. A Durable runtime MUST NOT regenerate committed outputs by re-running decider code (§6).
 *Enforcement:* single record replacement in the store; Alloy P6; crash exploration.
 
 **R5 — Commit before dispatch.** A runtime MUST NOT deliver a reply, publish a notice or send a call before the decision that produced it is committed.
@@ -307,7 +307,7 @@ The [trip example](../reference/kotlin/examples/trip/) applies the algebra to a 
 **R6 — One completion per call.** Every committed call MUST have a finite deadline. A runtime MUST deliver at most one completion per call and, while it runs (Transient) or across restarts (Durable), exactly one by the deadline plus scheduling delay. A completion MUST NOT be delivered for a call the instance did not commit.
 *Enforcement:* runtime; Alloy P2 and L1; trace oracle R6.
 
-**R7 — Honest outcomes.** `NotDone` MUST be produced only with evidence of non-application: the call was never sent, the destination refused it, or an adapter reported evidence covering every attempt that may have been delivered. For effectful ports, a call that may have been sent and has no answer MUST end `Unknown`. For Safe ports it ends `NotDone(NoAnswer)`.
+**R7 — Honest outcomes.** `NotDone` MUST be produced only with evidence of non-application: the call was never sent, the destination refused it, an adapter reported evidence covering every attempt that may have been delivered, or the port is Safe and so has no effect to apply. For effectful ports, a call that may have been sent and has no answer MUST end `Unknown`; for Safe ports it ends `NotDone(NoAnswer)`.
 *Enforcement:* runtime classification table (§3.2); Alloy P3, P5; trace oracle R7 against simulated ground truth; adapter conformance kit.
 
 **R8 — No blind re-send.** A runtime MUST NOT send a NonIdempotent call more than once, including after a restart; before sending it MUST record durably (Durable profile) that the call may have been sent. Only the runtime MAY retry, within the port's finite attempt budget, and only Safe and Idempotent ports. Adapters MUST NOT retry.
@@ -316,29 +316,29 @@ The [trip example](../reference/kotlin/examples/trip/) applies the algebra to a 
 **R9 — One reply per accepted request.** An accepted request MUST receive at most one reply. A Ball SHOULD reply to every accepted request before its deadline; a runtime MUST report an accepted request left unanswered past its deadline as an obligation leak and MUST NOT invent a reply for it.
 *Enforcement:* runtime preflight; trace event `ReplyOverdue`; trace oracle R9.
 
-**R11 — Bounded resources.** A runtime MUST enforce the bounds of §3.5 and MUST refuse new work before accepting it rather than drop accepted work.
-*Enforcement:* runtime preflight and admission.
+**R11 — Bounded resources and preflight.** A runtime MUST enforce the bounds and the preflight checks of §3.5 and MUST refuse new work before accepting it rather than drop accepted work.
+*Enforcement:* runtime preflight and admission; `RuntimeRulesTest`.
 
 **R13 — Honest profile claims.** A runtime MUST document its profile. A Transient runtime MUST NOT claim that state, open calls or open requests survive a crash. No profile implies exactly-once execution of external effects.
 *Enforcement:* documentation review; crash exploration demonstrates both profiles.
 
 ### 5.3 Rules summary
 
-| Rule | Force | Binds | Mechanically checked in this repository by |
+| Rule | Force | Binds | Checked in this repository by |
 |---|---|---|---|
-| R1 Single owner | MUST | author | runtime encapsulation; `noGlobalMutableState`, `immutableValues` |
-| R2 Pure decider | MUST | author | `deciderPurity` (not termination) |
+| R1 Single owner | MUST | author | runtime encapsulation; `noGlobalMutableState`, `immutableValues`; C object-file check (no writable data); Yosys single-driver check |
+| R2 Pure decider | MUST | author | `deciderPurity` (not termination); C undefined-symbol check; Yosys latch check |
 | R3 Serial processing | MUST | runtime | runtime guard; oracle |
 | R4 Atomic commit | MUST | runtime | store design; Alloy; exploration |
-| R5 Commit before dispatch | MUST | runtime | Alloy; oracle |
+| R5 Commit before dispatch | MUST | runtime | Alloy; oracle; firmware exploration; Yosys path check |
 | R6 One completion per call | MUST | runtime | Alloy; oracle |
 | R7 Honest outcomes | MUST | runtime, adapter | Alloy; oracle with ground truth; conformance kit |
 | R8 No blind re-send | MUST | runtime, adapter | Alloy; oracle; composition check; conformance kit |
 | R9 One reply per request | MUST / SHOULD | runtime / author | preflight; oracle; leak trace |
 | R10 Explicit composition | MUST / SHOULD | author | kernel API; `featuresUseOnlyPublicApis`; `checkModuleBoundaries` |
-| R11 Bounded resources | MUST | runtime | preflight |
+| R11 Bounded resources and preflight | MUST | runtime | preflight; `RuntimeRulesTest` |
 | R12 Read-only queries | MUST | author | types |
-| R13 Honest profile claims | MUST | runtime | review |
+| R13 Honest profile claims | MUST | runtime | review (no mechanism); crash exploration demonstrates both profiles |
 | R14 Honest composition | MUST | author | `Knowledge`; exploration against ground truth; review |
 
 ## 6. Profiles
@@ -398,10 +398,10 @@ A caller can therefore treat it as one component without inspecting its parts. T
 
 ### 9.1 A conforming runtime
 
-A runtime conforms to Core 2.0 if it satisfies R3–R9, R11 and R13 for the profiles it claims. Evidence consists of:
+A runtime conforms to Core 2.0 if, for the profiles it claims, it satisfies R3–R9, R11 and R13 and every other requirement stated with MUST or MUST NOT in Sections 2, 3 and 6 that binds a runtime, including the timer port of §2.4, the observable horizons of §2.5 and the deduplication of §3.3. Evidence consists of:
 
 1. its execution traces satisfying the oracles of [`ballarch-testkit`](../reference/kotlin/ballarch-testkit/) (`Oracles.check`) under exhaustive or seeded fault exploration of at least the scenarios in [`ExplorationTest`](../reference/kotlin/ballarch-runtime/src/test/kotlin/ballarch/runtime/ExplorationTest.kt), and the boundary behaviour specified by [`RuntimeRulesTest`](../reference/kotlin/ballarch-runtime/src/test/kotlin/ballarch/runtime/RuntimeRulesTest.kt); and
-2. an argument that its call lifecycle refines the Alloy model of §4.1.
+2. a correspondence between its call lifecycle and the transitions of the Alloy model of §4.1 (commit, markSending, send, retry, receive, timeout, crash, recover). For the Transient profile the correspondence covers executions without a crash, since a Transient crash ends the instance together with its calls (§6). [`formal/alloy/README.md`](../formal/alloy/README.md) gives it for the reference runtime.
 
 ### 9.2 A conforming application
 
@@ -413,10 +413,10 @@ An adapter conforms if it reports each invocation at most once, never retries, r
 
 ### 9.4 Conformance at other levels
 
-A firmware or hardware implementation conforms on the same terms as a runtime (§9.1) for the rules it implements. The evidence is specific to the level; §11 lists the checks in this repository:
+A firmware or hardware implementation is a runtime and the Balls it runs at once. It conforms if, for the profile it claims, it satisfies every rule of §9.1 and §9.2 that applies to an element it has, and it lists the elements it lacks together with the rules that therefore do not apply (for example, a block with no deferred replies has nothing for R9's overdue report to check). The evidence is specific to the level. The references in this repository check the subsets listed in §11:
 
-- for firmware ([`reference/c/`](../reference/c/)): exhaustive power-loss and link-fault exploration against the device's ground truth, and object-file checks of decider purity;
-- for hardware ([`reference/rtl/`](../reference/rtl/)): fault-injecting simulation against the device model, lint, and structural checks of single drivers, latch-free deciders and registered outputs.
+- for firmware ([`reference/c/`](../reference/c/)): bounded exhaustive power-loss and link-fault exploration against the device's ground truth (R4–R8), and object-file checks that the decider holds no writable data and references no external symbol (R1, R2);
+- for hardware ([`reference/rtl/`](../reference/rtl/)): fault-injecting simulation against the device model (R5–R8), lint, and structural checks of single drivers (R1), latch-free deciders (R2) and registered outputs (R5).
 
 ### 9.5 Claims
 
@@ -428,8 +428,9 @@ A claim about a system built with Ballarch (durability, delivery, recovery time,
 
 - **Correctness.** Ballarch, and the layered version hardened by hand, violated no requirement in any run. The idiomatic layered, actor, MVU and outbox-plus-saga versions charged twice or reported charged orders as failed in 12% to 73% of runs.
 - **Code size and concepts.** Ballarch's feature code was about 29% larger than the hardened version's (279 against 216 SLOC). It used 45 framework types against 6.
-- **Cohesion.** The field-based (LCOM4) and type-based (CAMC) cohesion of its classes was lower.
-- **Where it gains.** It had the lowest propagation cost of the six (13% against 20–31%), 88% of its code in pure classes (against 27% for the hardened version), and no exception handler.
+- **Cohesion.** Fewer of its classes were cohesive by LCOM4 (8% with LCOM4 = 1, against 71% for the hardened version), although its mean LCOM4 was slightly better (1.92 against 2.14). Its mean type-based cohesion (CAMC) was lower (0.33 against 0.52).
+- **Complexity and package balance.** Its cyclomatic complexity was higher (2.19 against 1.81 per function, 68 against 49 in total), its mean distance from the main sequence was larger (0.44 against 0.35), and its most coupled class had a CBO of 18 against 16.
+- **Where it gains.** It had a lower mean CBO than the hardened version (3.94 against 4.70), the lowest propagation cost of the six (13% against 20–31%), 88% of its code in pure classes (against 27% for the hardened version), and no exception handler.
 
 The benchmark is small and was written by one author; see its threats to validity.
 
@@ -519,12 +520,12 @@ The other elements are established practice and are cited as such. [Problems Bal
 | Notice, topic | A publication and its channel; see §3.6. |
 | Obligation | An open call (awaiting a completion) or an open request (owing a reply). |
 | Outcome | Done, NotDone or Unknown; see §2.2. |
-| Pending / Sending | Durable phases of a call before and after its send point. |
+| Pending / Sending | The phases of a call between the commit horizon and the send horizon, and after the send horizon (§2.5, §3.2). They exist under every profile; under the Durable profile they are recorded durably. |
 | Port | See §2. |
 | Profile | Transient or Durable; see §6. |
-| Quarantine | A runtime stops an instance whose completion or notice handler failed. |
+| Quarantine | A runtime stops an instance whose completion or notice handler failed or produced a decision that failed preflight (§3.5). |
 | Revision | The number of an instance's committed decisions; starts at 1. |
-| Send horizon (send point) | The first moment a call may have left the runtime; recorded durably before it (write-ahead) (§2.5). |
+| Send horizon (send point) | The first moment a call may have left the runtime (§2.5). Under the Durable profile a write-ahead record precedes it (R8); in a synchronous circuit it is the bus handshake (§11). |
 | Step | One dequeue–decide–commit–dispatch cycle of one instance. |
 | Timer | A call on the built-in Safe port `ballarch.timer`; see §2.4. |
 

@@ -8,6 +8,7 @@ import ballarch.runtime.Limits
 import ballarch.runtime.MemoryStore
 import ballarch.runtime.RecordingTracer
 import ballarch.runtime.Runtime
+import ballarch.runtime.TraceEvent
 
 /** Which state survives a crash (the profile under test). */
 public enum class Profile { Transient, Durable }
@@ -88,6 +89,21 @@ public class Harness(
                 "invariant violations:\n  " + v.joinToString("\n  ") +
                     "\nchoices: " + chooser.history.joinToString(", "),
             )
+        }
+    }
+
+    /**
+     * Accepted requests left unanswered past their deadline (R9). A Ball SHOULD
+     * answer every accepted request, so these are not part of [violations].
+     */
+    public fun replyLeaks(): List<String> =
+        tracer.events.filterIsInstance<TraceEvent.ReplyOverdue>()
+            .map { "R9: ${it.id} left ${it.requestId.value} unanswered past its deadline (at ${it.at})" }
+
+    public fun assertNoReplyLeaks() {
+        val leaks = replyLeaks()
+        if (leaks.isNotEmpty()) {
+            throw AssertionError("reply leaks:\n  " + leaks.joinToString("\n  ") + "\nchoices: " + chooser.history.joinToString(", "))
         }
     }
 }

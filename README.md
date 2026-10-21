@@ -39,7 +39,7 @@ Ballarch keeps the established parts of earlier styles:
 
 Beyond them it adds four elements ([Core §12](spec/ballarch-core-2.0.md#12-lineage-and-what-is-new-informative) gives the prior art for each):
 
-1. **Boundaries in time.** Layers and hexagons constrain *where* code may depend; the commit horizon and the send horizon constrain *when* effects and knowledge may cross. Before the send horizon, non-occurrence is provable. After it, only the destination's answer or reconciliation can settle what happened.
+1. **Boundaries in time.** Layers and hexagons constrain *where* code may depend; the commit horizon and the send horizon constrain *when* effects and knowledge may cross. Before the send horizon, non-occurrence is provable. After it, only evidence about every attempt (an answer, a refusal, or an adapter's proof of non-application) or reconciliation can settle what happened to an effectful call.
 2. **Outcomes from phase and effect class.** A runtime, not each feature, chooses `Done`, `NotDone` or `Unknown`, and never reports `NotDone` without evidence. A `NonIdempotent` call is never re-sent.
 3. **Knowledge of composites, with closure.** A small algebra over Kleene's three-valued logic says what an operation made of several calls may claim (Done, NotDone, Partial, Unknown, …). Honest parts compose into an honest whole, which can be used one level up as a single component.
 4. **One rule set, checked at every level.** The same rules are checked by bytecode rules and trace oracles in a [JVM service](reference/kotlin/), by power-loss exploration and object-file checks in [firmware](reference/c/), and by lint, netlist checks and a fault-injecting bench in [RTL](reference/rtl/).
@@ -48,7 +48,7 @@ Beyond them it adds four elements ([Core §12](spec/ballarch-core-2.0.md#12-line
 
 | What | Result |
 |---|---|
-| [Benchmark](benchmark/results/RESULTS.md): one checkout in six styles, 2,000 runs per cell | Idiomatic layered, actor, MVU and outbox-plus-saga versions double-charged or reported charged orders as failed in 12–73% of runs. Ballarch and a layered version hardened by hand violated no requirement. Ballarch cost 29% more code and 45 framework types against 6, with lower class cohesion. It had the lowest propagation cost and 88% of its code in pure classes. |
+| [Benchmark](benchmark/results/RESULTS.md): one checkout in six styles, 2,000 runs per cell | Idiomatic layered, actor, MVU and outbox-plus-saga versions double-charged or reported charged orders as failed in 12–73% of runs. Ballarch and a layered version hardened by hand violated no requirement. Ballarch cost 29% more code, 45 framework types against 6, lower class cohesion, higher cyclomatic complexity (68 against 49 in total) and a larger distance from the main sequence (0.44 against 0.35). It had the lowest propagation cost and 88% of its code in pure classes. |
 | [Alloy model](formal/alloy/obligations.als) of the call protocol | 6 safety properties and 1 liveness property hold within bounds; 6 seeded runtime bugs each yield a counterexample |
 | [Knowledge algebra](reference/kotlin/ballarch-kernel/src/test/kotlin/ballarch/kernel/KnowledgeTest.kt) | Soundness and coordinate-wise exactness checked exhaustively for up to four constituents (69,905 worlds) |
 | [Trip example](reference/kotlin/examples/trip/) | Under every explored fate and crash, the composite's claims admit the real bookings; a two-valued status is wrong in 19% of the same runs |

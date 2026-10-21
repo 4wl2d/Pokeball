@@ -62,5 +62,7 @@ permission to use any trademark as a source identifier, is granted.
 The executable reference implementation and verification scripts in this
 repository have no software license yet. Software is not covered by CC BY 4.0
 unless it is explicitly marked; a separate software license remains pending.
+The root `LICENSE` file, which GitHub shows as the repository's license,
+covers the text and diagrams only.
 
 [cc-by-4.0]: https://creativecommons.org/licenses/by/4.0/

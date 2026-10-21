@@ -1,13 +1,13 @@
 # Ballarch at every level
 
-Ballarch's rules mention no language, transport or storage. This guide shows how to read them at each level where state is owned and interactions can fail, from a hardware block to a workflow across organisations. The normative mapping is in [Core §11](../spec/ballarch-core-2.0.md#11-interpretation-across-levels-informative); the examples below are informative.
+Ballarch's rules mention no language, transport or storage. This guide shows how to read them at each level where state is owned and interactions can fail, from a hardware block to a workflow across organisations. The mapping is in [Core §11](../spec/ballarch-core-2.0.md#11-interpretation-across-levels-informative), which is informative; the rules it interprets (§2–§7) are normative, and the examples below are informative.
 
 At every level, ask the same five questions:
 
 1. **Who owns this state?** Name the one Ball that changes it (R1).
 2. **Where is the commit horizon?** Find the instant after which a decision and the effects it requests exist together (R4, R5).
-3. **Where is the send horizon?** Find the first instant a request may have reached its destination (R7, R8).
-4. **What is the effect class of each interface?** Decide whether repeating a request is harmless (Safe), deduplicated by the destination (Idempotent), or effective each time (NonIdempotent).
+3. **Where is the send horizon?** Find the first instant a request may have left the component, after which it can no longer be withdrawn without the destination's word (R7, R8).
+4. **What is the effect class of each interface?** Decide whether repeating a request is harmless (Safe), deduplicated by the destination (Idempotent), or possibly effective on each delivery (NonIdempotent, the safe choice when unsure).
 5. **What does `Unknown` mean here, and who reconciles it?** Name the evidence that would later settle it, and the component that collects it.
 
 ## Synchronous hardware (RTL)
