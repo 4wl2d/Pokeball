@@ -1,5 +1,6 @@
-// Negative control for the R1 lint: two processes write the same state.
-module two_owners (
+// Negative control for R1: two processes write the same state.
+// EXPECT: conflicting drivers
+module r1_two_owners (
     input  logic clk,
     input  logic a,
     input  logic b,

@@ -1,6 +1,7 @@
-// Negative control for the R2 lint: the next state is not assigned on every
-// path, so synthesis infers a latch, which is state that no clock edge commits.
-module latch_decider (
+// Negative control for R2: the next state is not assigned on every path of an
+// always_comb, so synthesis infers a latch, which is state that no clock edge commits.
+// EXPECT: Latch inferred
+module r2_latch_always_comb (
     input  logic clk,
     input  logic go,
     output logic busy

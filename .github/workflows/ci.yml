@@ -43,6 +43,8 @@ jobs:
         run: make CC=gcc
       - name: clang
         run: make clean && make CC=clang
+      - name: AddressSanitizer and UndefinedBehaviorSanitizer
+        run: make sanitize
 
   rtl:
     name: Hardware reference (SystemVerilog)
