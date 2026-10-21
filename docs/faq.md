@@ -19,7 +19,7 @@ The rules describe owned state, atomic commit and outcomes of requests, and sync
 Those draw boundaries in space: which code may depend on which. Ballarch keeps that discipline (adapters at the edge, a composition root) and adds boundaries in time, plus rules about what a component may claim about effects. In the [benchmark](../benchmark/), an idiomatic Clean Architecture checkout double-charged or reported charged orders as failed under faults. The same layers hardened by hand were correct, but needed the fault handling written into the feature.
 
 **Is it a framework?**
-The kernel is about 260 lines of code (types and the knowledge algebra) with no dependencies. The reference runtime is about 1,000 lines. Other runtimes may implement the [specification](../spec/ballarch-core-2.0.md); conformance is defined in §9.
+The kernel is about 260 lines of code (types and the knowledge algebra) with no dependencies. The reference runtime is about 1,000 lines, plus a file store of about 220. Other runtimes may implement the [specification](../spec/ballarch-core-2.0.md); conformance is defined in §9.
 
 **Does it give exactly-once effects?**
 No. It guarantees that a non-idempotent call is sent at most once, and that the application is told honestly when the runtime cannot know whether the call took effect (`Unknown`). Idempotent destinations, keyed by the call identity, make most `Unknown` outcomes disappear after retries.
@@ -37,7 +37,7 @@ It depends on the profile.
   - timers are re-armed to their due time;
   - notices are redelivered.
 
-The reference runtime's durable store is an in-memory stand-in used to simulate restarts. A production durable store is not implemented.
+The reference runtime has two stores. `MemoryStore` simulates restarts in tests. `FileStore` keeps one file per instance and commits by writing a temporary file, forcing it to the device and renaming it over the previous one; a test kills a writing process repeatedly and checks that every record reads back whole. It has not been tested against power loss, has no replication and serves one runtime per directory, so it is not a production database.
 
 **Why not use Temporal, Restate, Durable Functions, Akka or Orleans?**
 If you already do, you may not need this. Those systems provide durable execution or persistent actors with more engineering behind them. Core 2 is a smaller contract that can be implemented inside an ordinary application, and its rules are stated so that they can be checked. See the [decision guide](decision-guide.md).

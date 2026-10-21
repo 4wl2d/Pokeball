@@ -21,7 +21,7 @@ From earlier measurements (not reproducible from this checkout):
 
 Also:
 
-- **A runtime to depend on.** The reference runtime is about 1,000 lines. It is a research prototype without a production durable store.
+- **A runtime to depend on.** The reference runtime is about 1,000 lines. It is a research prototype; its file store is single-node and has no replication.
 
 ## What you get
 
@@ -41,7 +41,7 @@ Also:
 
 - features call external systems with effects (payments, bookings, emails, provisioning) whose ambiguous outcomes matter;
 - several people or agents will write such features, and you cannot rely on each of them to hand-roll write-ahead records, reconciliation and recovery correctly;
-- state must survive crashes and restarts, and you are willing to invest in a durable store, which the reference runtime lacks;
+- state must survive crashes and restarts, and you are willing to invest in a production durable store, which the reference runtime lacks (its file store is single-node);
 - you want failure behaviour to be reviewable and testable as data;
 - firmware or a hardware block issues commands whose effects must not repeat (actuators, doorbells, FIFO pushes): the same rules apply, with level-specific checks ([Ballarch at every level](interpretations.md)).
 
@@ -58,6 +58,6 @@ Also:
 These were not measured. Do not assume them either way:
 
 - whether the explicit structure speeds up review, onboarding or defect finding in real teams;
-- how the architecture behaves with a real durable store, over a network, or under production load;
+- how the architecture behaves with a production durable store, over a network, or under production load;
 - whether an independent implementer of the baselines would reach the same results;
 - the change impact of real change requests on the benchmark's six implementations.

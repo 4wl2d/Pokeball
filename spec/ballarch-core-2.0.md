@@ -348,7 +348,7 @@ The [trip example](../reference/kotlin/examples/trip/) applies the algebra to a 
 | **Transient** | nothing | none; a crash loses state, open calls and open requests together, so no half-applied decision is visible. |
 | **Durable** | committed state, call ledger with phases, open and recently answered requests, unacknowledged notices | R6 across restarts; NonIdempotent calls possibly in flight at a crash end `Unknown(RecoveredAfterCrash)`; Idempotent and Ball-port calls are re-sent; timers are re-armed to their due time; notices are redelivered and deduplicated. |
 
-A Durable runtime MAY store state as snapshots or as events folded by an `evolve` function. It MUST commit events and outputs atomically (R4) and MUST NOT regenerate outputs by replaying current decider code. The reference runtime implements snapshots only.
+A Durable runtime MAY store state as snapshots or as events folded by an `evolve` function. It MUST commit events and outputs atomically (R4) and MUST NOT regenerate outputs by replaying current decider code. The reference runtime implements snapshots only, kept in memory (`MemoryStore`) or in one file per instance committed by atomic rename (`FileStore`).
 
 ## 7. Composition
 
@@ -497,7 +497,7 @@ Ballarch reuses established mechanisms. What it adds is where it puts them: in t
 3. **Knowledge of composites.** The knowledge algebra (§4.2) and rule R14 give composition closure (§7.4): a composite of honest parts is one honest part.
 4. **One rule set, checked at each level.** The same rules are stated once and checked by level-specific mechanisms from register-transfer logic to services (§11).
 
-The other elements are established practice and are cited as such.
+The other elements are established practice and are cited as such. [Problems Ballarch addresses](../docs/problems.md) maps recurring failures of current architectures to these elements and marks which are new.
 
 ## Appendix A. Glossary
 

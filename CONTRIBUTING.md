@@ -4,7 +4,7 @@ Ballarch publishes an architecture specification, reference implementations at t
 
 1. **Independent checks.** Reproduce a specification rule with a small example or a failing conformance test. State the exact version, assumptions, and observed outcome.
 2. **Another runtime.** An implementation of [`spec/ballarch-core-2.0.md`](spec/ballarch-core-2.0.md) in another language or on a durable execution engine, checked against the conformance criteria in §9.
-3. **A durable store**, and measurements of its commit and recovery behavior.
+3. **A production durable store** (a database adapter), and measurements of its commit and recovery behavior.
 4. **Counterexamples.** Schedules, specification ambiguities or prior art that contradict a claim. Open an issue with the evidence.
 5. **Independent benchmark implementations.** A version of the [benchmark](benchmark/) checkout in any style, written without seeing Ballarch's version, or a new scenario with its requirements stated in advance.
 6. **Other levels.** A Ball on a real microcontroller or FPGA, or in another hardware description language, with checks of the rules at that level.

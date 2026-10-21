@@ -107,4 +107,4 @@ The link check requires relative destinations to belong to the tracked public tr
 
 ## Limits
 
-The runtime's durable store is an in-memory stand-in for simulated restarts. The firmware and RTL references run in simulation. A real store, device, deployment, workload and failure environment need their own evidence. The benchmark is one scenario, written by one author; see its threats to validity. The earlier prototype comparison's raw runs, baselines and change-request patches are outside this distribution; the checks above do not reproduce those measurements.
+The runtime's file store has been tested against killed processes, not power loss, and has no replication. The firmware and RTL references run in simulation. A real store, device, deployment, workload and failure environment need their own evidence. The benchmark is one scenario, written by one author; see its threats to validity. The earlier prototype comparison's raw runs, baselines and change-request patches are outside this distribution; the checks above do not reproduce those measurements.

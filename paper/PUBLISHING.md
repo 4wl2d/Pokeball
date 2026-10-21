@@ -84,7 +84,7 @@ Announce once there is something people can run and a stable link:
 
 | Where | Audience | Notes |
 |---|---|---|
-| Habr (habr.com) | Russian-speaking engineers | adapt [`docs/ru/README.md`](../docs/ru/README.md) and add the benchmark tables; hubs: "Архитектура", "Анализ и проектирование систем", "Программирование микроконтроллеров" |
+| Habr (habr.com) | Russian-speaking engineers | the draft article [`docs/ru/habr.md`](../docs/ru/habr.md); insert the arXiv and Zenodo links and recheck its numbers against the published commit; hubs: "Архитектура", "Анализ и проектирование систем", "Распределённые системы", "Программирование микроконтроллеров", "FPGA" |
 | Hacker News (Show HN) | general engineering | lead with the benchmark and the runnable references, not the name |
 | Lobsters | PL and systems | invitation required |
 | Reddit r/programming, r/softwarearchitecture, r/FPGA, r/embedded | by level | one post per community, adapted to its level |

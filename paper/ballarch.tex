@@ -297,7 +297,7 @@ Profile & Transient or Durable & Durable & Transient \\
 \paragraph{Services.} The Kotlin reference consists of the following parts:
 \begin{itemize}[nosep]
   \item a dependency-free kernel of about 260 lines of code, including the knowledge algebra;
-  \item a runtime of about 1{,}000 lines that implements both profiles, with an in-memory stand-in for a durable store;
+  \item a runtime of about 1{,}000 lines that implements both profiles, with an in-memory store for simulation and a file store that commits by atomic rename;
   \item a test kit whose oracles check R3--R9 on execution traces against simulated ground truth, under exhaustive or seeded exploration of network fates and crash points in the style of stateless model checking~\citep{Godefroid1997VeriSoft};
   \item architecture rules that check R1, R2 and R10 on bytecode.
 \end{itemize}
@@ -452,7 +452,7 @@ X-ability defines exactly-once correctness for services with side effects and is
     \item The scenario is small and uses a simulated provider without idempotency keys; with idempotency keys, simple retries would become correct.
     \item The fault distributions are assumptions.
     \item The firmware and RTL references are single examples checked in simulation.
-    \item The Kotlin runtime has no production durable store.
+    \item The Kotlin runtime's file store is single-node and has been tested against killed processes, not power loss; it is not a production database.
   \end{itemize}
   \item \textbf{Metrics.} LCOM4 and CAMC were designed for object-oriented code with shared fields. Propagation cost and CBO depend on how finely code is divided into classes. Change impact, developer effort and runtime overhead were not measured in this study. An earlier, unpublished prototype comparison found wider changes for Ballarch's module structure and a median of 39\,\textmu s of thread hand-off per local request.
   \item \textbf{Formal results.} The Alloy results are bounded. The algebra's theorems are proved, and are also checked exhaustively for small sizes. The absorbing property of compensations and the honesty of adapters are assumptions that are reviewed, not verified.
@@ -462,7 +462,7 @@ X-ability defines exactly-once correctness for services with side effects and is
 
 Ballarch places two instants that mechanisms in recovery, operating systems and processors already respect into the architecture itself, as boundaries in time. A runtime derives each outcome from them, and a small algebra carries honesty from parts to wholes. The same rules can be checked from register-transfer logic to services. In our benchmark, correctness under faults required either Ballarch or an expert's hand-written fault handling. Ballarch moved that knowledge from the feature into the architecture, at the price of more code and more concepts. Whether that trade pays off for teams, and for coding agents that write such features, is the next question to measure.
 
-\paragraph{Artifacts.} The specification, the Kotlin, C and SystemVerilog references, the Alloy model, the benchmark and its raw data are available at \url{https://github.com/4wl2d/Pokeball} (version 2.0.0-rc.1). Text is licensed under CC~BY~4.0; the code has no software license yet.
+\paragraph{Artifacts.} The specification, the Kotlin, C and SystemVerilog references, the Alloy model, the benchmark and its raw data are available at \url{https://github.com/4wl2d/Pokeball} (version 2.0.0-rc.1). The file \texttt{docs/problems.md} there maps twelve recurring failures of current architectures to the mechanism, rule and evidence for each, and lists what Ballarch does not solve. Text is licensed under CC~BY~4.0; the code has no software license yet.
 
 \paragraph{Use of generative AI.} The author used an AI assistant (Anthropic's Claude) to draft parts of the code, the benchmark and the text, under the author's direction. The author reviewed the material, ran the reported checks, and takes full responsibility for the content.
 

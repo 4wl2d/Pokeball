@@ -13,6 +13,7 @@
 <p align="center">
   <a href="docs/tutorial.md">Write your first feature</a> ·
   <a href="docs/interpretations.md">Ballarch at every level</a> ·
+  <a href="docs/problems.md">Problems it addresses</a> ·
   <a href="benchmark/results/RESULTS.md">Benchmark</a> ·
   <a href="spec/ballarch-core-2.0.md">Core specification</a> ·
   <a href="paper/">Paper</a> ·
@@ -54,7 +55,7 @@ Beyond them it adds four elements ([Core §12](spec/ballarch-core-2.0.md#12-line
 | [Firmware reference](reference/c/) | About 220,000 runs over link fates and power-loss points, including torn writes: no violation; 3 seeded bugs caught |
 | [RTL reference](reference/rtl/) | 75 fault scenarios pass; 3 seeded bugs caught; structural checks of single drivers, latch-free deciders and registered dispatch |
 
-None of this establishes production reliability or team productivity. The runtime has no production durable store, and the benchmark is small and was written by one author. [Core §10](spec/ballarch-core-2.0.md#10-trade-offs-and-known-limitations) and the [decision guide](docs/decision-guide.md) list the costs and what was not measured.
+None of this establishes production reliability or team productivity. The runtime's durable store is a single-node file store, tested against killed processes but not power loss, and the benchmark is small and was written by one author. [Core §10](spec/ballarch-core-2.0.md#10-trade-offs-and-known-limitations) and the [decision guide](docs/decision-guide.md) list the costs and what was not measured. [Problems Ballarch addresses](docs/problems.md) maps twelve recurring failures of today's architectures to the mechanism, rule and evidence for each, and lists what Ballarch does not solve.
 
 ## The idea in one example
 
@@ -85,7 +86,7 @@ A decision may also contain *outputs*: calls to ports, replies, notices and canc
 | [`formal/alloy/`](formal/alloy/) | Alloy 6 model of the call protocol |
 | [`benchmark/`](benchmark/) | One checkout in six architectural styles, fault injection, and structural metrics |
 | [`paper/`](paper/) | The paper (LaTeX) and the publication kit |
-| [`docs/`](docs/) | Tutorial, levels guide, decision guide, FAQ, anti-patterns, migration, verification, Russian overview |
+| [`docs/`](docs/) | Tutorial, levels guide, problems addressed, decision guide, FAQ, anti-patterns, migration, verification, Russian overview and article draft |
 | [`skills/ballarch/`](skills/ballarch/) | An agent skill for feature work (unevaluated) |
 | [`tools/`](tools/) | Link and snippet checks for the documentation |
 
