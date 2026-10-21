@@ -1,0 +1,64 @@
+diff --git a/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt b/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
+index 83b51f8..f030501 100644
+--- a/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
++++ b/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
+@@ -28,6 +28,7 @@ class MvuSystem : CheckoutSystem {
+         this.world = world
+         process = Process(world.scheduler)
+         val client = ProviderClient(world.provider)
++        val secondary = ProviderClient(world.secondaryProvider)
+         process.execute {
+             program = Program(
+                 scope = process.scope,
+@@ -36,7 +37,10 @@ class MvuSystem : CheckoutSystem {
+                 persist = { model -> world.db.transaction { it.put("mvu/model", model) } },
+                 perform = { cmd ->
+                     when (cmd) {
+-                        is Cmd.Charge -> Msg.ChargeCompleted(cmd.orderId, runCatching { withTimeout(1_000) { client.charge(cmd.orderId, cmd.amount) } })
++                        is Cmd.Charge -> {
++                            val provider = if (cmd.secondary) secondary else client
++                            Msg.ChargeCompleted(cmd.orderId, runCatching { withTimeout(1_000) { provider.charge(cmd.orderId, cmd.amount) } })
++                        }
+                     }
+                 },
+             )
+diff --git a/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt b/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
+index 1ab5a63..90ba008 100644
+--- a/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
++++ b/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
+@@ -6,7 +6,8 @@ import bench.env.Order
+ /** The whole application state, one store (as in Redux). */
+ data class Model(val stock: Int, val orders: Map<String, OrderModel> = emptyMap())
+ 
+-data class OrderModel(val order: Order, val stage: Stage, val reference: String? = null) {
++/** [onSecondary]: the order is being paid through the secondary provider. */
++data class OrderModel(val order: Order, val stage: Stage, val reference: String? = null, val onSecondary: Boolean = false) {
+     enum class Stage { Paying, Completed, Failed }
+ }
+ 
+@@ -16,13 +17,13 @@ sealed interface Msg {
+ }
+ 
+ sealed interface Cmd {
+-    data class Charge(val orderId: String, val amount: Long) : Cmd
++    data class Charge(val orderId: String, val amount: Long, val secondary: Boolean = false) : Cmd
+ }
+ 
+ /** Starts from the persisted model and re-issues the commands of orders that were being paid. */
+ fun init(saved: Model?, stock: Int): Pair<Model, List<Cmd>> {
+     val model = saved ?: Model(stock)
+-    val resume = model.orders.values.filter { it.stage == OrderModel.Stage.Paying }.map { Cmd.Charge(it.order.id, it.order.amount) }
++    val resume = model.orders.values.filter { it.stage == OrderModel.Stage.Paying }.map { Cmd.Charge(it.order.id, it.order.amount, it.onSecondary) }
+     return model to resume
+ }
+ 
+@@ -45,6 +46,9 @@ fun update(model: Model, msg: Msg): Pair<Model, List<Cmd>> = when (msg) {
+             val charged = msg.result.getOrNull() as? ChargeResult.Charged
+             if (charged != null) {
+                 model.copy(orders = model.orders + (msg.orderId to current.copy(stage = OrderModel.Stage.Completed, reference = charged.reference))) to emptyList()
++            } else if (!current.onSecondary) {
++                model.copy(orders = model.orders + (msg.orderId to current.copy(onSecondary = true))) to
++                    listOf(Cmd.Charge(msg.orderId, current.order.amount, secondary = true))
+             } else {
+                 model.copy(
+                     stock = model.stock + current.order.quantity,

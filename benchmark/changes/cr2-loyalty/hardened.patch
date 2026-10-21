@@ -1,0 +1,235 @@
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/adapters/LoyaltyServiceGateway.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/adapters/LoyaltyServiceGateway.kt
+new file mode 100644
+index 0000000..012ae2b
+--- /dev/null
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/adapters/LoyaltyServiceGateway.kt
+@@ -0,0 +1,36 @@
++package bench.hardened.adapters
++
++import bench.env.AwardStatus
++import bench.env.ConnectionRefused
++import bench.env.LoyaltyClient
++import bench.hardened.application.AwardAttempt
++import bench.hardened.application.LoyaltyGateway
++import bench.hardened.application.LoyaltyStatus
++import kotlinx.coroutines.TimeoutCancellationException
++import kotlinx.coroutines.withTimeout
++import java.io.IOException
++
++/** One request per call, no retries; failures are classified by what they prove. */
++class LoyaltyServiceGateway(private val client: LoyaltyClient, private val timeoutMillis: Long = 1_000) : LoyaltyGateway {
++    override suspend fun award(orderId: String, points: Int): AwardAttempt = try {
++        withTimeout(timeoutMillis) { client.award(orderId, points) }
++        AwardAttempt.AWARDED
++    } catch (e: ConnectionRefused) {
++        AwardAttempt.NOT_SENT
++    } catch (e: TimeoutCancellationException) {
++        AwardAttempt.UNCERTAIN
++    } catch (e: IOException) {
++        AwardAttempt.UNCERTAIN
++    }
++
++    override suspend fun status(orderId: String): LoyaltyStatus = try {
++        when (withTimeout(timeoutMillis) { client.status(orderId) }) {
++            is AwardStatus.Awarded -> LoyaltyStatus.AWARDED
++            AwardStatus.NotAwarded -> LoyaltyStatus.NOT_AWARDED
++        }
++    } catch (e: TimeoutCancellationException) {
++        LoyaltyStatus.UNAVAILABLE
++    } catch (e: IOException) {
++        LoyaltyStatus.UNAVAILABLE
++    }
++}
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
+index 4a423a1..5070727 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
+@@ -1,7 +1,11 @@
+ package bench.hardened.app
+ 
++import bench.env.Changes
+ import bench.env.CheckoutSystem
++import bench.env.LoyaltyClient
++import bench.env.LoyaltyPoints
+ import bench.env.Order
++import bench.env.Points
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -9,6 +13,7 @@ import bench.env.Terminal
+ import bench.env.World
+ import bench.hardened.adapters.DbInventoryRepository
+ import bench.hardened.adapters.DbOrderRepository
++import bench.hardened.adapters.LoyaltyServiceGateway
+ import bench.hardened.adapters.ProviderPaymentGateway
+ import bench.hardened.application.CheckoutInteractor
+ import bench.hardened.application.PaymentGateway
+@@ -16,7 +21,7 @@ import bench.hardened.domain.CheckoutOrder
+ import kotlinx.coroutines.launch
+ 
+ /** Main component: wires the layers and starts a background job that resumes interrupted orders. */
+-class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = ::ProviderPaymentGateway) : CheckoutSystem {
++class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = ::ProviderPaymentGateway) : CheckoutSystem, LoyaltyPoints {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var interactor: CheckoutInteractor
+@@ -27,7 +32,8 @@ class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = :
+         process = Process(world.scheduler)
+         orders = DbOrderRepository(world.db)
+         val inventory = DbInventoryRepository(world.db, mapOf(Scenario.SKU to Scenario.STOCK))
+-        interactor = CheckoutInteractor(orders, inventory, gateway(ProviderClient(world.provider)), Scenario.PROVIDER_HORIZON_MILLIS)
++        val loyalty = LoyaltyServiceGateway(LoyaltyClient(world.loyalty))
++        interactor = CheckoutInteractor(orders, inventory, gateway(ProviderClient(world.provider)), loyalty, Changes.POINTS, Scenario.PROVIDER_HORIZON_MILLIS)
+         process.scope.launch { interactor.resumeUnfinished() }
+     }
+ 
+@@ -47,6 +53,12 @@ class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = :
+         else -> null
+     }
+ 
++    override fun points(orderId: String): Points? = when (orders.find(orderId)?.award) {
++        CheckoutOrder.Award.AWARDED -> Points.Awarded
++        CheckoutOrder.Award.NEEDS_ATTENTION -> Points.NeedsAttention
++        else -> null
++    }
++
+     override fun reserved(): Map<String, Int> =
+         world.db.keys("reservation/").associate { it.removePrefix("reservation/") to world.db.get(it) as Int }
+ }
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
+index 55c8343..13d6a08 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
+@@ -16,12 +16,15 @@ interface CheckoutInputPort {
+  * - a charge is repeated only after evidence that it was not sent;
+  * - an uncertain charge is reconciled: wait until no request can still arrive,
+  *   then ask the provider's status endpoint, and never charge again;
+- * - after a restart, CHARGING orders are reconciled, never re-charged.
++ * - after a restart, CHARGING orders are reconciled, never re-charged;
++ * - a completed order's loyalty points are awarded with the same policy.
+  */
+ class CheckoutInteractor(
+     private val orders: OrderRepository,
+     private val inventory: InventoryRepository,
+     private val payments: PaymentGateway,
++    private val loyalty: LoyaltyGateway,
++    private val points: Int,
+     private val horizonMillis: Long,
+     private val maxSends: Int = 3,
+     private val maxQueries: Int = 3,
+@@ -42,7 +45,8 @@ class CheckoutInteractor(
+         }
+         if (order.status == Status.RESERVED) order = pay(order)
+         if (order.status == Status.CHARGING) order = reconcile(order)
+-        if (order.status == Status.PAID) orders.save(order.completed())
++        if (order.status == Status.PAID) order = order.completed().also(orders::save)
++        if (order.status == Status.COMPLETED) award(order)
+     }
+ 
+     suspend fun resumeUnfinished() {
+@@ -74,6 +78,39 @@ class CheckoutInteractor(
+         return order.needsAttention().also(orders::save)
+     }
+ 
++    /** AWARDING means the award may have been sent: it is sent again only after the status says it was not awarded. */
++    private suspend fun award(start: CheckoutOrder) {
++        var order = start
++        while (order.award == CheckoutOrder.Award.PENDING || order.award == CheckoutOrder.Award.AWARDING) {
++            if (order.award == CheckoutOrder.Award.AWARDING) {
++                order = when (reconcileAward(order.id)) {
++                    LoyaltyStatus.AWARDED -> order.awarded()
++                    LoyaltyStatus.NOT_AWARDED -> order.awardNotSent()
++                    LoyaltyStatus.UNAVAILABLE -> order.awardNeedsAttention()
++                }
++            } else if (order.awardSends >= maxSends) {
++                order = order.awardNeedsAttention()
++            } else {
++                order = order.awarding().also(orders::save)
++                when (loyalty.award(order.id, points)) {
++                    AwardAttempt.AWARDED -> order = order.awarded()
++                    AwardAttempt.NOT_SENT -> order = order.awardNotSent()
++                    AwardAttempt.UNCERTAIN -> Unit
++                }
++            }
++            orders.save(order)
++        }
++    }
++
++    private suspend fun reconcileAward(orderId: String): LoyaltyStatus {
++        repeat(maxQueries) {
++            delay(horizonMillis)
++            val status = loyalty.status(orderId)
++            if (status != LoyaltyStatus.UNAVAILABLE) return status
++        }
++        return LoyaltyStatus.UNAVAILABLE
++    }
++
+     private fun fail(order: CheckoutOrder, reason: String): CheckoutOrder {
+         inventory.release(order.id)
+         return order.failed(reason).also(orders::save)
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt
+index 4acaa6d..605c6bd 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt
+@@ -31,6 +31,17 @@ sealed interface PaymentStatus {
+     data object Unavailable : PaymentStatus
+ }
+ 
++/** What one award request established. */
++enum class AwardAttempt { AWARDED, NOT_SENT, UNCERTAIN }
++
++enum class LoyaltyStatus { AWARDED, NOT_AWARDED, UNAVAILABLE }
++
++/** The loyalty service has no idempotency keys either, so an award is never repeated after [AwardAttempt.UNCERTAIN]. */
++interface LoyaltyGateway {
++    suspend fun award(orderId: String, points: Int): AwardAttempt
++    suspend fun status(orderId: String): LoyaltyStatus
++}
++
+ /** The provider has no idempotency keys, so a charge is never repeated after [ChargeAttempt.Uncertain]. */
+ interface PaymentGateway {
+     suspend fun charge(orderId: String, amount: Long): ChargeAttempt
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
+index 5e48e3a..2cf1b3e 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
+@@ -3,6 +3,8 @@ package bench.hardened.domain
+ /**
+  * Enterprise business rules. CHARGING is written before every charge request:
+  * from then on the order may have been charged, whatever happens to the request.
++ * A completed order earns loyalty points; AWARDING is written before every
++ * award request in the same way.
+  */
+ data class CheckoutOrder(
+     val id: String,
+@@ -12,10 +14,16 @@ data class CheckoutOrder(
+     val status: Status = Status.NEW,
+     val paymentReference: String? = null,
+     val failureReason: String? = null,
++    val award: Award = Award.PENDING,
++    val awardSends: Int = 0,
+ ) {
+     enum class Status { NEW, RESERVED, CHARGING, PAID, COMPLETED, FAILED, NEEDS_ATTENTION }
++    enum class Award { PENDING, AWARDING, AWARDED, NEEDS_ATTENTION }
+ 
+-    val isTerminal: Boolean get() = status == Status.COMPLETED || status == Status.FAILED || status == Status.NEEDS_ATTENTION
++    /** Nothing is left to do: a completed order also needs its points settled. */
++    val isTerminal: Boolean
++        get() = status == Status.COMPLETED && (award == Award.AWARDED || award == Award.NEEDS_ATTENTION) ||
++            status == Status.FAILED || status == Status.NEEDS_ATTENTION
+ 
+     fun reserved() = copy(status = Status.RESERVED)
+ 
+@@ -28,4 +36,12 @@ data class CheckoutOrder(
+     fun failed(reason: String) = copy(status = Status.FAILED, failureReason = reason)
+ 
+     fun needsAttention() = copy(status = Status.NEEDS_ATTENTION)
++
++    fun awarding() = copy(award = Award.AWARDING, awardSends = awardSends + 1)
++
++    fun awardNotSent() = copy(award = Award.PENDING)
++
++    fun awarded() = copy(award = Award.AWARDED)
++
++    fun awardNeedsAttention() = copy(award = Award.NEEDS_ATTENTION)
+ }

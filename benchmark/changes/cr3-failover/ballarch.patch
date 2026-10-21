@@ -1,0 +1,125 @@
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
+index dc245f6..ed79693 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
+@@ -15,6 +15,8 @@ import bench.ballarch.payment.ChargeRequest
+ import bench.ballarch.payment.PaymentBall
+ import bench.ballarch.payment.ProviderCharge
+ import bench.ballarch.payment.ProviderStatus
++import bench.ballarch.payment.SecondaryCharge
++import bench.ballarch.payment.SecondaryStatus
+ import bench.env.ChargeResult
+ import bench.env.ChargeStatus
+ import bench.env.CheckoutSystem
+@@ -43,20 +45,22 @@ fun statusAdapter(provider: Provider) = Adapter<String, ChargeStatus> { invocati
+ }
+ 
+ /** The composition root. */
+-fun composition(provider: Provider): Composition = Composition()
++fun composition(provider: Provider, secondary: Provider): Composition = Composition()
+     .ball(InventoryBall(Scenario.STOCK))
+     .ball(PaymentBall(horizonMillis = Scenario.PROVIDER_HORIZON_MILLIS))
+     .ball(CheckoutFlow())
+     .adapter(ProviderCharge, chargeAdapter(provider))
+     .adapter(ProviderStatus, statusAdapter(provider))
++    .adapter(SecondaryCharge, chargeAdapter(secondary))
++    .adapter(SecondaryStatus, statusAdapter(secondary))
+ 
+-class BallarchSystem(private val wiring: (Provider) -> Composition = ::composition) : CheckoutSystem {
++class BallarchSystem(private val wiring: (Provider, Provider) -> Composition = ::composition) : CheckoutSystem {
+     private lateinit var store: MemoryStore
+     private lateinit var runtime: Runtime
+ 
+     override fun boot(world: World) {
+         store = world.db.durable("ballarch.store") { MemoryStore() }
+-        runtime = Runtime(wiring(world.provider), world.scheduler, store)
++        runtime = Runtime(wiring(world.provider, world.secondaryProvider), world.scheduler, store)
+         runtime.start()
+     }
+ 
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/payment/PaymentBall.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/payment/PaymentBall.kt
+index abcc09a..3cc7a5d 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/payment/PaymentBall.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/payment/PaymentBall.kt
+@@ -30,17 +30,23 @@ val ProviderCharge = AdapterPort<ChargeRequest, ChargeResult>("provider.charge",
+ 
+ val ProviderStatus = AdapterPort<String, ChargeStatus>("provider.status", EffectClass.Safe)
+ 
++/** The secondary provider: the same contract. */
++val SecondaryCharge = AdapterPort<ChargeRequest, ChargeResult>("secondary.charge", EffectClass.NonIdempotent)
++
++val SecondaryStatus = AdapterPort<String, ChargeStatus>("secondary.status", EffectClass.Safe)
++
+ sealed interface PaymentState {
+     data object New : PaymentState
+-    data class Charging(val amount: Long, val call: CallKey, val sends: Int, val waiting: List<RequestId>) : PaymentState
+-    data class Reconciling(val amount: Long, val call: CallKey, val queries: Int, val waiting: List<RequestId>) : PaymentState
++    data class Charging(val amount: Long, val call: CallKey, val sends: Int, val waiting: List<RequestId>, val secondary: Boolean = false) : PaymentState
++    data class Reconciling(val amount: Long, val call: CallKey, val queries: Int, val waiting: List<RequestId>, val secondary: Boolean = false) : PaymentState
+     data class Resolved(val reply: PaymentReply) : PaymentState
+ }
+ 
+ /**
+  * Captures one order's payment. A charge is sent again only after `NotDone`
+  * (evidence that nothing was charged); `Unknown` starts reconciliation: wait
+- * past the provider's horizon, then ask its status.
++ * past the provider's horizon, then ask its status. When the primary provider
++ * provably did not charge, the secondary is tried the same way.
+  */
+ class PaymentBall(
+     private val horizonMillis: Long,
+@@ -62,12 +68,12 @@ class PaymentBall(
+ 
+     override fun complete(state: PaymentState, completion: Completion<*>, ctx: Context): Step<PaymentState, PaymentReply> = when {
+         state is PaymentState.Charging && completion.key == state.call ->
+-            when (val outcome = completion.outcomeOf(ProviderCharge)!!) {
++            when (val outcome = completion.outcomeOf(chargePort(state.secondary))!!) {
+                 is Outcome.Done -> resolve(state.waiting, outcome.value.toReply())
+                 is Outcome.NotDone ->
+-                    if (state.sends < maxSends) charge(state.amount, state.sends + 1, state.waiting, ctx)
+-                    else resolve(state.waiting, PaymentReply.NotCaptured("not charged"))
+-                is Outcome.Unknown -> wait(PaymentState.Reconciling(state.amount, ctx.newKey(), 0, state.waiting))
++                    if (state.sends < maxSends) charge(state.amount, state.sends + 1, state.waiting, ctx, state.secondary)
++                    else notCharged(state.amount, state.waiting, state.secondary, ctx)
++                is Outcome.Unknown -> wait(PaymentState.Reconciling(state.amount, ctx.newKey(), 0, state.waiting, state.secondary))
+             }
+         state is PaymentState.Reconciling && completion.key == state.call -> reconcile(state, completion, ctx)
+         else -> step(state)
+@@ -76,23 +82,32 @@ class PaymentBall(
+     private fun reconcile(state: PaymentState.Reconciling, completion: Completion<*>, ctx: Context): Step<PaymentState, PaymentReply> {
+         if (completion.outcomeOf(Timer.port) != null) {
+             val key = ctx.newKey()
+-            return step(state.copy(call = key, queries = state.queries + 1), Call(key, ProviderStatus, ctx.self.key, timeoutMillis))
++            return step(state.copy(call = key, queries = state.queries + 1), Call(key, statusPort(state.secondary), ctx.self.key, timeoutMillis))
+         }
+-        val status = completion.outcomeOf(ProviderStatus)!!
++        val status = completion.outcomeOf(statusPort(state.secondary))!!
+         return when {
++            status is Outcome.Done && status.value == ChargeStatus.NoCharge -> notCharged(state.amount, state.waiting, state.secondary, ctx)
+             status is Outcome.Done -> resolve(state.waiting, status.value.toReply())
+             state.queries >= maxQueries -> resolve(state.waiting, PaymentReply.Unresolved)
+             else -> wait(state.copy(call = ctx.newKey()))
+         }
+     }
+ 
+-    private fun charge(amount: Long, sends: Int, waiting: List<RequestId>, ctx: Context) = ctx.newKey().let { key ->
++    private fun charge(amount: Long, sends: Int, waiting: List<RequestId>, ctx: Context, secondary: Boolean = false) = ctx.newKey().let { key ->
+         step<PaymentState, PaymentReply>(
+-            PaymentState.Charging(amount, key, sends, waiting),
+-            Call(key, ProviderCharge, ChargeRequest(ctx.self.key, amount), timeoutMillis),
++            PaymentState.Charging(amount, key, sends, waiting, secondary),
++            Call(key, chargePort(secondary), ChargeRequest(ctx.self.key, amount), timeoutMillis),
+         )
+     }
+ 
++    private fun chargePort(secondary: Boolean) = if (secondary) SecondaryCharge else ProviderCharge
++
++    private fun statusPort(secondary: Boolean) = if (secondary) SecondaryStatus else ProviderStatus
++
++    /** The provider in use provably did not charge: try the secondary, or give up if it was the secondary. */
++    private fun notCharged(amount: Long, waiting: List<RequestId>, secondary: Boolean, ctx: Context) =
++        if (secondary) resolve(waiting, PaymentReply.NotCaptured("not charged")) else charge(amount, 1, waiting, ctx, secondary = true)
++
+     private fun wait(state: PaymentState.Reconciling) = step<PaymentState, PaymentReply>(state, Timer.after(state.call, horizonMillis))
+ 
+     private fun resolve(waiting: List<RequestId>, reply: PaymentReply): Step<PaymentState, PaymentReply> =

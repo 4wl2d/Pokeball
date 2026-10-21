@@ -1,0 +1,95 @@
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
+index 0387108..4f64f70 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
+@@ -26,11 +26,13 @@ class CarefulSagaSystem : CheckoutSystem {
+         saga = CreateOrderSaga(world.db)
+         val inventory = InventoryService(world.db, Scenario.STOCK)
+         val payment = PaymentService(world.db, ProviderClient(world.provider), Scenario.PROVIDER_HORIZON_MILLIS)
++        val secondaryPayment = PaymentService(world.db, ProviderClient(world.secondaryProvider), Scenario.PROVIDER_HORIZON_MILLIS)
+         MessageRelay(
+             world.db, process.scope, process::execute,
+             mapOf(
+                 Channels.INVENTORY to { m -> inventory.handle(m) },
+                 Channels.PAYMENT to { m -> payment.handle(m) },
++                Channels.SECONDARY_PAYMENT to { m -> secondaryPayment.handle(m) },
+                 Channels.SAGA_REPLIES to { m -> saga.onReply(m) },
+             ),
+         ).start()
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
+index eb3288e..a141fcd 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
+@@ -25,11 +25,15 @@ sealed interface SagaReply {
+     /** The card was not charged. */
+     data class PaymentFailed(override val orderId: String, val reason: String) : SagaReply
+ 
++    /** The provider declined the card; another provider would decline it too. */
++    data class PaymentDeclined(override val orderId: String) : SagaReply
++
+     /** The card may or may not have been charged. */
+     data class PaymentUnknown(override val orderId: String) : SagaReply
+ }
+ 
+-data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = null, val checks: Int = 0) {
++/** [onSecondary]: the order is being charged through the secondary provider. */
++data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = null, val checks: Int = 0, val onSecondary: Boolean = false) {
+     /** [Step.PaymentPending]: the saga is parked until a payment check settles the charge. */
+     enum class Step { Reserving, Charging, PaymentPending, Compensating, Done }
+     enum class Outcome { Approved, Rejected, NeedsAttention }
+@@ -38,5 +42,6 @@ data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = n
+ object Channels {
+     const val INVENTORY = "inventory"
+     const val PAYMENT = "payment"
++    const val SECONDARY_PAYMENT = "secondary-payment"
+     const val SAGA_REPLIES = "saga-replies"
+ }
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
+index 548a4db..5b72d85 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
+@@ -19,8 +19,9 @@ import bench.saga.kit.processedBefore
+  * card (the pivot transaction), approve; compensate by releasing stock, but
+  * only when the card was not charged. A payment whose outcome is unknown parks
+  * the saga: it asks the payment participant to check, and hands the order to
+- * an operator when the checks run out. The saga state and the commands it
+- * sends commit in one transaction.
++ * an operator when the checks run out. When the primary provider did not
++ * charge the card, the saga charges it through the secondary one. The saga
++ * state and the commands it sends commit in one transaction.
+  */
+ class CreateOrderSaga(private val db: SimDb, private val maxChecks: Int = 3) {
+     fun start(order: Order) = db.transaction { tx ->
+@@ -42,13 +43,17 @@ class CreateOrderSaga(private val db: SimDb, private val maxChecks: Int = 3) {
+             }
+             saga.step == Step.Reserving && reply is SagaReply.StockUnavailable -> saga.copy(step = Step.Done, outcome = Outcome.Rejected)
+             paying && reply is SagaReply.PaymentSucceeded -> saga.copy(step = Step.Done, outcome = Outcome.Approved)
+-            paying && reply is SagaReply.PaymentFailed -> {
++            paying && reply is SagaReply.PaymentFailed && !saga.onSecondary -> {
++                Outbox.send(tx, Channels.SECONDARY_PAYMENT, PaymentCommand.ChargeCard(saga.order.id, saga.order.amount))
++                saga.copy(step = Step.Charging, checks = 0, onSecondary = true)
++            }
++            paying && (reply is SagaReply.PaymentFailed || reply is SagaReply.PaymentDeclined) -> {
+                 Outbox.send(tx, Channels.INVENTORY, InventoryCommand.ReleaseStock(saga.order.id))
+                 saga.copy(step = Step.Compensating)
+             }
+             paying && reply is SagaReply.PaymentUnknown ->
+                 if (saga.checks < maxChecks) {
+-                    Outbox.send(tx, Channels.PAYMENT, PaymentCommand.CheckPayment(saga.order.id))
++                    Outbox.send(tx, if (saga.onSecondary) Channels.SECONDARY_PAYMENT else Channels.PAYMENT, PaymentCommand.CheckPayment(saga.order.id))
+                     saga.copy(step = Step.PaymentPending, checks = saga.checks + 1)
+                 } else {
+                     saga.copy(step = Step.Done, outcome = Outcome.NeedsAttention)
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/payment/PaymentService.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/payment/PaymentService.kt
+index 057b92c..579630d 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/payment/PaymentService.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/payment/PaymentService.kt
+@@ -53,7 +53,7 @@ class PaymentService(
+             try {
+                 return when (val result = withTimeout(timeoutMillis) { client.charge(command.orderId, command.amount) }) {
+                     is ChargeResult.Charged -> SagaReply.PaymentSucceeded(command.orderId, result.reference)
+-                    ChargeResult.Declined -> SagaReply.PaymentFailed(command.orderId, "declined")
++                    ChargeResult.Declined -> SagaReply.PaymentDeclined(command.orderId)
+                 }
+             } catch (e: ConnectionRefused) {
+                 // Provably not sent: send again.

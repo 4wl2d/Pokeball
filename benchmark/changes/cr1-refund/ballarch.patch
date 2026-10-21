@@ -1,0 +1,365 @@
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt
+index 02fc4ec..1bbdca3 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/api/Api.kt
+@@ -17,18 +17,29 @@ sealed interface InventoryReply {
+ 
+ val InventoryPort = BallPort<InventoryRequest, InventoryReply>("inventory")
+ 
+-// Payments: one instance per order. Capture is idempotent per order.
+-data class Capture(val amount: Long)
++// Payments: one instance per order. Capture and Refund are idempotent per order.
++sealed interface PaymentRequest
++
++data class Capture(val amount: Long) : PaymentRequest
++
++/** Refund a captured payment. */
++data class Refund(val amount: Long) : PaymentRequest
+ 
+ sealed interface PaymentReply {
+     data class Captured(val reference: String) : PaymentReply
+     data class NotCaptured(val reason: String) : PaymentReply
++    data object Refunded : PaymentReply
+ 
+     /** Reconciliation gave up: an operator must decide. */
+     data object Unresolved : PaymentReply
+ }
+ 
+-val PaymentsPort = BallPort<Capture, PaymentReply>("payment")
++val PaymentsPort = BallPort<PaymentRequest, PaymentReply>("payment")
+ 
+ // Checkout: one instance per order.
+-data class StartCheckout(val order: Order)
++sealed interface CheckoutRequest
++
++data class StartCheckout(val order: Order) : CheckoutRequest
++
++/** The customer cancels a completed order. */
++data object CancelCheckout : CheckoutRequest
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
+index dc245f6..e945ce6 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/app/BallarchSystem.kt
+@@ -6,6 +6,7 @@ import ballarch.runtime.AdapterResult
+ import ballarch.runtime.Composition
+ import ballarch.runtime.MemoryStore
+ import ballarch.runtime.Runtime
++import bench.ballarch.api.CancelCheckout
+ import bench.ballarch.api.StartCheckout
+ import bench.ballarch.checkout.CheckoutFlow
+ import bench.ballarch.checkout.CheckoutState
+@@ -14,13 +15,18 @@ import bench.ballarch.inventory.Stock
+ import bench.ballarch.payment.ChargeRequest
+ import bench.ballarch.payment.PaymentBall
+ import bench.ballarch.payment.ProviderCharge
++import bench.ballarch.payment.ProviderRefund
+ import bench.ballarch.payment.ProviderStatus
++import bench.ballarch.payment.RefundRequest
+ import bench.env.ChargeResult
+ import bench.env.ChargeStatus
++import bench.env.Changes
+ import bench.env.CheckoutSystem
+ import bench.env.ConnectionRefused
+ import bench.env.Order
++import bench.env.OrderCancellation
+ import bench.env.Provider
++import bench.env.RefundResult
+ import bench.env.Reply
+ import bench.env.Scenario
+ import bench.env.Terminal
+@@ -42,15 +48,21 @@ fun statusAdapter(provider: Provider) = Adapter<String, ChargeStatus> { invocati
+     null
+ }
+ 
++fun refundAdapter(provider: Provider) = Adapter<RefundRequest, RefundResult> { invocation, done ->
++    provider.refund(invocation.request.orderId, invocation.request.amount) { done(report(it)) }
++    null
++}
++
+ /** The composition root. */
+ fun composition(provider: Provider): Composition = Composition()
+     .ball(InventoryBall(Scenario.STOCK))
+     .ball(PaymentBall(horizonMillis = Scenario.PROVIDER_HORIZON_MILLIS))
+-    .ball(CheckoutFlow())
++    .ball(CheckoutFlow(Changes.CANCEL_WINDOW_MILLIS))
+     .adapter(ProviderCharge, chargeAdapter(provider))
+     .adapter(ProviderStatus, statusAdapter(provider))
++    .adapter(ProviderRefund, refundAdapter(provider))
+ 
+-class BallarchSystem(private val wiring: (Provider) -> Composition = ::composition) : CheckoutSystem {
++class BallarchSystem(private val wiring: (Provider) -> Composition = ::composition) : CheckoutSystem, OrderCancellation {
+     private lateinit var store: MemoryStore
+     private lateinit var runtime: Runtime
+ 
+@@ -63,6 +75,9 @@ class BallarchSystem(private val wiring: (Provider) -> Composition = ::compositi
+     override fun start(order: Order) =
+         runtime.request<StartCheckout, Unit>(BallId("checkout", order.id), StartCheckout(order), timeoutMillis = 1_000, idempotencyKey = order.id) { }
+ 
++    override fun cancel(orderId: String) =
++        runtime.request<CancelCheckout, Unit>(BallId("checkout", orderId), CancelCheckout, timeoutMillis = 1_000, idempotencyKey = "cancel-$orderId") { }
++
+     override fun crash() = runtime.crash()
+ 
+     private fun checkout(orderId: String) = store.load(BallId("checkout", orderId))?.state as CheckoutState?
+@@ -73,6 +88,7 @@ class BallarchSystem(private val wiring: (Provider) -> Composition = ::compositi
+         is CheckoutState.Completed -> Terminal.Completed
+         is CheckoutState.Failed -> Terminal.Failed
+         is CheckoutState.NeedsAttention -> Terminal.NeedsAttention
++        is CheckoutState.Refunded -> Terminal.Refunded
+         else -> null
+     }
+ 
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt
+index 04bbe4f..dc6f5f0 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/checkout/CheckoutFlow.kt
+@@ -12,61 +12,85 @@ import ballarch.kernel.RequestContext
+ import ballarch.kernel.Step
+ import ballarch.kernel.accept
+ import ballarch.kernel.outcomeOf
++import ballarch.kernel.reject
+ import ballarch.kernel.step
++import bench.ballarch.api.CancelCheckout
+ import bench.ballarch.api.Capture
++import bench.ballarch.api.CheckoutRequest
+ import bench.ballarch.api.InventoryPort
+ import bench.ballarch.api.InventoryReply
+ import bench.ballarch.api.InventoryRequest
+ import bench.ballarch.api.PaymentReply
+ import bench.ballarch.api.PaymentsPort
++import bench.ballarch.api.Refund
+ import bench.ballarch.api.StartCheckout
+ import bench.env.Order
+ 
+ sealed interface CheckoutState {
+     data object New : CheckoutState
+-    data class Reserving(val order: Order, val call: CallKey, val attempts: Int) : CheckoutState
+-    data class Paying(val order: Order, val call: CallKey, val attempts: Int) : CheckoutState
++    data class Reserving(val order: Order, val placedAt: Long, val call: CallKey, val attempts: Int) : CheckoutState
++    data class Paying(val order: Order, val placedAt: Long, val call: CallKey, val attempts: Int) : CheckoutState
+     data class Releasing(val order: Order, val call: CallKey, val attempts: Int) : CheckoutState
+-    data class Completed(val order: Order, val reference: String) : CheckoutState
++    data class Completed(val order: Order, val reference: String, val placedAt: Long) : CheckoutState
+     data class Failed(val order: Order, val reason: String) : CheckoutState
+     data class NeedsAttention(val order: Order) : CheckoutState
++    data class Refunding(val order: Order, val call: CallKey, val attempts: Int) : CheckoutState
++    data class Restocking(val order: Order, val call: CallKey, val attempts: Int) : CheckoutState
++    data class Refunded(val order: Order) : CheckoutState
+ }
+ 
+ /**
+  * The checkout workflow (a Flow): reserve, capture, complete; release when the
+  * payment is not captured. Inventory and payment requests are idempotent per
+- * order, so a step whose outcome is unknown is asked again.
++ * order, so a step whose outcome is unknown is asked again. A completed order
++ * cancelled within the window is refunded, then its stock is released.
+  */
+-class CheckoutFlow(private val stepTimeoutMillis: Long = 10_000, private val maxAttempts: Int = 3) :
+-    Ball<CheckoutState, StartCheckout, Unit> {
++class CheckoutFlow(private val cancelWindowMillis: Long, private val stepTimeoutMillis: Long = 10_000, private val maxAttempts: Int = 3) :
++    Ball<CheckoutState, CheckoutRequest, Unit> {
+     override val type = "checkout"
+ 
+     override fun initial(key: String): CheckoutState = CheckoutState.New
+ 
+-    override fun decide(state: CheckoutState, request: StartCheckout, ctx: RequestContext): Decision<CheckoutState, Unit> =
+-        if (state == CheckoutState.New) reserve(request.order, ctx, 1).let { accept(it.state, Unit, *it.outputs.toTypedArray()) }
+-        else accept(state, Unit)
++    override fun decide(state: CheckoutState, request: CheckoutRequest, ctx: RequestContext): Decision<CheckoutState, Unit> = when {
++        request is StartCheckout && state == CheckoutState.New -> reserve(request.order, ctx.now, ctx, 1).let { accept(it.state, Unit, *it.outputs.toTypedArray()) }
++        request is StartCheckout -> accept(state, Unit)
++        request == CancelCheckout && state is CheckoutState.Completed && ctx.now - state.placedAt <= cancelWindowMillis ->
++            refund(state.order, ctx, 1).let { accept(it.state, Unit, *it.outputs.toTypedArray()) }
++        else -> reject(Unit)
++    }
+ 
+     override fun complete(state: CheckoutState, completion: Completion<*>, ctx: Context): Step<CheckoutState, Unit> = when {
+         state is CheckoutState.Reserving && completion.key == state.call -> reserved(state, completion.outcomeOf(InventoryPort)!!, ctx)
+         state is CheckoutState.Paying && completion.key == state.call -> paid(state, completion.outcomeOf(PaymentsPort)!!, ctx)
+         state is CheckoutState.Releasing && completion.key == state.call -> released(state, completion.outcomeOf(InventoryPort)!!, ctx)
++        state is CheckoutState.Refunding && completion.key == state.call -> refunded(state, completion.outcomeOf(PaymentsPort)!!, ctx)
++        state is CheckoutState.Restocking && completion.key == state.call -> restocked(state, completion.outcomeOf(InventoryPort)!!, ctx)
+         else -> step(state) // stale
+     }
+ 
+     private fun reserved(s: CheckoutState.Reserving, o: Outcome<InventoryReply>, ctx: Context) = when {
+-        o is Outcome.Done -> pay(s.order, ctx, 1)
++        o is Outcome.Done -> pay(s.order, s.placedAt, ctx, 1)
+         o is Outcome.NotDone && o.reason is NotDoneReason.Refused -> step(CheckoutState.Failed(s.order, "out of stock"))
+-        else -> retry(s.order, s.attempts) { reserve(s.order, ctx, it) } // Unknown or no answer: ask again (idempotent)
++        else -> retry(s.order, s.attempts) { reserve(s.order, s.placedAt, ctx, it) } // Unknown or no answer: ask again (idempotent)
+     }
+ 
+     private fun paid(s: CheckoutState.Paying, o: Outcome<PaymentReply>, ctx: Context) = when (val r = (o as? Outcome.Done)?.value) {
+-        is PaymentReply.Captured -> step(CheckoutState.Completed(s.order, r.reference))
++        is PaymentReply.Captured -> step(CheckoutState.Completed(s.order, r.reference, s.placedAt))
+         is PaymentReply.NotCaptured -> release(s.order, ctx, 1)
+-        PaymentReply.Unresolved -> step(CheckoutState.NeedsAttention(s.order))
+-        null -> retry(s.order, s.attempts) { pay(s.order, ctx, it) } // Capture is idempotent per order
++        PaymentReply.Unresolved, PaymentReply.Refunded -> step(CheckoutState.NeedsAttention(s.order))
++        null -> retry(s.order, s.attempts) { pay(s.order, s.placedAt, ctx, it) } // Capture is idempotent per order
++    }
++
++    private fun refunded(s: CheckoutState.Refunding, o: Outcome<PaymentReply>, ctx: Context) = when ((o as? Outcome.Done)?.value) {
++        PaymentReply.Refunded -> restock(s.order, ctx, 1)
++        null -> retry(s.order, s.attempts) { refund(s.order, ctx, it) } // Refund is idempotent per order
++        else -> step(CheckoutState.NeedsAttention(s.order))
+     }
+ 
++    private fun restocked(s: CheckoutState.Restocking, o: Outcome<InventoryReply>, ctx: Context) =
++        if (o is Outcome.Done) step(CheckoutState.Refunded(s.order))
++        else retry(s.order, s.attempts) { restock(s.order, ctx, it) }
++
+     private fun released(s: CheckoutState.Releasing, o: Outcome<InventoryReply>, ctx: Context) =
+         if (o is Outcome.Done) step(CheckoutState.Failed(s.order, "payment not captured"))
+         else retry(s.order, s.attempts) { release(s.order, ctx, it) }
+@@ -74,15 +98,18 @@ class CheckoutFlow(private val stepTimeoutMillis: Long = 10_000, private val max
+     private fun retry(order: Order, attempts: Int, next: (Int) -> Step<CheckoutState, Unit>) =
+         if (attempts < maxAttempts) next(attempts + 1) else step(CheckoutState.NeedsAttention(order))
+ 
+-    private fun reserve(order: Order, ctx: Context, attempts: Int) = ctx.newKey().let { key ->
++    private fun reserve(order: Order, placedAt: Long, ctx: Context, attempts: Int) = ctx.newKey().let { key ->
+         step<CheckoutState, Unit>(
+-            CheckoutState.Reserving(order, key, attempts),
++            CheckoutState.Reserving(order, placedAt, key, attempts),
+             Call(key, InventoryPort, InventoryRequest.Reserve(order.id, order.quantity), stepTimeoutMillis, target = order.sku),
+         )
+     }
+ 
+-    private fun pay(order: Order, ctx: Context, attempts: Int) = ctx.newKey().let { key ->
+-        step<CheckoutState, Unit>(CheckoutState.Paying(order, key, attempts), Call(key, PaymentsPort, Capture(order.amount), stepTimeoutMillis, target = order.id))
++    private fun pay(order: Order, placedAt: Long, ctx: Context, attempts: Int) = ctx.newKey().let { key ->
++        step<CheckoutState, Unit>(
++            CheckoutState.Paying(order, placedAt, key, attempts),
++            Call(key, PaymentsPort, Capture(order.amount), stepTimeoutMillis, target = order.id),
++        )
+     }
+ 
+     private fun release(order: Order, ctx: Context, attempts: Int) = ctx.newKey().let { key ->
+@@ -91,4 +118,15 @@ class CheckoutFlow(private val stepTimeoutMillis: Long = 10_000, private val max
+             Call(key, InventoryPort, InventoryRequest.Release(order.id), stepTimeoutMillis, target = order.sku),
+         )
+     }
++
++    private fun refund(order: Order, ctx: Context, attempts: Int) = ctx.newKey().let { key ->
++        step<CheckoutState, Unit>(CheckoutState.Refunding(order, key, attempts), Call(key, PaymentsPort, Refund(order.amount), stepTimeoutMillis, target = order.id))
++    }
++
++    private fun restock(order: Order, ctx: Context, attempts: Int) = ctx.newKey().let { key ->
++        step<CheckoutState, Unit>(
++            CheckoutState.Restocking(order, key, attempts),
++            Call(key, InventoryPort, InventoryRequest.Release(order.id), stepTimeoutMillis, target = order.sku),
++        )
++    }
+ }
+diff --git a/benchmark/ballarch/src/main/kotlin/bench/ballarch/payment/PaymentBall.kt b/benchmark/ballarch/src/main/kotlin/bench/ballarch/payment/PaymentBall.kt
+index abcc09a..fa53873 100644
+--- a/benchmark/ballarch/src/main/kotlin/bench/ballarch/payment/PaymentBall.kt
++++ b/benchmark/ballarch/src/main/kotlin/bench/ballarch/payment/PaymentBall.kt
+@@ -17,11 +17,15 @@ import ballarch.kernel.Timer
+ import ballarch.kernel.accept
+ import ballarch.kernel.acceptLater
+ import ballarch.kernel.outcomeOf
++import ballarch.kernel.reject
+ import ballarch.kernel.step
+ import bench.ballarch.api.Capture
+ import bench.ballarch.api.PaymentReply
++import bench.ballarch.api.PaymentRequest
++import bench.ballarch.api.Refund
+ import bench.env.ChargeResult
+ import bench.env.ChargeStatus
++import bench.env.RefundResult
+ 
+ data class ChargeRequest(val orderId: String, val amount: Long)
+ 
+@@ -30,34 +34,58 @@ val ProviderCharge = AdapterPort<ChargeRequest, ChargeResult>("provider.charge",
+ 
+ val ProviderStatus = AdapterPort<String, ChargeStatus>("provider.status", EffectClass.Safe)
+ 
++data class RefundRequest(val orderId: String, val amount: Long)
++
++/** The provider never refunds more than it charged, so a refund can be repeated. */
++val ProviderRefund = AdapterPort<RefundRequest, RefundResult>("provider.refund", EffectClass.Idempotent)
++
+ sealed interface PaymentState {
+     data object New : PaymentState
+     data class Charging(val amount: Long, val call: CallKey, val sends: Int, val waiting: List<RequestId>) : PaymentState
+     data class Reconciling(val amount: Long, val call: CallKey, val queries: Int, val waiting: List<RequestId>) : PaymentState
+     data class Resolved(val reply: PaymentReply) : PaymentState
++    data class Refunding(val amount: Long, val call: CallKey, val sends: Int, val waiting: List<RequestId>) : PaymentState
++    data class RefundResolved(val reply: PaymentReply) : PaymentState
+ }
+ 
+ /**
+  * Captures one order's payment. A charge is sent again only after `NotDone`
+  * (evidence that nothing was charged); `Unknown` starts reconciliation: wait
+- * past the provider's horizon, then ask its status.
++ * past the provider's horizon, then ask its status. A captured payment can be
++ * refunded; a refund is sent again until it is answered, up to three times.
+  */
+ class PaymentBall(
+     private val horizonMillis: Long,
+     private val timeoutMillis: Long = 1_000,
+     private val maxSends: Int = 3,
+     private val maxQueries: Int = 3,
+-) : Ball<PaymentState, Capture, PaymentReply> {
++) : Ball<PaymentState, PaymentRequest, PaymentReply> {
+     override val type = "payment"
+ 
+     override fun initial(key: String): PaymentState = PaymentState.New
+ 
+-    override fun decide(state: PaymentState, request: Capture, ctx: RequestContext): Decision<PaymentState, PaymentReply> =
++    override fun decide(state: PaymentState, request: PaymentRequest, ctx: RequestContext): Decision<PaymentState, PaymentReply> =
++        when (request) {
++            is Capture -> capture(state, request, ctx)
++            is Refund -> refund(state, request, ctx)
++        }
++
++    private fun capture(state: PaymentState, request: Capture, ctx: RequestContext): Decision<PaymentState, PaymentReply> =
+         when (state) {
+             PaymentState.New -> charge(request.amount, 1, listOf(ctx.requestId), ctx).let { acceptLater(it.state, *it.outputs.toTypedArray()) }
+             is PaymentState.Charging -> acceptLater(state.copy(waiting = state.waiting + ctx.requestId))
+             is PaymentState.Reconciling -> acceptLater(state.copy(waiting = state.waiting + ctx.requestId))
+             is PaymentState.Resolved -> accept(state, state.reply)
++            is PaymentState.Refunding, is PaymentState.RefundResolved -> reject(PaymentReply.NotCaptured("refunded"))
++        }
++
++    private fun refund(state: PaymentState, request: Refund, ctx: RequestContext): Decision<PaymentState, PaymentReply> =
++        when {
++            state is PaymentState.Resolved && state.reply is PaymentReply.Captured ->
++                sendRefund(request.amount, 1, listOf(ctx.requestId), ctx).let { acceptLater(it.state, *it.outputs.toTypedArray()) }
++            state is PaymentState.Refunding -> acceptLater(state.copy(waiting = state.waiting + ctx.requestId))
++            state is PaymentState.RefundResolved -> accept(state, state.reply)
++            else -> reject(PaymentReply.NotCaptured("nothing to refund"))
+         }
+ 
+     override fun complete(state: PaymentState, completion: Completion<*>, ctx: Context): Step<PaymentState, PaymentReply> = when {
+@@ -70,6 +98,11 @@ class PaymentBall(
+                 is Outcome.Unknown -> wait(PaymentState.Reconciling(state.amount, ctx.newKey(), 0, state.waiting))
+             }
+         state is PaymentState.Reconciling && completion.key == state.call -> reconcile(state, completion, ctx)
++        state is PaymentState.Refunding && completion.key == state.call -> when {
++            completion.outcomeOf(ProviderRefund) is Outcome.Done -> refunded(state.waiting, PaymentReply.Refunded)
++            state.sends < maxSends -> sendRefund(state.amount, state.sends + 1, state.waiting, ctx)
++            else -> refunded(state.waiting, PaymentReply.Unresolved)
++        }
+         else -> step(state)
+     }
+ 
+@@ -93,6 +126,16 @@ class PaymentBall(
+         )
+     }
+ 
++    private fun sendRefund(amount: Long, sends: Int, waiting: List<RequestId>, ctx: Context) = ctx.newKey().let { key ->
++        step<PaymentState, PaymentReply>(
++            PaymentState.Refunding(amount, key, sends, waiting),
++            Call(key, ProviderRefund, RefundRequest(ctx.self.key, amount), timeoutMillis),
++        )
++    }
++
++    private fun refunded(waiting: List<RequestId>, reply: PaymentReply): Step<PaymentState, PaymentReply> =
++        Step(PaymentState.RefundResolved(reply), waiting.map { Reply(it, reply) })
++
+     private fun wait(state: PaymentState.Reconciling) = step<PaymentState, PaymentReply>(state, Timer.after(state.call, horizonMillis))
+ 
+     private fun resolve(waiting: List<RequestId>, reply: PaymentReply): Step<PaymentState, PaymentReply> =

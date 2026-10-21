@@ -1,0 +1,124 @@
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
+index 4a423a1..064c4e0 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
+@@ -27,7 +27,8 @@ class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = :
+         process = Process(world.scheduler)
+         orders = DbOrderRepository(world.db)
+         val inventory = DbInventoryRepository(world.db, mapOf(Scenario.SKU to Scenario.STOCK))
+-        interactor = CheckoutInteractor(orders, inventory, gateway(ProviderClient(world.provider)), Scenario.PROVIDER_HORIZON_MILLIS)
++        val secondary = gateway(ProviderClient(world.secondaryProvider))
++        interactor = CheckoutInteractor(orders, inventory, gateway(ProviderClient(world.provider)), secondary, Scenario.PROVIDER_HORIZON_MILLIS)
+         process.scope.launch { interactor.resumeUnfinished() }
+     }
+ 
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
+index 55c8343..1343ddd 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
+@@ -1,6 +1,7 @@
+ package bench.hardened.application
+ 
+ import bench.hardened.domain.CheckoutOrder
++import bench.hardened.domain.CheckoutOrder.PaymentProvider
+ import bench.hardened.domain.CheckoutOrder.Status
+ import kotlinx.coroutines.delay
+ 
+@@ -16,12 +17,15 @@ interface CheckoutInputPort {
+  * - a charge is repeated only after evidence that it was not sent;
+  * - an uncertain charge is reconciled: wait until no request can still arrive,
+  *   then ask the provider's status endpoint, and never charge again;
+- * - after a restart, CHARGING orders are reconciled, never re-charged.
++ * - after a restart, CHARGING orders are reconciled, never re-charged;
++ * - when the primary provider provably did not charge, the secondary is tried,
++ *   with the same policy; an uncertain charge is never sent to the other one.
+  */
+ class CheckoutInteractor(
+     private val orders: OrderRepository,
+     private val inventory: InventoryRepository,
+     private val payments: PaymentGateway,
++    private val secondaryPayments: PaymentGateway,
+     private val horizonMillis: Long,
+     private val maxSends: Int = 3,
+     private val maxQueries: Int = 3,
+@@ -40,8 +44,9 @@ class CheckoutInteractor(
+             order = order.reserved()
+             orders.save(order)
+         }
+-        if (order.status == Status.RESERVED) order = pay(order)
+-        if (order.status == Status.CHARGING) order = reconcile(order)
++        while (order.status == Status.RESERVED || order.status == Status.CHARGING) {
++            order = if (order.status == Status.RESERVED) pay(order) else reconcile(order)
++        }
+         if (order.status == Status.PAID) orders.save(order.completed())
+     }
+ 
+@@ -52,28 +57,33 @@ class CheckoutInteractor(
+     private suspend fun pay(order: CheckoutOrder): CheckoutOrder {
+         repeat(maxSends) {
+             orders.save(order.charging())
+-            when (val attempt = payments.charge(order.id, order.amount)) {
++            when (val attempt = gateway(order).charge(order.id, order.amount)) {
+                 is ChargeAttempt.Charged -> return order.paid(attempt.reference).also(orders::save)
+                 ChargeAttempt.Declined -> return fail(order, "declined")
+                 ChargeAttempt.NotSent -> orders.save(order) // provably not charged: back to RESERVED
+                 ChargeAttempt.Uncertain -> return order.charging()
+             }
+         }
+-        return fail(order, "payment provider unreachable")
++        return notCharged(order, "payment provider unreachable")
+     }
+ 
+     private suspend fun reconcile(order: CheckoutOrder): CheckoutOrder {
+         repeat(maxQueries) {
+             delay(horizonMillis)
+-            when (val status = payments.status(order.id)) {
++            when (val status = gateway(order).status(order.id)) {
+                 is PaymentStatus.Charged -> return order.paid(status.reference).also(orders::save)
+-                PaymentStatus.NoCharge -> return fail(order, "not charged")
++                PaymentStatus.NoCharge -> return notCharged(order, "not charged")
+                 PaymentStatus.Unavailable -> Unit
+             }
+         }
+         return order.needsAttention().also(orders::save)
+     }
+ 
++    private fun gateway(order: CheckoutOrder) = if (order.provider == PaymentProvider.PRIMARY) payments else secondaryPayments
++
++    private fun notCharged(order: CheckoutOrder, reason: String): CheckoutOrder =
++        if (order.provider == PaymentProvider.PRIMARY) order.failedOver().also(orders::save) else fail(order, reason)
++
+     private fun fail(order: CheckoutOrder, reason: String): CheckoutOrder {
+         inventory.release(order.id)
+         return order.failed(reason).also(orders::save)
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
+index 5e48e3a..8f92be6 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
+@@ -3,6 +3,7 @@ package bench.hardened.domain
+ /**
+  * Enterprise business rules. CHARGING is written before every charge request:
+  * from then on the order may have been charged, whatever happens to the request.
++ * [provider] is the payment provider the order is being charged through.
+  */
+ data class CheckoutOrder(
+     val id: String,
+@@ -12,8 +13,10 @@ data class CheckoutOrder(
+     val status: Status = Status.NEW,
+     val paymentReference: String? = null,
+     val failureReason: String? = null,
++    val provider: PaymentProvider = PaymentProvider.PRIMARY,
+ ) {
+     enum class Status { NEW, RESERVED, CHARGING, PAID, COMPLETED, FAILED, NEEDS_ATTENTION }
++    enum class PaymentProvider { PRIMARY, SECONDARY }
+ 
+     val isTerminal: Boolean get() = status == Status.COMPLETED || status == Status.FAILED || status == Status.NEEDS_ATTENTION
+ 
+@@ -28,4 +31,7 @@ data class CheckoutOrder(
+     fun failed(reason: String) = copy(status = Status.FAILED, failureReason = reason)
+ 
+     fun needsAttention() = copy(status = Status.NEEDS_ATTENTION)
++
++    /** The primary provider provably did not charge: charge through the secondary. */
++    fun failedOver() = copy(status = Status.RESERVED, provider = PaymentProvider.SECONDARY)
+ }

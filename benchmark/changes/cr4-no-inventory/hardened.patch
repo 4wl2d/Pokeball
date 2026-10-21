@@ -1,0 +1,155 @@
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/adapters/DbRepositories.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/adapters/DbRepositories.kt
+index 560e31e..de3b993 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/adapters/DbRepositories.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/adapters/DbRepositories.kt
+@@ -1,7 +1,6 @@
+ package bench.hardened.adapters
+ 
+ import bench.env.SimDb
+-import bench.hardened.application.InventoryRepository
+ import bench.hardened.application.OrderRepository
+ import bench.hardened.domain.CheckoutOrder
+ 
+@@ -13,23 +12,3 @@ class DbOrderRepository(private val db: SimDb) : OrderRepository {
+     override fun unfinished(): List<CheckoutOrder> =
+         db.keys("order/").map { db.get(it) as CheckoutOrder }.filter { !it.isTerminal }
+ }
+-
+-class DbInventoryRepository(private val db: SimDb, private val initialStock: Map<String, Int>) : InventoryRepository {
+-    override fun reserve(orderId: String, sku: String, quantity: Int): Boolean = db.transaction { tx ->
+-        if (tx.get<Int>("reservation/$orderId") != null) return@transaction true
+-        val stock = tx.get<Int>("stock/$sku") ?: initialStock[sku] ?: 0
+-        if (stock < quantity) return@transaction false
+-        tx.put("stock/$sku", stock - quantity)
+-        tx.put("reservation/$orderId", quantity)
+-        tx.put("reservation-sku/$orderId", sku)
+-        true
+-    }
+-
+-    override fun release(orderId: String) = db.transaction { tx ->
+-        val quantity = tx.get<Int>("reservation/$orderId") ?: return@transaction
+-        val sku = tx.get<String>("reservation-sku/$orderId")!!
+-        tx.put("stock/$sku", (tx.get<Int>("stock/$sku") ?: 0) + quantity)
+-        tx.delete("reservation/$orderId")
+-        tx.delete("reservation-sku/$orderId")
+-    }
+-}
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
+index 4a423a1..f162d9d 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/app/HardenedSystem.kt
+@@ -7,7 +7,6 @@ import bench.env.ProviderClient
+ import bench.env.Scenario
+ import bench.env.Terminal
+ import bench.env.World
+-import bench.hardened.adapters.DbInventoryRepository
+ import bench.hardened.adapters.DbOrderRepository
+ import bench.hardened.adapters.ProviderPaymentGateway
+ import bench.hardened.application.CheckoutInteractor
+@@ -17,17 +16,14 @@ import kotlinx.coroutines.launch
+ 
+ /** Main component: wires the layers and starts a background job that resumes interrupted orders. */
+ class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = ::ProviderPaymentGateway) : CheckoutSystem {
+-    private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var interactor: CheckoutInteractor
+     private lateinit var orders: DbOrderRepository
+ 
+     override fun boot(world: World) {
+-        this.world = world
+         process = Process(world.scheduler)
+         orders = DbOrderRepository(world.db)
+-        val inventory = DbInventoryRepository(world.db, mapOf(Scenario.SKU to Scenario.STOCK))
+-        interactor = CheckoutInteractor(orders, inventory, gateway(ProviderClient(world.provider)), Scenario.PROVIDER_HORIZON_MILLIS)
++        interactor = CheckoutInteractor(orders, gateway(ProviderClient(world.provider)), Scenario.PROVIDER_HORIZON_MILLIS)
+         process.scope.launch { interactor.resumeUnfinished() }
+     }
+ 
+@@ -47,6 +43,5 @@ class HardenedSystem(private val gateway: (ProviderClient) -> PaymentGateway = :
+         else -> null
+     }
+ 
+-    override fun reserved(): Map<String, Int> =
+-        world.db.keys("reservation/").associate { it.removePrefix("reservation/") to world.db.get(it) as Int }
++    override fun reserved(): Map<String, Int> = emptyMap()
+ }
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
+index 55c8343..be633a0 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/application/CheckoutInteractor.kt
+@@ -20,7 +20,6 @@ interface CheckoutInputPort {
+  */
+ class CheckoutInteractor(
+     private val orders: OrderRepository,
+-    private val inventory: InventoryRepository,
+     private val payments: PaymentGateway,
+     private val horizonMillis: Long,
+     private val maxSends: Int = 3,
+@@ -32,15 +31,7 @@ class CheckoutInteractor(
+ 
+     override suspend fun process(orderId: String) {
+         var order = orders.find(orderId) ?: return
+-        if (order.status == Status.NEW) {
+-            if (!inventory.reserve(order.id, order.sku, order.quantity)) {
+-                orders.save(order.failed("out of stock"))
+-                return
+-            }
+-            order = order.reserved()
+-            orders.save(order)
+-        }
+-        if (order.status == Status.RESERVED) order = pay(order)
++        if (order.status == Status.NEW) order = pay(order)
+         if (order.status == Status.CHARGING) order = reconcile(order)
+         if (order.status == Status.PAID) orders.save(order.completed())
+     }
+@@ -55,7 +46,7 @@ class CheckoutInteractor(
+             when (val attempt = payments.charge(order.id, order.amount)) {
+                 is ChargeAttempt.Charged -> return order.paid(attempt.reference).also(orders::save)
+                 ChargeAttempt.Declined -> return fail(order, "declined")
+-                ChargeAttempt.NotSent -> orders.save(order) // provably not charged: back to RESERVED
++                ChargeAttempt.NotSent -> orders.save(order) // provably not charged: back to NEW
+                 ChargeAttempt.Uncertain -> return order.charging()
+             }
+         }
+@@ -75,7 +66,6 @@ class CheckoutInteractor(
+     }
+ 
+     private fun fail(order: CheckoutOrder, reason: String): CheckoutOrder {
+-        inventory.release(order.id)
+         return order.failed(reason).also(orders::save)
+     }
+ }
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt
+index 4acaa6d..0abf498 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/application/Ports.kt
+@@ -8,11 +8,6 @@ interface OrderRepository {
+     fun unfinished(): List<CheckoutOrder>
+ }
+ 
+-interface InventoryRepository {
+-    fun reserve(orderId: String, sku: String, quantity: Int): Boolean
+-    fun release(orderId: String)
+-}
+-
+ /** What one charge request established. */
+ sealed interface ChargeAttempt {
+     data class Charged(val reference: String) : ChargeAttempt
+diff --git a/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt b/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
+index 5e48e3a..b154eee 100644
+--- a/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
++++ b/benchmark/hardened/src/main/kotlin/bench/hardened/domain/CheckoutOrder.kt
+@@ -13,12 +13,10 @@ data class CheckoutOrder(
+     val paymentReference: String? = null,
+     val failureReason: String? = null,
+ ) {
+-    enum class Status { NEW, RESERVED, CHARGING, PAID, COMPLETED, FAILED, NEEDS_ATTENTION }
++    enum class Status { NEW, CHARGING, PAID, COMPLETED, FAILED, NEEDS_ATTENTION }
+ 
+     val isTerminal: Boolean get() = status == Status.COMPLETED || status == Status.FAILED || status == Status.NEEDS_ATTENTION
+ 
+-    fun reserved() = copy(status = Status.RESERVED)
+-
+     fun charging() = copy(status = Status.CHARGING)
+ 
+     fun paid(reference: String) = copy(status = Status.PAID, paymentReference = reference)

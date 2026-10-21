@@ -1,0 +1,178 @@
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
+index 0387108..ff5bc83 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/app/CarefulSagaSystem.kt
+@@ -1,6 +1,5 @@
+ package bench.careful.saga.app
+ 
+-import bench.careful.saga.inventory.InventoryService
+ import bench.careful.saga.messages.Channels
+ import bench.careful.saga.messages.SagaState
+ import bench.careful.saga.order.CreateOrderSaga
+@@ -24,12 +23,10 @@ class CarefulSagaSystem : CheckoutSystem {
+         this.world = world
+         process = Process(world.scheduler)
+         saga = CreateOrderSaga(world.db)
+-        val inventory = InventoryService(world.db, Scenario.STOCK)
+         val payment = PaymentService(world.db, ProviderClient(world.provider), Scenario.PROVIDER_HORIZON_MILLIS)
+         MessageRelay(
+             world.db, process.scope, process::execute,
+             mapOf(
+-                Channels.INVENTORY to { m -> inventory.handle(m) },
+                 Channels.PAYMENT to { m -> payment.handle(m) },
+                 Channels.SAGA_REPLIES to { m -> saga.onReply(m) },
+             ),
+@@ -51,6 +48,5 @@ class CarefulSagaSystem : CheckoutSystem {
+         null -> null
+     }
+ 
+-    override fun reserved(): Map<String, Int> =
+-        world.db.keys("inventory/reservation/").associate { it.removePrefix("inventory/reservation/") to world.db.get(it) as Int }
++    override fun reserved(): Map<String, Int> = emptyMap()
+ }
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/inventory/InventoryService.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/inventory/InventoryService.kt
+deleted file mode 100644
+index 1d0344d..0000000
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/inventory/InventoryService.kt
++++ /dev/null
+@@ -1,39 +0,0 @@
+-package bench.careful.saga.inventory
+-
+-import bench.careful.saga.messages.Channels
+-import bench.careful.saga.messages.InventoryCommand
+-import bench.careful.saga.messages.SagaReply
+-import bench.env.SimDb
+-import bench.saga.kit.Message
+-import bench.saga.kit.Outbox
+-import bench.saga.kit.markProcessed
+-import bench.saga.kit.processedBefore
+-
+-/** The inventory participant: its changes and its reply commit together. */
+-class InventoryService(private val db: SimDb, private val initialStock: Int) {
+-    fun handle(message: Message) = db.transaction { tx ->
+-        if (tx.processedBefore("inventory", message)) return@transaction
+-        tx.markProcessed("inventory", message)
+-        val stock = tx.get<Int>("inventory/stock") ?: initialStock
+-        val reply = when (val command = message.payload as InventoryCommand) {
+-            is InventoryCommand.ReserveStock -> when {
+-                tx.get<Int>("inventory/reservation/${command.orderId}") != null -> SagaReply.StockReserved(command.orderId)
+-                stock < command.quantity -> SagaReply.StockUnavailable(command.orderId)
+-                else -> {
+-                    tx.put("inventory/stock", stock - command.quantity)
+-                    tx.put("inventory/reservation/${command.orderId}", command.quantity)
+-                    SagaReply.StockReserved(command.orderId)
+-                }
+-            }
+-            is InventoryCommand.ReleaseStock -> {
+-                val quantity = tx.get<Int>("inventory/reservation/${command.orderId}")
+-                if (quantity != null) {
+-                    tx.put("inventory/stock", stock + quantity)
+-                    tx.delete("inventory/reservation/${command.orderId}")
+-                }
+-                SagaReply.StockReleased(command.orderId)
+-            }
+-        }
+-        Outbox.send(tx, Channels.SAGA_REPLIES, reply)
+-    }
+-}
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
+index eb3288e..606ccfc 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/messages/Messages.kt
+@@ -2,11 +2,6 @@ package bench.careful.saga.messages
+ 
+ import bench.env.Order
+ 
+-sealed interface InventoryCommand {
+-    data class ReserveStock(val orderId: String, val sku: String, val quantity: Int) : InventoryCommand
+-    data class ReleaseStock(val orderId: String) : InventoryCommand
+-}
+-
+ sealed interface PaymentCommand {
+     data class ChargeCard(val orderId: String, val amount: Long) : PaymentCommand
+ 
+@@ -17,9 +12,6 @@ sealed interface PaymentCommand {
+ sealed interface SagaReply {
+     val orderId: String
+ 
+-    data class StockReserved(override val orderId: String) : SagaReply
+-    data class StockUnavailable(override val orderId: String) : SagaReply
+-    data class StockReleased(override val orderId: String) : SagaReply
+     data class PaymentSucceeded(override val orderId: String, val reference: String) : SagaReply
+ 
+     /** The card was not charged. */
+@@ -31,12 +23,11 @@ sealed interface SagaReply {
+ 
+ data class SagaState(val order: Order, val step: Step, val outcome: Outcome? = null, val checks: Int = 0) {
+     /** [Step.PaymentPending]: the saga is parked until a payment check settles the charge. */
+-    enum class Step { Reserving, Charging, PaymentPending, Compensating, Done }
++    enum class Step { Charging, PaymentPending, Done }
+     enum class Outcome { Approved, Rejected, NeedsAttention }
+ }
+ 
+ object Channels {
+-    const val INVENTORY = "inventory"
+     const val PAYMENT = "payment"
+     const val SAGA_REPLIES = "saga-replies"
+ }
+diff --git a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
+index 548a4db..624b6e2 100644
+--- a/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
++++ b/benchmark/saga-careful/src/main/kotlin/bench/careful/saga/order/CreateOrderSaga.kt
+@@ -1,7 +1,6 @@
+ package bench.careful.saga.order
+ 
+ import bench.careful.saga.messages.Channels
+-import bench.careful.saga.messages.InventoryCommand
+ import bench.careful.saga.messages.PaymentCommand
+ import bench.careful.saga.messages.SagaReply
+ import bench.careful.saga.messages.SagaState
+@@ -15,9 +14,8 @@ import bench.saga.kit.markProcessed
+ import bench.saga.kit.processedBefore
+ 
+ /**
+- * The orchestrator of an orchestration-based saga: reserve stock, charge the
+- * card (the pivot transaction), approve; compensate by releasing stock, but
+- * only when the card was not charged. A payment whose outcome is unknown parks
++ * The orchestrator of an orchestration-based saga: charge the card, then
++ * approve, or reject when the card was not charged. A payment whose outcome is unknown parks
+  * the saga: it asks the payment participant to check, and hands the order to
+  * an operator when the checks run out. The saga state and the commands it
+  * sends commit in one transaction.
+@@ -25,8 +23,8 @@ import bench.saga.kit.processedBefore
+ class CreateOrderSaga(private val db: SimDb, private val maxChecks: Int = 3) {
+     fun start(order: Order) = db.transaction { tx ->
+         if (tx.get<SagaState>(key(order.id)) != null) return@transaction
+-        tx.put(key(order.id), SagaState(order, Step.Reserving))
+-        Outbox.send(tx, Channels.INVENTORY, InventoryCommand.ReserveStock(order.id, order.sku, order.quantity))
++        tx.put(key(order.id), SagaState(order, Step.Charging))
++        Outbox.send(tx, Channels.PAYMENT, PaymentCommand.ChargeCard(order.id, order.amount))
+     }
+ 
+     fun onReply(message: Message) = db.transaction { tx ->
+@@ -36,16 +34,8 @@ class CreateOrderSaga(private val db: SimDb, private val maxChecks: Int = 3) {
+         val saga = tx.get<SagaState>(key(reply.orderId)) ?: return@transaction
+         val paying = saga.step == Step.Charging || saga.step == Step.PaymentPending
+         val next = when {
+-            saga.step == Step.Reserving && reply is SagaReply.StockReserved -> {
+-                Outbox.send(tx, Channels.PAYMENT, PaymentCommand.ChargeCard(saga.order.id, saga.order.amount))
+-                saga.copy(step = Step.Charging)
+-            }
+-            saga.step == Step.Reserving && reply is SagaReply.StockUnavailable -> saga.copy(step = Step.Done, outcome = Outcome.Rejected)
+             paying && reply is SagaReply.PaymentSucceeded -> saga.copy(step = Step.Done, outcome = Outcome.Approved)
+-            paying && reply is SagaReply.PaymentFailed -> {
+-                Outbox.send(tx, Channels.INVENTORY, InventoryCommand.ReleaseStock(saga.order.id))
+-                saga.copy(step = Step.Compensating)
+-            }
++            paying && reply is SagaReply.PaymentFailed -> saga.copy(step = Step.Done, outcome = Outcome.Rejected)
+             paying && reply is SagaReply.PaymentUnknown ->
+                 if (saga.checks < maxChecks) {
+                     Outbox.send(tx, Channels.PAYMENT, PaymentCommand.CheckPayment(saga.order.id))
+@@ -53,7 +43,6 @@ class CreateOrderSaga(private val db: SimDb, private val maxChecks: Int = 3) {
+                 } else {
+                     saga.copy(step = Step.Done, outcome = Outcome.NeedsAttention)
+                 }
+-            saga.step == Step.Compensating && reply is SagaReply.StockReleased -> saga.copy(step = Step.Done, outcome = Outcome.Rejected)
+             else -> saga
+         }
+         tx.put(key(reply.orderId), next)

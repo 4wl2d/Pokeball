@@ -72,9 +72,10 @@ jobs:
         run: python3 -m unittest discover -s tools -p 'test_*.py'
       - name: The benchmark report is up to date with its data
         run: |
-          pip install lizard==1.24.1
           python3 benchmark/report.py benchmark/results/results.json benchmark/results
           git diff --exit-code benchmark/results/RESULTS.md
+      - name: Every change-request patch applies and its recorded size is current
+        run: python3 benchmark/changes/measure.py --check
 
   paper:
     name: Paper

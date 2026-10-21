@@ -1,0 +1,169 @@
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/adapters/ProviderPaymentGateway.kt b/benchmark/layered/src/main/kotlin/bench/layered/adapters/ProviderPaymentGateway.kt
+index 7b7bbec..351ef2c 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/adapters/ProviderPaymentGateway.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/adapters/ProviderPaymentGateway.kt
+@@ -23,4 +23,14 @@ class ProviderPaymentGateway(private val client: ProviderClient, private val tim
+             ChargeResult.Declined -> throw PaymentFailedException("declined")
+         }
+     }
++
++    override suspend fun refund(orderId: String, amount: Long) {
++        try {
++            withTimeout(timeoutMillis) { client.refund(orderId, amount) }
++        } catch (e: TimeoutCancellationException) {
++            throw PaymentFailedException("payment provider timed out", e)
++        } catch (e: IOException) {
++            throw PaymentFailedException("payment provider unavailable", e)
++        }
++    }
+ }
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt b/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
+index cd5774b..bea765c 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
+@@ -1,7 +1,9 @@
+ package bench.layered.app
+ 
++import bench.env.Changes
+ import bench.env.CheckoutSystem
+ import bench.env.Order
++import bench.env.OrderCancellation
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -15,7 +17,7 @@ import bench.layered.domain.CheckoutOrder
+ import kotlinx.coroutines.launch
+ 
+ /** Main component: wires the layers and starts a background job that resumes interrupted orders. */
+-class LayeredSystem : CheckoutSystem {
++class LayeredSystem : CheckoutSystem, OrderCancellation {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var interactor: CheckoutInteractor
+@@ -26,7 +28,7 @@ class LayeredSystem : CheckoutSystem {
+         process = Process(world.scheduler)
+         orders = DbOrderRepository(world.db)
+         val inventory = DbInventoryRepository(world.db, mapOf(Scenario.SKU to Scenario.STOCK))
+-        interactor = CheckoutInteractor(orders, inventory, ProviderPaymentGateway(ProviderClient(world.provider)))
++        interactor = CheckoutInteractor(orders, inventory, ProviderPaymentGateway(ProviderClient(world.provider)), world.scheduler::now, Changes.CANCEL_WINDOW_MILLIS)
+         process.scope.launch { interactor.resumeUnfinished() }
+     }
+ 
+@@ -35,6 +37,8 @@ class LayeredSystem : CheckoutSystem {
+         process.scope.launch { interactor.process(order.id) }
+     }
+ 
++    override fun cancel(orderId: String) = process.execute { process.scope.launch { interactor.cancel(orderId) } }
++
+     override fun crash() = process.kill()
+ 
+     override fun accepted(orderId: String) = orders.find(orderId) != null
+@@ -42,6 +46,7 @@ class LayeredSystem : CheckoutSystem {
+     override fun outcome(orderId: String): Terminal? = when (orders.find(orderId)?.status) {
+         CheckoutOrder.Status.COMPLETED -> Terminal.Completed
+         CheckoutOrder.Status.FAILED -> Terminal.Failed
++        CheckoutOrder.Status.REFUNDED -> Terminal.Refunded
+         else -> null
+     }
+ 
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt b/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
+index 1cc34be..be39cb0 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
+@@ -7,21 +7,26 @@ import bench.layered.domain.CheckoutOrder.Status
+ interface CheckoutInputPort {
+     fun place(order: CheckoutOrder)
+     suspend fun process(orderId: String)
++    suspend fun cancel(orderId: String)
+ }
+ 
+ /**
+  * The checkout use case (application business rules). It depends only on its
+  * output ports; the framework and the provider live behind them. Processing
+  * resumes from the persisted status, so the same use case drives new orders
+- * and orders interrupted by a restart.
++ * and orders interrupted by a restart. A completed order cancelled within the
++ * window is refunded and its stock released; if the refund fails, the order
++ * stays completed.
+  */
+ class CheckoutInteractor(
+     private val orders: OrderRepository,
+     private val inventory: InventoryRepository,
+     private val payments: PaymentGateway,
++    private val clock: () -> Long,
++    private val cancelWindowMillis: Long,
+ ) : CheckoutInputPort {
+     override fun place(order: CheckoutOrder) {
+-        if (orders.find(order.id) == null) orders.save(order)
++        if (orders.find(order.id) == null) orders.save(order.copy(placedAt = clock()))
+     }
+ 
+     override suspend fun process(orderId: String) {
+@@ -45,6 +50,23 @@ class CheckoutInteractor(
+             orders.save(order)
+         }
+         if (order.status == Status.PAID) orders.save(order.completed())
++        if (order.status == Status.REFUNDING) {
++            try {
++                payments.refund(order.id, order.amount)
++            } catch (e: PaymentFailedException) {
++                orders.save(order.completed())
++                return
++            }
++            inventory.release(order.id)
++            orders.save(order.refunded())
++        }
++    }
++
++    override suspend fun cancel(orderId: String) {
++        val order = orders.find(orderId) ?: return
++        if (!order.cancellable(clock(), cancelWindowMillis)) return
++        orders.save(order.refunding())
++        process(orderId)
+     }
+ 
+     /** Resumes every order that a restart interrupted. */
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt b/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt
+index e1b6960..e1346d0 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt
+@@ -20,6 +20,9 @@ interface InventoryRepository {
+ interface PaymentGateway {
+     /** Charges [amount] for [orderId]. Throws [PaymentFailedException] when the payment did not succeed. */
+     suspend fun charge(orderId: String, amount: Long): String
++
++    /** Refunds [orderId]'s charge. Throws [PaymentFailedException] when the refund did not succeed. */
++    suspend fun refund(orderId: String, amount: Long)
+ }
+ 
+ class PaymentFailedException(message: String, cause: Throwable? = null) : Exception(message, cause)
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt b/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
+index 19af1c2..fc52438 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
+@@ -9,10 +9,14 @@ data class CheckoutOrder(
+     val status: Status = Status.NEW,
+     val paymentReference: String? = null,
+     val failureReason: String? = null,
++    val placedAt: Long = 0,
+ ) {
+-    enum class Status { NEW, RESERVED, PAID, COMPLETED, FAILED }
++    enum class Status { NEW, RESERVED, PAID, COMPLETED, FAILED, REFUNDING, REFUNDED }
+ 
+-    val isTerminal: Boolean get() = status == Status.COMPLETED || status == Status.FAILED
++    val isTerminal: Boolean get() = status == Status.COMPLETED || status == Status.FAILED || status == Status.REFUNDED
++
++    /** A completed order may be cancelled within [windowMillis] of being placed. */
++    fun cancellable(now: Long, windowMillis: Long) = status == Status.COMPLETED && now - placedAt <= windowMillis
+ 
+     fun reserved() = copy(status = Status.RESERVED)
+ 
+@@ -21,4 +25,8 @@ data class CheckoutOrder(
+     fun completed() = copy(status = Status.COMPLETED)
+ 
+     fun failed(reason: String) = copy(status = Status.FAILED, failureReason = reason)
++
++    fun refunding() = copy(status = Status.REFUNDING)
++
++    fun refunded() = copy(status = Status.REFUNDED)
+ }

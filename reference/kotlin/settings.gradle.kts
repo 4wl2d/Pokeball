@@ -25,8 +25,12 @@ include(
     ":examples:shop:app",
 )
 
-// Architecture benchmark: the same checkout in six styles, plus the runner (sources in /benchmark).
-for (m in listOf("env", "layered", "hardened", "actors", "mvu", "saga", "ballarch", "runner")) {
+// Architecture benchmark: the same checkout in four styles, each written naively and carefully, and in
+// Ballarch, plus the simulation harness and the runner (sources in /benchmark).
+for (m in listOf("env", "harness", "layered", "hardened", "actors", "actors-careful", "mvu", "mvu-careful", "saga", "saga-careful", "ballarch", "runner")) {
     include(":benchmark:$m")
     project(":benchmark:$m").projectDir = file("../../benchmark/$m")
 }
+// The change requests' runner (benchmark/changes).
+include(":benchmark:changes")
+project(":benchmark:changes").projectDir = file("../../benchmark/changes/runner")

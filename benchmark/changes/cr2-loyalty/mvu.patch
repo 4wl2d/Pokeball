@@ -1,0 +1,120 @@
+diff --git a/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt b/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
+index 83b51f8..ec002cc 100644
+--- a/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
++++ b/benchmark/mvu/src/main/kotlin/bench/mvu/app/MvuSystem.kt
+@@ -1,7 +1,10 @@
+ package bench.mvu.app
+ 
+ import bench.env.CheckoutSystem
++import bench.env.LoyaltyClient
++import bench.env.LoyaltyPoints
+ import bench.env.Order
++import bench.env.Points
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -17,7 +20,7 @@ import bench.mvu.kit.Program
+ import kotlinx.coroutines.withTimeout
+ 
+ /** Wires the program: persistence of the model, and the effects of commands. */
+-class MvuSystem : CheckoutSystem {
++class MvuSystem : CheckoutSystem, LoyaltyPoints {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var program: Program<Model, Msg, Cmd>
+@@ -28,6 +31,7 @@ class MvuSystem : CheckoutSystem {
+         this.world = world
+         process = Process(world.scheduler)
+         val client = ProviderClient(world.provider)
++        val loyalty = LoyaltyClient(world.loyalty)
+         process.execute {
+             program = Program(
+                 scope = process.scope,
+@@ -37,6 +41,7 @@ class MvuSystem : CheckoutSystem {
+                 perform = { cmd ->
+                     when (cmd) {
+                         is Cmd.Charge -> Msg.ChargeCompleted(cmd.orderId, runCatching { withTimeout(1_000) { client.charge(cmd.orderId, cmd.amount) } })
++                        is Cmd.Award -> Msg.AwardCompleted(cmd.orderId, runCatching { withTimeout(1_000) { loyalty.award(cmd.orderId, cmd.points) } })
+                     }
+                 },
+             )
+@@ -55,6 +60,12 @@ class MvuSystem : CheckoutSystem {
+         else -> null
+     }
+ 
++    override fun points(orderId: String): Points? = when (saved?.orders?.get(orderId)?.award) {
++        OrderModel.Award.Awarded -> Points.Awarded
++        OrderModel.Award.Failed -> Points.Failed
++        else -> null
++    }
++
+     override fun reserved(): Map<String, Int> =
+         saved?.orders?.values.orEmpty().filter { it.stage != OrderModel.Stage.Failed }.associate { it.order.id to it.order.quantity }
+ }
+diff --git a/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt b/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
+index 1ab5a63..8e10fed 100644
+--- a/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
++++ b/benchmark/mvu/src/main/kotlin/bench/mvu/core/Checkout.kt
+@@ -1,29 +1,35 @@
+ package bench.mvu.core
+ 
++import bench.env.Changes
+ import bench.env.ChargeResult
+ import bench.env.Order
+ 
+ /** The whole application state, one store (as in Redux). */
+ data class Model(val stock: Int, val orders: Map<String, OrderModel> = emptyMap())
+ 
+-data class OrderModel(val order: Order, val stage: Stage, val reference: String? = null) {
++/** A completed order earns loyalty points: [award] follows it. */
++data class OrderModel(val order: Order, val stage: Stage, val reference: String? = null, val award: Award? = null) {
+     enum class Stage { Paying, Completed, Failed }
++    enum class Award { Awarding, Awarded, Failed }
+ }
+ 
+ sealed interface Msg {
+     data class Place(val order: Order) : Msg
+     data class ChargeCompleted(val orderId: String, val result: Result<ChargeResult>) : Msg
++    data class AwardCompleted(val orderId: String, val result: Result<String>) : Msg
+ }
+ 
+ sealed interface Cmd {
+     data class Charge(val orderId: String, val amount: Long) : Cmd
++    data class Award(val orderId: String, val points: Int) : Cmd
+ }
+ 
+-/** Starts from the persisted model and re-issues the commands of orders that were being paid. */
++/** Starts from the persisted model and re-issues the commands of orders that were being paid or awarded. */
+ fun init(saved: Model?, stock: Int): Pair<Model, List<Cmd>> {
+     val model = saved ?: Model(stock)
+     val resume = model.orders.values.filter { it.stage == OrderModel.Stage.Paying }.map { Cmd.Charge(it.order.id, it.order.amount) }
+-    return model to resume
++    val awards = model.orders.values.filter { it.award == OrderModel.Award.Awarding }.map { Cmd.Award(it.order.id, Changes.POINTS) }
++    return model to resume + awards
+ }
+ 
+ /** Pure: the next model and the commands to perform. */
+@@ -44,7 +50,8 @@ fun update(model: Model, msg: Msg): Pair<Model, List<Cmd>> = when (msg) {
+         } else {
+             val charged = msg.result.getOrNull() as? ChargeResult.Charged
+             if (charged != null) {
+-                model.copy(orders = model.orders + (msg.orderId to current.copy(stage = OrderModel.Stage.Completed, reference = charged.reference))) to emptyList()
++                val completed = current.copy(stage = OrderModel.Stage.Completed, reference = charged.reference, award = OrderModel.Award.Awarding)
++                model.copy(orders = model.orders + (msg.orderId to completed)) to listOf(Cmd.Award(msg.orderId, Changes.POINTS))
+             } else {
+                 model.copy(
+                     stock = model.stock + current.order.quantity,
+@@ -53,4 +60,13 @@ fun update(model: Model, msg: Msg): Pair<Model, List<Cmd>> = when (msg) {
+             }
+         }
+     }
++    is Msg.AwardCompleted -> {
++        val current = model.orders[msg.orderId]
++        if (current == null || current.award != OrderModel.Award.Awarding) {
++            model to emptyList()
++        } else {
++            val award = if (msg.result.isSuccess) OrderModel.Award.Awarded else OrderModel.Award.Failed
++            model.copy(orders = model.orders + (msg.orderId to current.copy(award = award))) to emptyList()
++        }
++    }
+ }

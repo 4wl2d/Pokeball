@@ -1,0 +1,240 @@
+diff --git a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
+index 7fe8ba3..40d59a2 100644
+--- a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
++++ b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
+@@ -1,5 +1,7 @@
+ package bench.careful.mvu.app
+ 
++import bench.careful.mvu.core.AwardCheck
++import bench.careful.mvu.core.AwardOutcome
+ import bench.careful.mvu.core.ChargeOutcome
+ import bench.careful.mvu.core.Cmd
+ import bench.careful.mvu.core.Config
+@@ -9,11 +11,16 @@ import bench.careful.mvu.core.OrderModel
+ import bench.careful.mvu.core.StatusOutcome
+ import bench.careful.mvu.core.init
+ import bench.careful.mvu.core.update
++import bench.env.AwardStatus
+ import bench.env.ChargeResult
+ import bench.env.ChargeStatus
++import bench.env.Changes
+ import bench.env.CheckoutSystem
+ import bench.env.ConnectionRefused
++import bench.env.LoyaltyClient
++import bench.env.LoyaltyPoints
+ import bench.env.Order
++import bench.env.Points
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -26,11 +33,11 @@ import kotlinx.coroutines.withTimeout
+ import java.io.IOException
+ 
+ /** Wires the program: persistence of the model, and the effects of commands, whose failures become values. */
+-class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem {
++class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem, LoyaltyPoints {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var program: Program<Model, Msg, Cmd>
+-    private val config = Config(horizonMillis = Scenario.PROVIDER_HORIZON_MILLIS)
++    private val config = Config(horizonMillis = Scenario.PROVIDER_HORIZON_MILLIS, points = Changes.POINTS)
+ 
+     private val saved: Model? get() = world.db.get("mvu/model") as Model?
+ 
+@@ -38,6 +45,7 @@ class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem
+         this.world = world
+         process = Process(world.scheduler)
+         val client = ProviderClient(world.provider)
++        val loyalty = LoyaltyClient(world.loyalty)
+         process.execute {
+             program = Program(
+                 scope = process.scope,
+@@ -51,6 +59,11 @@ class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem
+                             delay(cmd.afterMillis)
+                             Msg.StatusChecked(cmd.orderId, status(client, cmd.orderId))
+                         }
++                        is Cmd.Award -> Msg.AwardSent(cmd.orderId, award(loyalty, cmd))
++                        is Cmd.CheckAward -> {
++                            delay(cmd.afterMillis)
++                            Msg.AwardChecked(cmd.orderId, awardStatus(loyalty, cmd.orderId))
++                        }
+                     }
+                 },
+             )
+@@ -81,6 +94,28 @@ class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem
+         StatusOutcome.Unavailable
+     }
+ 
++    private suspend fun award(loyalty: LoyaltyClient, cmd: Cmd.Award): AwardOutcome = try {
++        withTimeout(timeoutMillis) { loyalty.award(cmd.orderId, cmd.points) }
++        AwardOutcome.Awarded
++    } catch (e: ConnectionRefused) {
++        AwardOutcome.NotSent
++    } catch (e: TimeoutCancellationException) {
++        AwardOutcome.Unknown
++    } catch (e: IOException) {
++        AwardOutcome.Unknown
++    }
++
++    private suspend fun awardStatus(loyalty: LoyaltyClient, orderId: String): AwardCheck = try {
++        when (withTimeout(timeoutMillis) { loyalty.status(orderId) }) {
++            is AwardStatus.Awarded -> AwardCheck.Awarded
++            AwardStatus.NotAwarded -> AwardCheck.NotAwarded
++        }
++    } catch (e: TimeoutCancellationException) {
++        AwardCheck.Unavailable
++    } catch (e: IOException) {
++        AwardCheck.Unavailable
++    }
++
+     override fun start(order: Order) = process.execute { program.dispatch(Msg.Place(order)) }
+ 
+     override fun crash() = process.kill()
+@@ -94,6 +129,12 @@ class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem
+         else -> null
+     }
+ 
++    override fun points(orderId: String): Points? = when (saved?.orders?.get(orderId)?.award) {
++        OrderModel.Award.Awarded -> Points.Awarded
++        OrderModel.Award.NeedsAttention -> Points.NeedsAttention
++        else -> null
++    }
++
+     override fun reserved(): Map<String, Int> =
+         saved?.orders?.values.orEmpty().filter { it.stage != OrderModel.Stage.Failed }.associate { it.order.id to it.order.quantity }
+ }
+diff --git a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
+index 47070c3..c84c4f6 100644
+--- a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
++++ b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
+@@ -8,9 +8,20 @@ data class Model(val stock: Int, val orders: Map<String, OrderModel> = emptyMap(
+ /**
+  * [Stage.Paying] is persisted before its charge command runs, so after a
+  * restart it means "possibly charged"; [sends] counts the requests made.
++ * [Award.Awarding] does the same for the loyalty award of a completed order.
+  */
+-data class OrderModel(val order: Order, val stage: Stage, val sends: Int = 0, val queries: Int = 0, val reference: String? = null) {
++data class OrderModel(
++    val order: Order,
++    val stage: Stage,
++    val sends: Int = 0,
++    val queries: Int = 0,
++    val reference: String? = null,
++    val award: Award? = null,
++    val awardSends: Int = 0,
++    val awardQueries: Int = 0,
++) {
+     enum class Stage { Paying, Reconciling, Completed, Failed, NeedsAttention }
++    enum class Award { Awarding, Reconciling, Awarded, NeedsAttention }
+ }
+ 
+ /** What one charge request established. */
+@@ -32,10 +43,18 @@ sealed interface StatusOutcome {
+     data object Unavailable : StatusOutcome
+ }
+ 
++/** What one award request established. */
++enum class AwardOutcome { Awarded, NotSent, Unknown }
++
++/** What the loyalty service's status endpoint said. */
++enum class AwardCheck { Awarded, NotAwarded, Unavailable }
++
+ sealed interface Msg {
+     data class Place(val order: Order) : Msg
+     data class ChargeCompleted(val orderId: String, val outcome: ChargeOutcome) : Msg
+     data class StatusChecked(val orderId: String, val status: StatusOutcome) : Msg
++    data class AwardSent(val orderId: String, val outcome: AwardOutcome) : Msg
++    data class AwardChecked(val orderId: String, val status: AwardCheck) : Msg
+ }
+ 
+ sealed interface Cmd {
+@@ -43,21 +62,27 @@ sealed interface Cmd {
+ 
+     /** Waits [afterMillis], then asks the provider's status endpoint. */
+     data class CheckStatus(val orderId: String, val afterMillis: Long) : Cmd
++    data class Award(val orderId: String, val points: Int) : Cmd
++
++    /** Waits [afterMillis], then asks the loyalty service's status endpoint. */
++    data class CheckAward(val orderId: String, val afterMillis: Long) : Cmd
+ }
+ 
+-/** The program's flags: the provider's delivery horizon and the retry budgets. */
+-data class Config(val horizonMillis: Long, val maxSends: Int = 3, val maxQueries: Int = 3)
++/** The program's flags: the delivery horizon of both services, the loyalty points and the retry budgets. */
++data class Config(val horizonMillis: Long, val points: Int, val maxSends: Int = 3, val maxQueries: Int = 3)
+ 
+ /**
+  * Starts from the persisted model. An order still paying may have been
+  * charged before the restart, so its charge is not issued again: its status is
+- * checked once the delivery horizon has passed.
++ * checked once the delivery horizon has passed. The same holds for an award.
+  */
+ fun init(config: Config, saved: Model?, stock: Int): Pair<Model, List<Cmd>> {
+     val model = saved ?: Model(stock)
+     val open = model.orders.values.filter { it.stage == OrderModel.Stage.Paying || it.stage == OrderModel.Stage.Reconciling }
+     val reconciling = open.fold(model) { m, o -> m.put(if (o.stage == OrderModel.Stage.Paying) o.copy(stage = OrderModel.Stage.Reconciling, queries = 0) else o) }
+-    return reconciling to open.map { Cmd.CheckStatus(it.order.id, config.horizonMillis) }
++    val awarding = model.orders.values.filter { it.award == OrderModel.Award.Awarding || it.award == OrderModel.Award.Reconciling }
++    val reconcilingAwards = awarding.fold(reconciling) { m, o -> m.put(o.copy(award = OrderModel.Award.Reconciling, awardQueries = 0)) }
++    return reconcilingAwards to open.map { Cmd.CheckStatus(it.order.id, config.horizonMillis) } + awarding.map { Cmd.CheckAward(it.order.id, config.horizonMillis) }
+ }
+ 
+ /** Pure: the next model and the commands to perform. */
+@@ -72,10 +97,14 @@ fun update(config: Config, model: Model, msg: Msg): Pair<Model, List<Cmd>> = whe
+         ?.let { charged(config, model, it, msg.outcome) } ?: (model to emptyList())
+     is Msg.StatusChecked -> model.orders[msg.orderId]?.takeIf { it.stage == OrderModel.Stage.Reconciling }
+         ?.let { checked(config, model, it, msg.status) } ?: (model to emptyList())
++    is Msg.AwardSent -> model.orders[msg.orderId]?.takeIf { it.award == OrderModel.Award.Awarding }
++        ?.let { awardSent(config, model, it, msg.outcome) } ?: (model to emptyList())
++    is Msg.AwardChecked -> model.orders[msg.orderId]?.takeIf { it.award == OrderModel.Award.Reconciling }
++        ?.let { awardChecked(config, model, it, msg.status) } ?: (model to emptyList())
+ }
+ 
+ private fun charged(config: Config, model: Model, order: OrderModel, outcome: ChargeOutcome): Pair<Model, List<Cmd>> = when (outcome) {
+-    is ChargeOutcome.Charged -> model.put(order.copy(stage = OrderModel.Stage.Completed, reference = outcome.reference)) to emptyList()
++    is ChargeOutcome.Charged -> award(config, model, order.copy(stage = OrderModel.Stage.Completed, reference = outcome.reference))
+     ChargeOutcome.Declined -> model.fail(order) to emptyList()
+     ChargeOutcome.NotSent ->
+         if (order.sends < config.maxSends) model.put(order.copy(sends = order.sends + 1)) to listOf(Cmd.Charge(order.order.id, order.order.amount))
+@@ -85,7 +114,7 @@ private fun charged(config: Config, model: Model, order: OrderModel, outcome: Ch
+ }
+ 
+ private fun checked(config: Config, model: Model, order: OrderModel, status: StatusOutcome): Pair<Model, List<Cmd>> = when (status) {
+-    is StatusOutcome.Charged -> model.put(order.copy(stage = OrderModel.Stage.Completed, reference = status.reference)) to emptyList()
++    is StatusOutcome.Charged -> award(config, model, order.copy(stage = OrderModel.Stage.Completed, reference = status.reference))
+     StatusOutcome.NoCharge -> model.fail(order) to emptyList()
+     StatusOutcome.Unavailable ->
+         if (order.queries + 1 < config.maxQueries) {
+@@ -95,6 +124,32 @@ private fun checked(config: Config, model: Model, order: OrderModel, status: Sta
+         }
+ }
+ 
++/** Sends the award, or sends it again after evidence that it did not take effect, within the budget. */
++private fun award(config: Config, model: Model, order: OrderModel): Pair<Model, List<Cmd>> =
++    if (order.awardSends < config.maxSends) {
++        model.put(order.copy(award = OrderModel.Award.Awarding, awardSends = order.awardSends + 1)) to listOf(Cmd.Award(order.order.id, config.points))
++    } else {
++        model.put(order.copy(award = OrderModel.Award.NeedsAttention)) to emptyList()
++    }
++
++private fun awardSent(config: Config, model: Model, order: OrderModel, outcome: AwardOutcome): Pair<Model, List<Cmd>> = when (outcome) {
++    AwardOutcome.Awarded -> model.put(order.copy(award = OrderModel.Award.Awarded)) to emptyList()
++    AwardOutcome.NotSent -> award(config, model, order)
++    AwardOutcome.Unknown ->
++        model.put(order.copy(award = OrderModel.Award.Reconciling, awardQueries = 0)) to listOf(Cmd.CheckAward(order.order.id, config.horizonMillis))
++}
++
++private fun awardChecked(config: Config, model: Model, order: OrderModel, status: AwardCheck): Pair<Model, List<Cmd>> = when (status) {
++    AwardCheck.Awarded -> model.put(order.copy(award = OrderModel.Award.Awarded)) to emptyList()
++    AwardCheck.NotAwarded -> award(config, model, order)
++    AwardCheck.Unavailable ->
++        if (order.awardQueries + 1 < config.maxQueries) {
++            model.put(order.copy(awardQueries = order.awardQueries + 1)) to listOf(Cmd.CheckAward(order.order.id, config.horizonMillis))
++        } else {
++            model.put(order.copy(award = OrderModel.Award.NeedsAttention)) to emptyList()
++        }
++}
++
+ private fun Model.put(order: OrderModel) = copy(orders = orders + (order.order.id to order))
+ 
+ private fun Model.fail(order: OrderModel) = copy(stock = stock + order.order.quantity).put(order.copy(stage = OrderModel.Stage.Failed))

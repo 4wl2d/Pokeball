@@ -48,14 +48,20 @@ class Process(private val scheduler: SimScheduler) : CoroutineDispatcher(), Dela
 
 /**
  * A checkout system built in one architectural style. The runner boots it,
- * sends each order once, may crash and reboot it, and finally reads its
- * durable records to compare them with the provider's ground truth.
+ * sends each order, may crash and reboot it, and finally reads its durable
+ * records to compare them with the provider's ground truth. The client is
+ * at least once: after a restart it sends again every order that the system
+ * has not durably accepted, and never an order that it has.
  */
 interface CheckoutSystem {
     /** Starts an incarnation on [world]. Recovery after a crash happens here. */
     fun boot(world: World)
 
-    /** The client's checkout request, sent once. Must durably record acceptance before any effect. */
+    /**
+     * The client's checkout request: sent at time 0, and again right after a
+     * restart while [accepted] is false for it. Must durably record acceptance
+     * before any effect.
+     */
     fun start(order: Order)
 
     /** Abrupt stop. */
@@ -69,4 +75,18 @@ interface CheckoutSystem {
 
     /** Units of stock currently reserved, per order, according to the durable records. */
     fun reserved(): Map<String, Int>
+}
+
+/** Change request CR1 (benchmark/changes): the customer may cancel an order. Repeated cancellations count as one. */
+interface OrderCancellation {
+    fun cancel(orderId: String)
+}
+
+/** The state of an order's loyalty award, as recorded by the system (change request CR2). */
+enum class Points { Awarded, Failed, NeedsAttention }
+
+/** Change request CR2 (benchmark/changes): completed orders earn loyalty points. */
+interface LoyaltyPoints {
+    /** The recorded state of [orderId]'s award, or null while it has none. */
+    fun points(orderId: String): Points?
 }

@@ -6,8 +6,12 @@ import kotlin.random.Random
 /** One unit of the checkout scenario (the same for every architecture). */
 data class Order(val id: String, val sku: String, val quantity: Int, val amount: Long)
 
-/** How a checkout ends, as recorded by the system under test. */
-enum class Terminal { Completed, Failed, NeedsAttention }
+/**
+ * How a checkout ends, as recorded by the system under test. [Refunded]
+ * exists only for change request CR1 (benchmark/changes): a completed order
+ * that the customer cancelled in time, refunded and returned to stock.
+ */
+enum class Terminal { Completed, Failed, NeedsAttention, Refunded }
 
 /** The functional scenario every implementation is given. See benchmark/README.md. */
 object Scenario {
@@ -15,7 +19,12 @@ object Scenario {
     const val STOCK = 2
     val orders = listOf(Order("o1", SKU, 1, 100), Order("o2", SKU, 1, 100), Order("o3", SKU, 1, 100))
 
-    /** Time after which a charge request that got no answer can no longer reach the provider. */
+    /**
+     * The provider's declared delivery horizon: the time after which a request
+     * that got no answer can no longer take effect. Under Stress and Mild every
+     * request takes effect within 20 ms or never, so it holds; under
+     * [FaultProfile.BeyondHorizon] some requests take effect after it.
+     */
     const val PROVIDER_HORIZON_MILLIS = 1_000L
 
     /** Virtual time after which the run stops and is judged. */
@@ -25,13 +34,41 @@ object Scenario {
     const val RESTART_MILLIS = 50L
 }
 
-/** Distribution of the fates of provider calls. */
-enum class FaultProfile(val reply: Int) {
-    /** Every fate equally likely: an adversarial network. */
+/** The constants that the change requests in benchmark/changes add to the scenario. */
+object Changes {
+    /** CR1: a customer may cancel an order within this time of the system accepting it. */
+    const val CANCEL_WINDOW_MILLIS = 30_000L
+
+    /** CR2: the loyalty points a completed order earns. */
+    const val POINTS = 10
+}
+
+/**
+ * Distribution of the fates of provider calls: [reply] is the weight of an
+ * answer in time, [beyondHorizon] the weight of [Fate.ArriveAfterHorizon], and
+ * every other fault has weight 1.
+ */
+enum class FaultProfile(val reply: Int, val beyondHorizon: Int = 0) {
+    /** Every fate that respects the delivery horizon equally likely: an adversarial network. */
     Stress(reply = 1),
 
-    /** 9 in 10 calls answered in time; the rest spread over the faults. */
+    /** 9 in 10 calls answered in time; the rest spread over the faults that respect the delivery horizon. */
     Mild(reply = 45),
+
+    /**
+     * Mild, plus requests that take effect 5 s after they were sent, after the
+     * declared delivery horizon, weighted like each other fault (45:1:1:1:1:1:1,
+     * so about 2% of requests). It tests what happens when the horizon a design
+     * relies on is wrong.
+     */
+    BeyondHorizon(reply = 45, beyondHorizon = 1),
+    ;
+
+    fun weight(fate: Fate): Int = when (fate) {
+        Fate.Reply -> reply
+        Fate.ArriveAfterHorizon -> beyondHorizon
+        else -> 1
+    }
 }
 
 /**
@@ -39,12 +76,19 @@ enum class FaultProfile(val reply: Int) {
  * a durable database, the external payment provider and its ground truth,
  * and the source of fault decisions. Nothing in it is lost by a crash; a
  * system under test keeps everything else in memory that a crash discards.
+ * [idempotencyKeys] selects scenario B, in which the provider honours
+ * idempotency keys; it draws no random numbers, so both scenarios see the
+ * same fates for the same sequence of requests.
  */
-class World(seed: Long, val profile: FaultProfile) {
+class World(seed: Long, val profile: FaultProfile, val idempotencyKeys: Boolean = false) {
     val scheduler = SimScheduler(start = 0)
     val random = Random(seed)
     val db = SimDb()
     val provider = Provider(this)
+
+    /** Change requests only (benchmark/changes): CR3's secondary payment provider and CR2's loyalty service. */
+    val secondaryProvider = Provider(this, prefix = "ch2")
+    val loyalty = LoyaltyService(this)
 
     /** Incremented at every crash. */
     var incarnation: Int = 0

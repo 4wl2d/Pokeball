@@ -1,0 +1,119 @@
+diff --git a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt
+index 491fd6a..fe676d6 100644
+--- a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt
++++ b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/app/CarefulActorsSystem.kt
+@@ -26,11 +26,12 @@ class CarefulActorsSystem : CheckoutSystem {
+     private lateinit var system: ActorSystem
+     private lateinit var inventory: ActorRef<InventoryCommand>
+     private lateinit var payments: ActorRef<PaymentCommand>
++    private lateinit var secondaryPayments: ActorRef<PaymentCommand>
+ 
+     private fun store(orderId: String) = DurableState<CheckoutState>(world.db, "actor/checkout/$orderId")
+ 
+     private fun spawnCheckout(state: CheckoutState) =
+-        system.checkout(store(state.order.id), state, inventory, payments, Scenario.PROVIDER_HORIZON_MILLIS).tell(CheckoutCommand.Drive)
++        system.checkout(store(state.order.id), state, inventory, payments, secondaryPayments, Scenario.PROVIDER_HORIZON_MILLIS).tell(CheckoutCommand.Drive)
+ 
+     override fun boot(world: World) {
+         this.world = world
+@@ -39,6 +40,7 @@ class CarefulActorsSystem : CheckoutSystem {
+             system = ActorSystem(process.scope)
+             inventory = system.inventory(DurableState(world.db, "actor/inventory"), InventoryState(Scenario.STOCK))
+             payments = system.payments(ProviderClient(world.provider))
++            secondaryPayments = system.payments(ProviderClient(world.secondaryProvider))
+             for (key in world.db.keys("actor/checkout/")) spawnCheckout(world.db.get(key) as CheckoutState)
+         }
+     }
+diff --git a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt
+index 2c3361d..9b6cea0 100644
+--- a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt
++++ b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/behavior/Behaviors.kt
+@@ -76,13 +76,15 @@ fun ActorSystem.payments(client: ProviderClient): ActorRef<PaymentCommand> = spa
+  * provider's delivery horizon and the actor asks the provider's status
+  * endpoint. After a restart, a checkout that may have been charged is
+  * reconciled the same way, never charged again: side effects are not re-run on
+- * recovery, as with Akka's durable state.
++ * recovery, as with Akka's durable state. When the primary provider provably
++ * did not charge, the secondary is tried with the same policy.
+  */
+ fun ActorSystem.checkout(
+     store: DurableState<CheckoutState>,
+     initial: CheckoutState,
+     inventory: ActorRef<InventoryCommand>,
+     payments: ActorRef<PaymentCommand>,
++    secondaryPayments: ActorRef<PaymentCommand>,
+     horizonMillis: Long,
+     askTimeoutMillis: Long = 1_000,
+     maxSends: Int = 3,
+@@ -93,6 +95,8 @@ fun ActorSystem.checkout(
+         fun persist(next: CheckoutState) {
+             state = store.persist(next)
+         }
++        fun provider() = if (state.onSecondary) secondaryPayments else payments
++
+         fun ActorContext<CheckoutCommand>.reserve() = ask(inventory, askTimeoutMillis, { reply: CompletableDeferred<Boolean> ->
+             InventoryCommand.Reserve(state.order.id, state.order.sku, state.order.quantity, reply)
+         }) { CheckoutCommand.Reserved(it) }
+@@ -100,7 +104,7 @@ fun ActorSystem.checkout(
+         // Persisted before the request, so that a restart knows the charge may have been sent.
+         fun ActorContext<CheckoutCommand>.charge(sends: Int) {
+             persist(state.copy(stage = Stage.Charging, sends = sends))
+-            ask(payments, askTimeoutMillis, { reply: CompletableDeferred<ChargeReply> ->
++            ask(provider(), askTimeoutMillis, { reply: CompletableDeferred<ChargeReply> ->
+                 PaymentCommand.Charge(state.order.id, state.order.amount, reply)
+             }) { CheckoutCommand.Charged(it.getOrDefault(ChargeReply.Unknown)) }
+         }
+@@ -117,6 +121,13 @@ fun ActorSystem.checkout(
+             }) { CheckoutCommand.Released(it.isSuccess) }
+         }
+ 
++        // The provider in use provably did not charge: try the secondary, or release if it was the secondary.
++        fun ActorContext<CheckoutCommand>.notCharged(reason: String) {
++            if (state.onSecondary) return release(reason)
++            persist(state.copy(onSecondary = true))
++            charge(1)
++        }
++
+         when (command) {
+             CheckoutCommand.Drive -> when (state.stage) {
+                 Stage.Reserving -> reserve()
+@@ -136,19 +147,19 @@ fun ActorSystem.checkout(
+                 when (val reply = command.reply) {
+                     is ChargeReply.Charged -> persist(state.copy(stage = Stage.Completed))
+                     ChargeReply.Declined -> release("declined")
+-                    ChargeReply.NotSent -> if (state.sends < maxSends) charge(state.sends + 1) else release("payment provider unreachable")
++                    ChargeReply.NotSent -> if (state.sends < maxSends) charge(state.sends + 1) else notCharged("payment provider unreachable")
+                     ChargeReply.Unknown -> reconcile(0)
+                 }
+             }
+             CheckoutCommand.CheckStatus -> if (state.stage == Stage.Reconciling) {
+-                ask(payments, askTimeoutMillis, { reply: CompletableDeferred<ChargeStatus> ->
++                ask(provider(), askTimeoutMillis, { reply: CompletableDeferred<ChargeStatus> ->
+                     PaymentCommand.QueryStatus(state.order.id, reply)
+                 }) { CheckoutCommand.StatusChecked(it.getOrNull()) }
+             }
+             is CheckoutCommand.StatusChecked -> if (state.stage == Stage.Reconciling) {
+                 when (command.status) {
+                     is ChargeStatus.Charged -> persist(state.copy(stage = Stage.Completed))
+-                    ChargeStatus.NoCharge -> release("not charged")
++                    ChargeStatus.NoCharge -> notCharged("not charged")
+                     null -> if (state.queries + 1 < maxQueries) reconcile(state.queries + 1) else persist(state.copy(stage = Stage.NeedsAttention))
+                 }
+             }
+diff --git a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt
+index 9a68c64..b54a8b3 100644
+--- a/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt
++++ b/benchmark/actors-careful/src/main/kotlin/bench/careful/actors/protocol/Protocol.kt
+@@ -44,9 +44,10 @@ sealed interface CheckoutCommand {
+ 
+ /**
+  * The durable state of one checkout actor. [Stage.Charging] is persisted before
+- * every charge request, so after a restart it means "possibly charged".
++ * every charge request, so after a restart it means "possibly charged";
++ * [onSecondary] says which provider it may have been charged at.
+  */
+-data class CheckoutState(val order: Order, val stage: Stage, val sends: Int = 0, val queries: Int = 0, val reason: String? = null) {
++data class CheckoutState(val order: Order, val stage: Stage, val sends: Int = 0, val queries: Int = 0, val reason: String? = null, val onSecondary: Boolean = false) {
+     enum class Stage { Reserving, Charging, Reconciling, Releasing, Completed, Failed, NeedsAttention }
+ }
+ 

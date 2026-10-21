@@ -3,13 +3,14 @@ package bench.actors.kit
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
 /**
  * A minimal typed-actor toolkit standing in for a library such as Akka Typed:
- * mailboxes, one message at a time per actor, `ask` with a timeout, and
- * `pipeToSelf` for asynchronous results.
+ * mailboxes, one message at a time per actor, `ask` with a timeout,
+ * `pipeToSelf` for asynchronous results, and single timers.
  */
 class ActorRef<M> internal constructor(private val mailbox: Channel<M>) {
     fun tell(message: M) {
@@ -26,6 +27,14 @@ class ActorContext<M> internal constructor(val self: ActorRef<M>, private val sc
     /** Runs [block] outside the actor and delivers its result, or its failure, to the actor as a message. */
     fun <T> pipeToSelf(block: suspend () -> T, map: (Result<T>) -> M) {
         scope.launch { self.tell(map(runCatching { block() })) }
+    }
+
+    /** Sends [message] to this actor after [delayMillis], like a single timer of Akka's `TimerScheduler`. */
+    fun scheduleOnce(delayMillis: Long, message: M) {
+        scope.launch {
+            delay(delayMillis)
+            self.tell(message)
+        }
     }
 
     /** Asks [target] with a reply promise; the reply, or a timeout, comes back as a message. */

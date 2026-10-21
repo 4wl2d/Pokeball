@@ -1,0 +1,178 @@
+diff --git a/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt b/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt
+index 2f6d7d6..fad0fae 100644
+--- a/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt
++++ b/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt
+@@ -3,6 +3,7 @@ package bench.actors.app
+ import bench.actors.behavior.DurableState
+ import bench.actors.behavior.checkout
+ import bench.actors.behavior.inventory
++import bench.actors.behavior.loyalty
+ import bench.actors.behavior.payments
+ import bench.actors.kit.ActorRef
+ import bench.actors.kit.ActorSystem
+@@ -10,9 +11,14 @@ import bench.actors.protocol.CheckoutCommand
+ import bench.actors.protocol.CheckoutState
+ import bench.actors.protocol.InventoryCommand
+ import bench.actors.protocol.InventoryState
++import bench.actors.protocol.LoyaltyCommand
+ import bench.actors.protocol.PaymentCommand
++import bench.env.Changes
+ import bench.env.CheckoutSystem
++import bench.env.LoyaltyClient
++import bench.env.LoyaltyPoints
+ import bench.env.Order
++import bench.env.Points
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -20,12 +26,13 @@ import bench.env.Terminal
+ import bench.env.World
+ 
+ /** Guardian: spawns the inventory, payment and checkout actors, and recovers checkouts after a restart. */
+-class ActorsSystem : CheckoutSystem {
++class ActorsSystem : CheckoutSystem, LoyaltyPoints {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var system: ActorSystem
+     private lateinit var inventory: ActorRef<InventoryCommand>
+     private lateinit var payments: ActorRef<PaymentCommand>
++    private lateinit var loyalty: ActorRef<LoyaltyCommand>
+ 
+     private fun store(orderId: String) = DurableState<CheckoutState>(world.db, "actor/checkout/$orderId")
+ 
+@@ -36,9 +43,10 @@ class ActorsSystem : CheckoutSystem {
+             system = ActorSystem(process.scope)
+             inventory = system.inventory(DurableState(world.db, "actor/inventory"), InventoryState(Scenario.STOCK))
+             payments = system.payments(ProviderClient(world.provider))
++            loyalty = system.loyalty(LoyaltyClient(world.loyalty))
+             for (key in world.db.keys("actor/checkout/")) {
+                 val state = world.db.get(key) as CheckoutState
+-                system.checkout(store(state.order.id), state, inventory, payments).tell(CheckoutCommand.Drive)
++                system.checkout(store(state.order.id), state, inventory, payments, loyalty, Changes.POINTS).tell(CheckoutCommand.Drive)
+             }
+         }
+     }
+@@ -46,7 +54,7 @@ class ActorsSystem : CheckoutSystem {
+     override fun start(order: Order) {
+         process.execute {
+             if (store(order.id).load() == null) {
+-                system.checkout(store(order.id), CheckoutState(order, CheckoutState.Stage.Reserving), inventory, payments)
++                system.checkout(store(order.id), CheckoutState(order, CheckoutState.Stage.Reserving), inventory, payments, loyalty, Changes.POINTS)
+                     .tell(CheckoutCommand.Drive)
+             }
+         }
+@@ -62,5 +70,11 @@ class ActorsSystem : CheckoutSystem {
+         else -> null
+     }
+ 
++    override fun points(orderId: String): Points? = when (store(orderId).load()?.award) {
++        CheckoutState.Award.Awarded -> Points.Awarded
++        CheckoutState.Award.Failed -> Points.Failed
++        else -> null
++    }
++
+     override fun reserved(): Map<String, Int> = (world.db.get("actor/inventory") as InventoryState?)?.reservations.orEmpty()
+ }
+diff --git a/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt b/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt
+index e1f63f7..6634441 100644
+--- a/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt
++++ b/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt
+@@ -8,8 +8,10 @@ import bench.actors.protocol.CheckoutCommand
+ import bench.actors.protocol.CheckoutState
+ import bench.actors.protocol.InventoryCommand
+ import bench.actors.protocol.InventoryState
++import bench.actors.protocol.LoyaltyCommand
+ import bench.actors.protocol.PaymentCommand
+ import bench.env.ChargeResult
++import bench.env.LoyaltyClient
+ import bench.env.ProviderClient
+ import bench.env.SimDb
+ import kotlinx.coroutines.CompletableDeferred
+@@ -51,12 +53,24 @@ fun ActorSystem.payments(client: ProviderClient): ActorRef<PaymentCommand> = spa
+     }
+ }
+ 
++/** Calls the loyalty service for each award; the asker's timeout bounds the wait. */
++fun ActorSystem.loyalty(client: LoyaltyClient): ActorRef<LoyaltyCommand> = spawn { command ->
++    when (command) {
++        is LoyaltyCommand.Award -> run {
++            runCatching { client.award(command.orderId, command.points) }
++                .fold({ command.replyTo.complete(it) }, { command.replyTo.completeExceptionally(it) })
++        }
++    }
++}
++
+ /** One actor per checkout. On recovery it is re-created from its durable state and re-driven. */
+ fun ActorSystem.checkout(
+     store: DurableState<CheckoutState>,
+     initial: CheckoutState,
+     inventory: ActorRef<InventoryCommand>,
+     payments: ActorRef<PaymentCommand>,
++    loyalty: ActorRef<LoyaltyCommand>,
++    points: Int,
+     askTimeoutMillis: Long = 1_000,
+ ): ActorRef<CheckoutCommand> {
+     var state = store.load() ?: store.persist(initial)
+@@ -68,7 +82,14 @@ fun ActorSystem.checkout(
+             Stage.Paying -> ask(payments, askTimeoutMillis, { reply: CompletableDeferred<ChargeResult> ->
+                 PaymentCommand.Charge(state.order.id, state.order.amount, reply)
+             }) { CheckoutCommand.Charged(it) }
+-            Stage.Completed, Stage.Failed -> Unit
++            Stage.Completed -> if (state.award == CheckoutState.Award.Awarding) {
++                ask(loyalty, askTimeoutMillis, { reply: CompletableDeferred<String> ->
++                    LoyaltyCommand.Award(state.order.id, points, reply)
++                }) { CheckoutCommand.Awarded(it) }
++            } else {
++                Unit
++            }
++            Stage.Failed -> Unit
+         }
+         when (command) {
+             CheckoutCommand.Drive -> drive()
+@@ -85,11 +106,16 @@ fun ActorSystem.checkout(
+             is CheckoutCommand.Charged -> if (state.stage == Stage.Paying) {
+                 val charged = command.result.getOrNull()
+                 state = if (charged is ChargeResult.Charged) {
+-                    store.persist(state.copy(stage = Stage.Completed))
++                    store.persist(state.copy(stage = Stage.Completed, award = CheckoutState.Award.Awarding))
+                 } else {
+                     inventory.tell(InventoryCommand.Release(state.order.id))
+                     store.persist(state.copy(stage = Stage.Failed, reason = "payment failed"))
+                 }
++                drive()
++            }
++            is CheckoutCommand.Awarded -> if (state.award == CheckoutState.Award.Awarding) {
++                val award = if (command.result.isSuccess) CheckoutState.Award.Awarded else CheckoutState.Award.Failed
++                state = store.persist(state.copy(award = award))
+             }
+         }
+     }
+diff --git a/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt b/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt
+index 3b31ab5..c825b2f 100644
+--- a/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt
++++ b/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt
+@@ -13,16 +13,22 @@ sealed interface PaymentCommand {
+     data class Charge(val orderId: String, val amount: Long, val replyTo: CompletableDeferred<ChargeResult>) : PaymentCommand
+ }
+ 
++sealed interface LoyaltyCommand {
++    data class Award(val orderId: String, val points: Int, val replyTo: CompletableDeferred<String>) : LoyaltyCommand
++}
++
+ sealed interface CheckoutCommand {
+     /** Starts or, after recovery, re-drives the current stage. */
+     data object Drive : CheckoutCommand
+     data class Reserved(val result: Result<Boolean>) : CheckoutCommand
+     data class Charged(val result: Result<ChargeResult>) : CheckoutCommand
++    data class Awarded(val result: Result<String>) : CheckoutCommand
+ }
+ 
+-/** The durable state of one checkout actor. */
+-data class CheckoutState(val order: Order, val stage: Stage, val reason: String? = null) {
++/** The durable state of one checkout actor; a completed checkout then awards loyalty points. */
++data class CheckoutState(val order: Order, val stage: Stage, val reason: String? = null, val award: Award? = null) {
+     enum class Stage { Reserving, Paying, Completed, Failed }
++    enum class Award { Awarding, Awarded, Failed }
+ }
+ 
+ /** The durable state of the inventory actor. */

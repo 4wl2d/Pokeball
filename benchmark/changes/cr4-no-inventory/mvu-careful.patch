@@ -1,0 +1,62 @@
+diff --git a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
+index 7fe8ba3..f9a855c 100644
+--- a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
++++ b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/app/CarefulMvuSystem.kt
+@@ -41,7 +41,7 @@ class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem
+         process.execute {
+             program = Program(
+                 scope = process.scope,
+-                init = init(config, saved, Scenario.STOCK),
++                init = init(config, saved),
+                 update = { model, msg -> update(config, model, msg) },
+                 persist = { model -> world.db.transaction { it.put("mvu/model", model) } },
+                 perform = { cmd ->
+@@ -94,6 +94,5 @@ class CarefulMvuSystem(private val timeoutMillis: Long = 1_000) : CheckoutSystem
+         else -> null
+     }
+ 
+-    override fun reserved(): Map<String, Int> =
+-        saved?.orders?.values.orEmpty().filter { it.stage != OrderModel.Stage.Failed }.associate { it.order.id to it.order.quantity }
++    override fun reserved(): Map<String, Int> = emptyMap()
+ }
+diff --git a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
+index 47070c3..d18a602 100644
+--- a/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
++++ b/benchmark/mvu-careful/src/main/kotlin/bench/careful/mvu/core/Checkout.kt
+@@ -3,7 +3,7 @@ package bench.careful.mvu.core
+ import bench.env.Order
+ 
+ /** The whole application state, one store (as in Redux). */
+-data class Model(val stock: Int, val orders: Map<String, OrderModel> = emptyMap())
++data class Model(val orders: Map<String, OrderModel> = emptyMap())
+ 
+ /**
+  * [Stage.Paying] is persisted before its charge command runs, so after a
+@@ -53,8 +53,8 @@ data class Config(val horizonMillis: Long, val maxSends: Int = 3, val maxQueries
+  * charged before the restart, so its charge is not issued again: its status is
+  * checked once the delivery horizon has passed.
+  */
+-fun init(config: Config, saved: Model?, stock: Int): Pair<Model, List<Cmd>> {
+-    val model = saved ?: Model(stock)
++fun init(config: Config, saved: Model?): Pair<Model, List<Cmd>> {
++    val model = saved ?: Model()
+     val open = model.orders.values.filter { it.stage == OrderModel.Stage.Paying || it.stage == OrderModel.Stage.Reconciling }
+     val reconciling = open.fold(model) { m, o -> m.put(if (o.stage == OrderModel.Stage.Paying) o.copy(stage = OrderModel.Stage.Reconciling, queries = 0) else o) }
+     return reconciling to open.map { Cmd.CheckStatus(it.order.id, config.horizonMillis) }
+@@ -64,9 +64,7 @@ fun init(config: Config, saved: Model?, stock: Int): Pair<Model, List<Cmd>> {
+ fun update(config: Config, model: Model, msg: Msg): Pair<Model, List<Cmd>> = when (msg) {
+     is Msg.Place -> when {
+         msg.order.id in model.orders -> model to emptyList()
+-        model.stock < msg.order.quantity -> model.put(OrderModel(msg.order, OrderModel.Stage.Failed)) to emptyList()
+-        else -> model.copy(stock = model.stock - msg.order.quantity).put(OrderModel(msg.order, OrderModel.Stage.Paying, sends = 1)) to
+-            listOf(Cmd.Charge(msg.order.id, msg.order.amount))
++        else -> model.put(OrderModel(msg.order, OrderModel.Stage.Paying, sends = 1)) to listOf(Cmd.Charge(msg.order.id, msg.order.amount))
+     }
+     is Msg.ChargeCompleted -> model.orders[msg.orderId]?.takeIf { it.stage == OrderModel.Stage.Paying }
+         ?.let { charged(config, model, it, msg.outcome) } ?: (model to emptyList())
+@@ -97,4 +95,4 @@ private fun checked(config: Config, model: Model, order: OrderModel, status: Sta
+ 
+ private fun Model.put(order: OrderModel) = copy(orders = orders + (order.order.id to order))
+ 
+-private fun Model.fail(order: OrderModel) = copy(stock = stock + order.order.quantity).put(order.copy(stage = OrderModel.Stage.Failed))
++private fun Model.fail(order: OrderModel) = put(order.copy(stage = OrderModel.Stage.Failed))

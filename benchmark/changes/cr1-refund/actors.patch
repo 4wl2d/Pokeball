@@ -1,0 +1,181 @@
+diff --git a/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt b/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt
+index 2f6d7d6..7a44846 100644
+--- a/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt
++++ b/benchmark/actors/src/main/kotlin/bench/actors/app/ActorsSystem.kt
+@@ -11,8 +11,10 @@ import bench.actors.protocol.CheckoutState
+ import bench.actors.protocol.InventoryCommand
+ import bench.actors.protocol.InventoryState
+ import bench.actors.protocol.PaymentCommand
++import bench.env.Changes
+ import bench.env.CheckoutSystem
+ import bench.env.Order
++import bench.env.OrderCancellation
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -20,38 +22,42 @@ import bench.env.Terminal
+ import bench.env.World
+ 
+ /** Guardian: spawns the inventory, payment and checkout actors, and recovers checkouts after a restart. */
+-class ActorsSystem : CheckoutSystem {
++class ActorsSystem : CheckoutSystem, OrderCancellation {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var system: ActorSystem
+     private lateinit var inventory: ActorRef<InventoryCommand>
+     private lateinit var payments: ActorRef<PaymentCommand>
++    private val checkouts = HashMap<String, ActorRef<CheckoutCommand>>()
+ 
+     private fun store(orderId: String) = DurableState<CheckoutState>(world.db, "actor/checkout/$orderId")
+ 
++    private fun spawnCheckout(state: CheckoutState) {
++        val checkout = system.checkout(store(state.order.id), state, inventory, payments, Changes.CANCEL_WINDOW_MILLIS)
++        checkouts[state.order.id] = checkout
++        checkout.tell(CheckoutCommand.Drive)
++    }
++
+     override fun boot(world: World) {
+         this.world = world
+         process = Process(world.scheduler)
+         process.execute {
++            checkouts.clear()
+             system = ActorSystem(process.scope)
+             inventory = system.inventory(DurableState(world.db, "actor/inventory"), InventoryState(Scenario.STOCK))
+             payments = system.payments(ProviderClient(world.provider))
+-            for (key in world.db.keys("actor/checkout/")) {
+-                val state = world.db.get(key) as CheckoutState
+-                system.checkout(store(state.order.id), state, inventory, payments).tell(CheckoutCommand.Drive)
+-            }
++            for (key in world.db.keys("actor/checkout/")) spawnCheckout(world.db.get(key) as CheckoutState)
+         }
+     }
+ 
+     override fun start(order: Order) {
+         process.execute {
+-            if (store(order.id).load() == null) {
+-                system.checkout(store(order.id), CheckoutState(order, CheckoutState.Stage.Reserving), inventory, payments)
+-                    .tell(CheckoutCommand.Drive)
+-            }
++            if (store(order.id).load() == null) spawnCheckout(CheckoutState(order, CheckoutState.Stage.Reserving, placedAt = world.scheduler.now()))
+         }
+     }
+ 
++    override fun cancel(orderId: String) = process.execute { checkouts[orderId]?.tell(CheckoutCommand.Cancel(world.scheduler.now())) }
++
+     override fun crash() = process.kill()
+ 
+     override fun accepted(orderId: String) = store(orderId).load() != null
+@@ -59,6 +65,7 @@ class ActorsSystem : CheckoutSystem {
+     override fun outcome(orderId: String): Terminal? = when (store(orderId).load()?.stage) {
+         CheckoutState.Stage.Completed -> Terminal.Completed
+         CheckoutState.Stage.Failed -> Terminal.Failed
++        CheckoutState.Stage.Refunded -> Terminal.Refunded
+         else -> null
+     }
+ 
+diff --git a/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt b/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt
+index e1f63f7..c2ddc34 100644
+--- a/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt
++++ b/benchmark/actors/src/main/kotlin/bench/actors/behavior/Behaviors.kt
+@@ -11,6 +11,7 @@ import bench.actors.protocol.InventoryState
+ import bench.actors.protocol.PaymentCommand
+ import bench.env.ChargeResult
+ import bench.env.ProviderClient
++import bench.env.RefundResult
+ import bench.env.SimDb
+ import kotlinx.coroutines.CompletableDeferred
+ 
+@@ -48,15 +49,23 @@ fun ActorSystem.payments(client: ProviderClient): ActorRef<PaymentCommand> = spa
+             runCatching { client.charge(command.orderId, command.amount) }
+                 .fold({ command.replyTo.complete(it) }, { command.replyTo.completeExceptionally(it) })
+         }
++        is PaymentCommand.Refund -> run {
++            runCatching { client.refund(command.orderId, command.amount) }
++                .fold({ command.replyTo.complete(it) }, { command.replyTo.completeExceptionally(it) })
++        }
+     }
+ }
+ 
+-/** One actor per checkout. On recovery it is re-created from its durable state and re-driven. */
++/**
++ * One actor per checkout. On recovery it is re-created from its durable state and re-driven.
++ * A completed checkout cancelled within the window is refunded and its stock released.
++ */
+ fun ActorSystem.checkout(
+     store: DurableState<CheckoutState>,
+     initial: CheckoutState,
+     inventory: ActorRef<InventoryCommand>,
+     payments: ActorRef<PaymentCommand>,
++    cancelWindowMillis: Long,
+     askTimeoutMillis: Long = 1_000,
+ ): ActorRef<CheckoutCommand> {
+     var state = store.load() ?: store.persist(initial)
+@@ -68,7 +77,10 @@ fun ActorSystem.checkout(
+             Stage.Paying -> ask(payments, askTimeoutMillis, { reply: CompletableDeferred<ChargeResult> ->
+                 PaymentCommand.Charge(state.order.id, state.order.amount, reply)
+             }) { CheckoutCommand.Charged(it) }
+-            Stage.Completed, Stage.Failed -> Unit
++            Stage.Refunding -> ask(payments, askTimeoutMillis, { reply: CompletableDeferred<RefundResult> ->
++                PaymentCommand.Refund(state.order.id, state.order.amount, reply)
++            }) { CheckoutCommand.Refunded(it) }
++            Stage.Completed, Stage.Failed, Stage.Refunded -> Unit
+         }
+         when (command) {
+             CheckoutCommand.Drive -> drive()
+@@ -91,6 +103,18 @@ fun ActorSystem.checkout(
+                     store.persist(state.copy(stage = Stage.Failed, reason = "payment failed"))
+                 }
+             }
++            is CheckoutCommand.Cancel -> if (state.stage == Stage.Completed && command.at - state.placedAt <= cancelWindowMillis) {
++                state = store.persist(state.copy(stage = Stage.Refunding))
++                drive()
++            }
++            is CheckoutCommand.Refunded -> if (state.stage == Stage.Refunding) {
++                state = if (command.result.isSuccess) {
++                    inventory.tell(InventoryCommand.Release(state.order.id))
++                    store.persist(state.copy(stage = Stage.Refunded))
++                } else {
++                    store.persist(state.copy(stage = Stage.Completed))
++                }
++            }
+         }
+     }
+ }
+diff --git a/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt b/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt
+index 3b31ab5..1995bfc 100644
+--- a/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt
++++ b/benchmark/actors/src/main/kotlin/bench/actors/protocol/Protocol.kt
+@@ -2,6 +2,7 @@ package bench.actors.protocol
+ 
+ import bench.env.ChargeResult
+ import bench.env.Order
++import bench.env.RefundResult
+ import kotlinx.coroutines.CompletableDeferred
+ 
+ sealed interface InventoryCommand {
+@@ -11,6 +12,7 @@ sealed interface InventoryCommand {
+ 
+ sealed interface PaymentCommand {
+     data class Charge(val orderId: String, val amount: Long, val replyTo: CompletableDeferred<ChargeResult>) : PaymentCommand
++    data class Refund(val orderId: String, val amount: Long, val replyTo: CompletableDeferred<RefundResult>) : PaymentCommand
+ }
+ 
+ sealed interface CheckoutCommand {
+@@ -18,11 +20,15 @@ sealed interface CheckoutCommand {
+     data object Drive : CheckoutCommand
+     data class Reserved(val result: Result<Boolean>) : CheckoutCommand
+     data class Charged(val result: Result<ChargeResult>) : CheckoutCommand
++
++    /** The customer cancels; [at] is when the request arrived. */
++    data class Cancel(val at: Long) : CheckoutCommand
++    data class Refunded(val result: Result<RefundResult>) : CheckoutCommand
+ }
+ 
+ /** The durable state of one checkout actor. */
+-data class CheckoutState(val order: Order, val stage: Stage, val reason: String? = null) {
+-    enum class Stage { Reserving, Paying, Completed, Failed }
++data class CheckoutState(val order: Order, val stage: Stage, val reason: String? = null, val placedAt: Long = 0) {
++    enum class Stage { Reserving, Paying, Completed, Failed, Refunding, Refunded }
+ }
+ 
+ /** The durable state of the inventory actor. */

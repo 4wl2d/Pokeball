@@ -1,0 +1,172 @@
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/adapters/LoyaltyServiceGateway.kt b/benchmark/layered/src/main/kotlin/bench/layered/adapters/LoyaltyServiceGateway.kt
+new file mode 100644
+index 0000000..c55c8f9
+--- /dev/null
++++ b/benchmark/layered/src/main/kotlin/bench/layered/adapters/LoyaltyServiceGateway.kt
+@@ -0,0 +1,21 @@
++package bench.layered.adapters
++
++import bench.env.LoyaltyClient
++import bench.layered.application.AwardFailedException
++import bench.layered.application.LoyaltyGateway
++import kotlinx.coroutines.TimeoutCancellationException
++import kotlinx.coroutines.withTimeout
++import java.io.IOException
++
++/** Calls the loyalty service once, with a timeout, and maps every failure to [AwardFailedException]. */
++class LoyaltyServiceGateway(private val client: LoyaltyClient, private val timeoutMillis: Long = 1_000) : LoyaltyGateway {
++    override suspend fun award(orderId: String, points: Int) {
++        try {
++            withTimeout(timeoutMillis) { client.award(orderId, points) }
++        } catch (e: TimeoutCancellationException) {
++            throw AwardFailedException("loyalty service timed out", e)
++        } catch (e: IOException) {
++            throw AwardFailedException("loyalty service unavailable", e)
++        }
++    }
++}
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt b/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
+index cd5774b..640a748 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/app/LayeredSystem.kt
+@@ -1,7 +1,11 @@
+ package bench.layered.app
+ 
++import bench.env.Changes
+ import bench.env.CheckoutSystem
++import bench.env.LoyaltyClient
++import bench.env.LoyaltyPoints
+ import bench.env.Order
++import bench.env.Points
+ import bench.env.Process
+ import bench.env.ProviderClient
+ import bench.env.Scenario
+@@ -9,13 +13,14 @@ import bench.env.Terminal
+ import bench.env.World
+ import bench.layered.adapters.DbInventoryRepository
+ import bench.layered.adapters.DbOrderRepository
++import bench.layered.adapters.LoyaltyServiceGateway
+ import bench.layered.adapters.ProviderPaymentGateway
+ import bench.layered.application.CheckoutInteractor
+ import bench.layered.domain.CheckoutOrder
+ import kotlinx.coroutines.launch
+ 
+ /** Main component: wires the layers and starts a background job that resumes interrupted orders. */
+-class LayeredSystem : CheckoutSystem {
++class LayeredSystem : CheckoutSystem, LoyaltyPoints {
+     private lateinit var world: World
+     private lateinit var process: Process
+     private lateinit var interactor: CheckoutInteractor
+@@ -26,7 +31,8 @@ class LayeredSystem : CheckoutSystem {
+         process = Process(world.scheduler)
+         orders = DbOrderRepository(world.db)
+         val inventory = DbInventoryRepository(world.db, mapOf(Scenario.SKU to Scenario.STOCK))
+-        interactor = CheckoutInteractor(orders, inventory, ProviderPaymentGateway(ProviderClient(world.provider)))
++        val loyalty = LoyaltyServiceGateway(LoyaltyClient(world.loyalty))
++        interactor = CheckoutInteractor(orders, inventory, ProviderPaymentGateway(ProviderClient(world.provider)), loyalty, Changes.POINTS)
+         process.scope.launch { interactor.resumeUnfinished() }
+     }
+ 
+@@ -45,6 +51,12 @@ class LayeredSystem : CheckoutSystem {
+         else -> null
+     }
+ 
++    override fun points(orderId: String): Points? = when (orders.find(orderId)?.award) {
++        CheckoutOrder.Award.AWARDED -> Points.Awarded
++        CheckoutOrder.Award.FAILED -> Points.Failed
++        else -> null
++    }
++
+     override fun reserved(): Map<String, Int> =
+         world.db.keys("reservation/").associate { it.removePrefix("reservation/") to world.db.get(it) as Int }
+ }
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt b/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
+index 1cc34be..eedb235 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/application/CheckoutInteractor.kt
+@@ -13,12 +13,15 @@ interface CheckoutInputPort {
+  * The checkout use case (application business rules). It depends only on its
+  * output ports; the framework and the provider live behind them. Processing
+  * resumes from the persisted status, so the same use case drives new orders
+- * and orders interrupted by a restart.
++ * and orders interrupted by a restart. A completed order then earns its
++ * loyalty points.
+  */
+ class CheckoutInteractor(
+     private val orders: OrderRepository,
+     private val inventory: InventoryRepository,
+     private val payments: PaymentGateway,
++    private val loyalty: LoyaltyGateway,
++    private val points: Int,
+ ) : CheckoutInputPort {
+     override fun place(order: CheckoutOrder) {
+         if (orders.find(order.id) == null) orders.save(order)
+@@ -44,7 +47,16 @@ class CheckoutInteractor(
+             }
+             orders.save(order)
+         }
+-        if (order.status == Status.PAID) orders.save(order.completed())
++        if (order.status == Status.PAID) order = order.completed().also(orders::save)
++        if (order.status == Status.COMPLETED && order.award == CheckoutOrder.Award.PENDING) {
++            order = try {
++                loyalty.award(order.id, points)
++                order.awarded()
++            } catch (e: AwardFailedException) {
++                order.awardFailed()
++            }
++            orders.save(order)
++        }
+     }
+ 
+     /** Resumes every order that a restart interrupted. */
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt b/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt
+index e1b6960..e16d785 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/application/Ports.kt
+@@ -23,3 +23,11 @@ interface PaymentGateway {
+ }
+ 
+ class PaymentFailedException(message: String, cause: Throwable? = null) : Exception(message, cause)
++
++/** Output port: the loyalty service. */
++interface LoyaltyGateway {
++    /** Awards [points] for [orderId]. Throws [AwardFailedException] when the award did not succeed. */
++    suspend fun award(orderId: String, points: Int)
++}
++
++class AwardFailedException(message: String, cause: Throwable? = null) : Exception(message, cause)
+diff --git a/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt b/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
+index 19af1c2..3784538 100644
+--- a/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
++++ b/benchmark/layered/src/main/kotlin/bench/layered/domain/CheckoutOrder.kt
+@@ -1,6 +1,6 @@
+ package bench.layered.domain
+ 
+-/** Enterprise business rules: an order moves through checkout in one direction. */
++/** Enterprise business rules: an order moves through checkout in one direction; a completed order earns loyalty points. */
+ data class CheckoutOrder(
+     val id: String,
+     val sku: String,
+@@ -9,10 +9,12 @@ data class CheckoutOrder(
+     val status: Status = Status.NEW,
+     val paymentReference: String? = null,
+     val failureReason: String? = null,
++    val award: Award = Award.PENDING,
+ ) {
+     enum class Status { NEW, RESERVED, PAID, COMPLETED, FAILED }
++    enum class Award { PENDING, AWARDED, FAILED }
+ 
+-    val isTerminal: Boolean get() = status == Status.COMPLETED || status == Status.FAILED
++    val isTerminal: Boolean get() = status == Status.COMPLETED && award != Award.PENDING || status == Status.FAILED
+ 
+     fun reserved() = copy(status = Status.RESERVED)
+ 
+@@ -21,4 +23,8 @@ data class CheckoutOrder(
+     fun completed() = copy(status = Status.COMPLETED)
+ 
+     fun failed(reason: String) = copy(status = Status.FAILED, failureReason = reason)
++
++    fun awarded() = copy(award = Award.AWARDED)
++
++    fun awardFailed() = copy(award = Award.FAILED)
+ }
