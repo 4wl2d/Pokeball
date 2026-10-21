@@ -7,6 +7,11 @@ Ballarch Architecture material in this repository. `4wl2d` is his designated
 public pseudonym. Both identify the same person. The requested creator
 identification is `Vladislav Tomilov (4wl2d)`.
 
+Ballarch was published as "Pokeball Architecture" up to Core 1.5. The
+material and its copyright are the same; only the name changed. Ballarch is
+not affiliated with or endorsed by Nintendo, and no Nintendo trademark is used
+as a source identifier.
+
 ## Licensed material
 
 Except where a file or passage says otherwise, the original textual and

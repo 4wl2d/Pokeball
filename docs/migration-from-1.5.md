@@ -8,7 +8,7 @@ Ballarch was published under the name Pokeball up to Core 1.5. The [previous pub
 2. **Three inputs, four outputs.** The six Pulse kinds and seven SemanticOutput kinds collapse into Request, Completion and Notice (inputs) and Call, Reply, Publish and Cancel (outputs).
 3. **Outcomes come from the port's effect class.** In 1.5, a law's trigger (for example "may have executed") decided whether `OutcomeUnknown` applied. In Core 2, the runtime chooses `Done`, `NotDone` or `Unknown` from the call's phase and the port's effect class (`Safe`, `Idempotent` or `NonIdempotent`). A Safe port never produces `Unknown`.
 4. **No applicability triggers.** A Ball that makes no calls uses no asynchronous machinery, so there is nothing to declare absent.
-5. **Fewer rules, each with a named check.** Core 2 has 13 rules, R1–R13 (§5 of the specification). Security, read-model and protocol-design material becomes guidance (§8).
+5. **Fewer rules, each with a named check.** Core 2 has 14 rules, R1–R14 (§5 of the specification); R14 (honest composition) is new in 2.0.0-rc.1. Security, read-model and protocol-design material becomes guidance (§8).
 
 ## Vocabulary
 

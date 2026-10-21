@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build, tests, architecture rules
+    name: Kotlin reference, examples, rules, benchmark
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -22,11 +22,40 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build and test (includes architecture rules, adapter conformance, tutorial)
+      - name: Build and test (architecture rules, adapter conformance, tutorial, knowledge algebra, benchmark regression)
         run: ./gradlew build checkModuleBoundaries
+      - name: The benchmark reproduces the published results byte for byte
+        run: |
+          ./gradlew :benchmark:runner:run --args="2000 build/bench"
+          cmp build/bench/results.json ../../benchmark/results/results.json
+
+  firmware:
+    name: Firmware reference (C11)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reference/c
+    steps:
+      - uses: actions/checkout@v4
+      - name: gcc
+        run: make CC=gcc
+      - name: clang
+        run: make clean && make CC=clang
+
+  rtl:
+    name: Hardware reference (SystemVerilog)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reference/rtl
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog, Verilator and Yosys
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends iverilog verilator yosys
+      - run: make
 
   docs:
-    name: Documentation links and snippets
+    name: Documentation links, snippets and benchmark report
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +64,23 @@ jobs:
           python-version: "3.12"
       - run: python3 tools/check_links.py
       - run: python3 tools/check_snippets.py
+      - name: The benchmark report is up to date with its data
+        run: |
+          pip install lizard==1.24.1
+          python3 benchmark/report.py benchmark/results/results.json benchmark/results
+          git diff --exit-code benchmark/results/RESULTS.md
+
+  paper:
+    name: Paper
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: paper
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TeX Live
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended texlive-science lmodern cm-super latexmk
+      - run: make arxiv
 
   alloy:
     name: Alloy model

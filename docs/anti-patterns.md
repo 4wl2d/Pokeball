@@ -21,3 +21,8 @@ Each entry names a mistake, the rule it breaks, and what catches it. "Caught by"
 | **Using a timer completion as "time has come" without checking** | After a restart the timer can fire late; with a custom timer adapter, possibly early. | §2.4 | Review; exploration tests |
 | **Publishing notices to a subscriber that can fail** | Quarantine blocks the notices, and the publisher's outbox fills until it is refused with `Overloaded`. | §10 | `Fault` trace; the outbox bound (R11) |
 | **Claiming exactly-once delivery** | No profile provides it for external effects. | R13, §9.4 | Review |
+| **Reporting a workflow as "failed" after one of its steps ended `Unknown` or took effect** | The customer is told nothing happened while a charge or booking exists. | R14 | Your own exploration test against ground truth; the trip example shows one |
+| **Counting a compensation that does not fence the original request** | A late delivery of the original request can take effect after the "undo". | R14, §4.2 | Review: name the fence or horizon in a comment |
+| **Exposing a composite's partial effect as a plain `NotDone` or `Done`** | The caller one level up loses the fact that something, but not everything, happened. | §7.4 | Review; return `Knowledge` in the reply |
+| **Inferring a latch in RTL next-state logic, or driving one register from two processes** | Hidden or contested state: the clock edge no longer commits one owner's decision. | R1, R2 | Yosys `check -assert` in [`reference/rtl`](../reference/rtl/) |
+| **A global or static variable in a firmware decider** | State that no NVM commit covers; it diverges after power loss. | R1, R2 | `tools/check_purity.sh` in [`reference/c`](../reference/c/) |

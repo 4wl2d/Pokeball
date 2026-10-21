@@ -1,12 +1,25 @@
 cff-version: 1.2.0
 message: >-
-  If you discuss Ballarch Core 2.0, please cite it as below.
-  Text and diagrams are licensed under CC BY 4.0 (see NOTICE.md); the code in
-  reference/kotlin has no software license yet.
-title: "Ballarch Architecture: Core 2.0 specification and reference implementation"
-version: 2.0.0-draft
-date-released: 2026-09-27
+  If you discuss Ballarch, please cite it as below.
+  Text and diagrams are licensed under CC BY 4.0 (see NOTICE.md); the code
+  in this repository has no software license yet.
+title: "Ballarch: an architecture of owners, obligations and honest outcomes (Core 2.0 specification, references and benchmark)"
+abstract: >-
+  Ballarch is an architecture for components that own state and interact
+  with systems that can fail, from hardware blocks and firmware to services
+  and workflows. Each piece of mutable state has one owner that decides in
+  pure functions; a runtime commits decisions atomically and gives every
+  outbound request exactly one outcome, Done, NotDone or Unknown, chosen from
+  two boundaries in time (the commit and send horizons) and the port's effect
+  class. A three-valued knowledge algebra lets composite operations make only
+  honest claims, so that a composite can be used as a single component one
+  level up. The distribution contains the specification, reference
+  implementations in Kotlin, C and SystemVerilog with level-specific checks,
+  an Alloy model, and a benchmark of one feature in six architectural styles.
+version: 2.0.0-rc.1
+date-released: 2026-10-21
 type: software
+license: CC-BY-4.0
 authors:
   - given-names: Vladislav
     family-names: Tomilov
@@ -14,8 +27,11 @@ authors:
 repository-code: "https://github.com/4wl2d/Pokeball"
 keywords:
   - software architecture
-  - state machines
-  - effects
+  - hardware/software co-design
+  - fault tolerance
   - idempotency
+  - three-valued logic
+  - sagas
+  - state machines
   - fault injection
   - model checking

@@ -159,7 +159,9 @@ Try breaking it. Change `is Outcome.Unknown -> step(ReminderState.MaybeSent)` to
 
 ## Where next
 
-- The [specification](../spec/ballarch-core-2.0.md) defines the model and the rules R1–R13.
+- The [specification](../spec/ballarch-core-2.0.md) defines the model and the rules R1–R14.
 - The [decision guide](decision-guide.md) says when this architecture is worth its cost, and when it is not.
 - [Anti-patterns](anti-patterns.md) lists mistakes the rules and checks exist to catch.
 - The [shop example](../reference/kotlin/examples/shop/) is a checkout workflow across three Balls, with reservations, payment reconciliation and module boundaries.
+- The [trip example](../reference/kotlin/examples/trip/) books a flight and a hotel and reports only what the knowledge algebra (Core §4.2) establishes.
+- [Ballarch at every level](interpretations.md) applies the same rules to firmware and hardware.

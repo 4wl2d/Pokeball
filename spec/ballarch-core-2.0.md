@@ -2,16 +2,17 @@
 
 | | |
 |---|---|
-| **Version** | `2.0.0-draft.1` |
-| **Status** | Draft for review. Normative sections may change before `2.0.0`. |
-| **Date** | 2026-09-27 |
-| **Supersedes** | Core `1.5.0-draft` ([previous published version](https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e)); mapping in [`docs/migration-from-1.5.md`](../docs/migration-from-1.5.md) |
-| **Reference implementation** | [`reference/kotlin/`](../reference/kotlin/) (Kotlin/JVM) |
-| **Formal model** | [`formal/alloy/obligations.als`](../formal/alloy/obligations.als) |
+| **Version** | `2.0.0-rc.1` |
+| **Status** | Release candidate for public review. Before `2.0.0`, normative text changes only to correct errors found in review. |
+| **Date** | 2026-10-21 |
+| **Supersedes** | Pokeball Core `1.5.0-draft`, published under the project's former name ([published version](https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e)); mapping in [`docs/migration-from-1.5.md`](../docs/migration-from-1.5.md) |
+| **Reference implementations** | services: [`reference/kotlin/`](../reference/kotlin/) (Kotlin/JVM); firmware: [`reference/c/`](../reference/c/) (C11); hardware: [`reference/rtl/`](../reference/rtl/) (SystemVerilog) |
+| **Formal models** | call protocol: [`formal/alloy/obligations.als`](../formal/alloy/obligations.als); knowledge algebra: exhaustive check in [`KnowledgeTest`](../reference/kotlin/ballarch-kernel/src/test/kotlin/ballarch/kernel/KnowledgeTest.kt) |
+| **Evaluation** | [`benchmark/`](../benchmark/): one feature in six architectural styles under faults |
 
 ## 0. How to read this document
 
-Sections 2–7 are **normative**. Section 8 is **guidance**: recommended practice that a conforming system may ignore with reason. Section 9 defines **conformance**. Everything else, and every example, is informative.
+Sections 2–7 are **normative**. Section 8 is **guidance**: recommended practice that a conforming system may ignore with reason. Section 9 defines **conformance**. Everything else, and every example, is informative. Section 11 interprets the rules for hardware, firmware and services; Section 12 relates the architecture to prior work and states what is new.
 
 The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are to be interpreted as described in RFC 2119 and RFC 8174 when, and only when, they appear in capitals.
 
@@ -19,14 +20,15 @@ Each rule names its **enforcement**: the mechanism that checks it. Rules marked 
 
 ## 1. Scope
 
-Ballarch Core specifies how an application's **stateful components** decide, change their state, and interact with each other and with external systems, such that the following hold by construction:
+Ballarch Core specifies how the **stateful components** of a system decide, change their state, and interact with each other and with external systems, such that the following hold by construction:
 
 1. every piece of mutable state has exactly one owner, which changes it only by committing its own decisions;
 2. no external effect is requested before the decision that requests it is committed;
 3. every outbound request ends in exactly one terminal outcome, and that outcome never claims that nothing happened when something may have happened;
-4. a crash never splits a decision: its state change and its requested effects are committed together or not at all.
+4. a crash never splits a decision: its state change and its requested effects are committed together or not at all;
+5. a statement about an operation made of several requests never claims more than the outcomes of those requests establish, so the operation can be used, one level up, as a single component with the same guarantees.
 
-The same rules apply to an in-memory UI component and to a durable backend component; only the profile (§6) differs.
+The rules are stated for any level at which a system has owned state and fallible interactions: a hardware block on a bus, firmware that drives a device, an in-memory UI component, a durable backend service, a workflow across services. The profile (§6) and the mechanisms that check the rules (§9, §11) differ between levels; the rules do not.
 
 **Non-goals.** Ballarch Core does not specify: distributed consensus or replication of a Ball across nodes; exactly-once execution of external effects (only idempotency and reconciliation mechanisms that make at-most-once or effectively-once achievable); multi-Ball transactions; a wire format; a UI toolkit; security isolation between Balls in one process; or a deployment topology.
 
@@ -44,6 +46,8 @@ The same rules apply to an in-memory UI component and to a durable backend compo
 | **Effect class** | `Safe` (no effect), `Idempotent` (repeats are deduplicated by the destination), `NonIdempotent` (each delivery may take effect). | RFC 9110 safe and idempotent methods |
 | **Composition root** | The one place that lists Ball types, binds adapters to ports, and declares subscriptions. | composition root (dependency injection) |
 | **Profile** | What survives a crash: `Transient` or `Durable`. | — |
+| **Horizon** | One of two instants that every call crosses in order: the *commit horizon* and the *send horizon* (§2.5). | commit point; output commit; point of no return |
+| **Knowledge** | What is established about whether an operation made of several calls took effect (§4.2). | heuristic outcome (XA), `:info` (Jepsen) |
 
 ```mermaid
 flowchart LR
@@ -104,6 +108,19 @@ A decider reads time only from the context and waits only by calling the built-i
 - under the Durable profile, survives a restart: it is re-armed to its original due time, or completes `NotDone(NoAnswer)` if the restart comes after its deadline.
 
 A completion of a timer is a wake-up, not a fact about the world: a decider that must not act before some time SHOULD keep that time in its state and compare it with `now`.
+
+### 2.5 Boundaries in time
+
+Architectures usually draw their boundaries in space: layers, modules, services, the hexagon's ports. Ballarch also draws two boundaries in time. Every call crosses them in this order:
+
+| Horizon | The instant | Before it | After it | Rules |
+|---|---|---|---|---|
+| **Commit horizon** | The atomic commit of the decision that requests the call | The call is part of a decision that can still vanish. Nothing may leave. | The call is an obligation: it will get exactly one outcome, and under the Durable profile it survives crashes. | R4, R5, R6 |
+| **Send horizon** | The first moment the request may have left the runtime | The call can be withdrawn truthfully: `NotDone`. | The outcome is `Done`, `NotDone` with evidence from the destination, or `Unknown`. | R7, R8 |
+
+Between the horizons a call is `Pending`; after the send horizon it is `Sending` (§3.2). The horizons mark where knowledge about an effect changes kind. Before the commit horizon there is nothing to know. Between the horizons, non-occurrence can still be proved. After the send horizon, only the destination's answer, or later reconciliation, can establish what happened.
+
+An implementation MUST make each horizon an event that its checks can observe: under the Durable profile, the commit record and the write-ahead record of §3.2; in a synchronous circuit, the clock edge that commits the request and the bus handshake that hands it over (§11). Spatial boundaries constrain which code may refer to which; these two constrain *when* information and effects may cross.
 
 ## 3. Execution semantics
 
@@ -194,6 +211,8 @@ A **crash** stops the runtime abruptly. Under the **Transient** profile, all sta
 
 ## 4. Formal core
 
+### 4.1 The call protocol
+
 The protocol of §3.2 (commit, write-ahead, send, retry, deadline, crash, recovery, lossy and duplicating network) is modelled in Alloy 6 in [`formal/alloy/obligations.als`](../formal/alloy/obligations.als). For the correct protocol, no counterexample to the following exists within the stated bounds (3 calls, traces of up to 14 steps; L1: 2 calls, 12 steps), and each of six seeded runtime bugs yields one ([run the bounded checks](../docs/reproducibility.md#alloy-model)):
 
 | Property | Statement |
@@ -207,6 +226,53 @@ The protocol of §3.2 (commit, write-ahead, send, retry, deadline, crash, recove
 | L1 EveryObligationCloses | Under fairness (the runtime is eventually up; an enabled deadline eventually fires), every awaited call gets an outcome. |
 
 These are bounded model-checking results, not proofs for all sizes.
+
+### 4.2 Knowledge of composite operations
+
+A Ball often performs one operation through several calls: a booking of a flight and a hotel, a reservation and a charge. What can it truthfully say about the operation as a whole? Ballarch answers with a small algebra over **strong Kleene three-valued logic** (K3), with truth values `Yes`, `No` and `Maybe`.
+
+**Constituents.** Each call made for the operation is a constituent. Its *effect* is a truth value:
+
+- `Yes` if it completed `Done` with an answer that means the requested effect happened;
+- `No` if it completed `NotDone`, or if it was never sent;
+- `Maybe` if it completed `Unknown`, or if it is still open.
+
+A *compensation* of a constituent is a call that undoes it. A compensation is **absorbing** if its effect means that no effect of the original request exists or can still take effect, for example because the destination fences the request's reference, or because the original request's delivery horizon has passed. The *net effect* of a constituent with absorbing compensations is `effect ∧ ¬undone`, where `undone` is the disjunction of the effects of its compensation attempts.
+
+**Knowledge.** The knowledge of an operation is a pair (*all*, *any*): did every constituent take effect (net), and did at least one? For constituents with net effects *n₁ … nₖ*:
+
+*all* = *n₁* ∧ … ∧ *nₖ*,   *any* = *n₁* ∨ … ∨ *nₖ*,
+
+with K3's ∧ and ∨. Composition is a commutative monoid whose identity is the knowledge of an operation with no constituents, (`Yes`, `No`). Exactly seven values can occur:
+
+| Knowledge | (all, any) | Meaning | As one call's outcome |
+|---|---|---|---|
+| Done | (Yes, Yes) | every effect happened | `Done` |
+| NotDone | (No, No) | no effect happened | `NotDone` |
+| Partial | (No, Yes) | some effects happened, some did not | `Unknown` |
+| Unknown | (Maybe, Maybe) | nothing is established | `Unknown` |
+| NotAllDone | (No, Maybe) | not complete; whether anything happened is unknown | `Unknown` |
+| SomeDone | (Maybe, Yes) | something happened; whether everything did is unknown | `Unknown` |
+| NoEffects | (Yes, No) | the operation requested no effect | `NotDone` |
+
+**Composition closure.**
+
+- *Soundness.* If the knowledge of every constituent admits what really happened to it, the combined knowledge admits what really happened to the operation.
+- *Coordinate-wise exactness.* Each coordinate is the most informative value that every ground truth consistent with the constituents' outcomes satisfies.
+
+Both follow from two properties of K3's strong connectives: they are monotone in the information order (`Maybe` below `Yes` and `No`), and they coincide with supervaluation on formulas in which every variable occurs once (Kleene 1952). *all*, *any* and the net effect `effect ∧ ¬undone` are such formulas.
+
+The kernel's [`Knowledge`](../reference/kotlin/ballarch-kernel/src/main/kotlin/ballarch/kernel/Knowledge.kt) type implements the algebra. [`KnowledgeTest`](../reference/kotlin/ballarch-kernel/src/test/kotlin/ballarch/kernel/KnowledgeTest.kt) checks three things exhaustively:
+
+- the connectives against supervaluation;
+- the monoid laws on all seven values;
+- soundness and exactness for up to four constituents with or without compensations: 69,905 worlds.
+
+Associativity extends the result to any number of constituents.
+
+The exactness is relative to the constituents' individual outcomes. Evidence that correlates constituents, such as "one of these two calls landed", can establish more than the algebra derives. The algebra under-approximates such knowledge and never over-approximates it.
+
+The [trip example](../reference/kotlin/examples/trip/) applies the algebra to a flight and a hotel booking with absorbing compensations. Under exhaustive fault and crash exploration, its claims always admit the providers' real bookings; a two-valued status on the same runs is wrong in 254 of 1,339 runs.
 
 ## 5. Kernel rules
 
@@ -223,6 +289,9 @@ These are bounded model-checking results, not proofs for all sizes.
 
 **R12 — Read-only queries.** Reading a Ball's committed state (for display or diagnostics) MUST NOT change state or request effects. Reads by another Ball MUST be calls to a Safe port.
 *Enforcement:* type system (reads return values, not decisions); `Runtime.watch` observes committed states only.
+
+**R14 — Honest composition.** A Ball that states whether an operation made of several calls took effect, in a reply, a notice, or state that others read, MUST NOT claim more than the knowledge algebra (§4.2) derives from the outcomes of those calls. A call not yet sent counts as `No`; an open call counts as `Maybe`; only an absorbing compensation may count as undoing an effect.
+*Enforcement:* the kernel's `Knowledge` type; exploration tests against ground truth (the trip example); review.
 
 ### 5.2 Runtime rules
 
@@ -270,6 +339,7 @@ These are bounded model-checking results, not proofs for all sizes.
 | R11 Bounded resources | MUST | runtime | preflight |
 | R12 Read-only queries | MUST | author | types |
 | R13 Honest profile claims | MUST | runtime | review |
+| R14 Honest composition | MUST | author | `Knowledge`; exploration against ground truth; review |
 
 ## 6. Profiles
 
@@ -299,6 +369,15 @@ A multi-step interaction among several Balls whose progress, compensation or ter
 
 Call cycles between Balls are permitted: no step waits for another, so a cycle cannot deadlock or re-enter a decider. Feedback loops are bounded only by R11; a design SHOULD give every loop an explicit termination condition.
 
+### 7.4 Composition closure
+
+A Ball that serves a port and obeys R14 offers through that port what a single call offers:
+
+- one completion per request (R6, R9);
+- no claim stronger than its evidence (R7, R14).
+
+A caller can therefore treat it as one component without inspecting its parts. This holds recursively. A register block, the firmware that drives it, the service that calls the firmware and a workflow across services can each be described by the same rules, each level treating the one below as Balls behind ports. A composite that can end with a partial effect SHOULD say so in its reply type, using the knowledge of §4.2, rather than reduce it to a three-valued outcome.
+
 ## 8. Guidance (non-normative)
 
 **8.1 Ownership boundaries.** Put facts that must change together under one invariant in one Ball; separate facts with independent lifecycles, owners, consistency or load. A Ball is too large if it becomes a throughput bottleneck for one key or needs many unrelated message types; too small if a single invariant spans Balls.
@@ -322,47 +401,121 @@ Call cycles between Balls are permitted: no step waits for another, so a cycle c
 A runtime conforms to Core 2.0 if it satisfies R3–R9, R11 and R13 for the profiles it claims. Evidence consists of:
 
 1. its execution traces satisfying the oracles of [`ballarch-testkit`](../reference/kotlin/ballarch-testkit/) (`Oracles.check`) under exhaustive or seeded fault exploration of at least the scenarios in [`ExplorationTest`](../reference/kotlin/ballarch-runtime/src/test/kotlin/ballarch/runtime/ExplorationTest.kt), and the boundary behaviour specified by [`RuntimeRulesTest`](../reference/kotlin/ballarch-runtime/src/test/kotlin/ballarch/runtime/RuntimeRulesTest.kt); and
-2. an argument that its call lifecycle refines the Alloy model of §4.
+2. an argument that its call lifecycle refines the Alloy model of §4.1.
 
 ### 9.2 A conforming application
 
-An application conforms if its Balls satisfy R1, R2, R10 and R12 and run on a conforming runtime. Evidence consists of the architecture rules of [`ballarch-archrules`](../reference/kotlin/ballarch-archrules/) passing on its code, and review of ownership boundaries and decider termination.
+An application conforms if its Balls satisfy R1, R2, R10, R12 and R14 and run on a conforming runtime. Evidence consists of the architecture rules of [`ballarch-archrules`](../reference/kotlin/ballarch-archrules/) passing on its code, exploration tests of its composite operations against ground truth, and review of ownership boundaries, decider termination and the absorbing property of compensations.
 
 ### 9.3 A conforming adapter
 
 An adapter conforms if it reports each invocation at most once, never retries, reports non-application only with evidence, and uses the call identity as the idempotency key where the destination supports one. Evidence is the adapter conformance kit.
 
-### 9.4 Claims
+### 9.4 Conformance at other levels
+
+A firmware or hardware implementation conforms on the same terms as a runtime (§9.1) for the rules it implements. The evidence is specific to the level; §11 lists the checks in this repository:
+
+- for firmware ([`reference/c/`](../reference/c/)): exhaustive power-loss and link-fault exploration against the device's ground truth, and object-file checks of decider purity;
+- for hardware ([`reference/rtl/`](../reference/rtl/)): fault-injecting simulation against the device model, lint, and structural checks of single drivers, latch-free deciders and registered outputs.
+
+### 9.5 Claims
 
 A claim about a system built with Ballarch (durability, delivery, recovery time, throughput) MUST name the profile, the runtime, the scenario and the evidence. Conformance to this specification is not by itself such a claim.
 
 ## 10. Trade-offs and known limitations
 
-The following historical measurements describe the research prototype's bounded comparison, not a deployment or a general advantage. The full experimental data and comparison harness are not included in this distribution, so these measurements cannot be independently reproduced from this checkout. The reference implementation's tests and bounded model checks remain available through the [verification guide](../docs/reproducibility.md).
+**Measured in this distribution.** The [benchmark](../benchmark/) implements one checkout in six styles and runs each 2,000 times per fault profile and crash setting against a provider without idempotency keys ([results](../benchmark/results/RESULTS.md)).
 
-- **Code size.** For the evaluated slices, feature code on Core 2 was larger than both a plain class for a local feature (27 vs 10 SLOC) and an expert's hand-rolled implementation with the same fault tolerance (S2: 151 vs 123; S3: 255 vs 112 SLOC).
-- **Change locality.** The module structure of §7.1 made cross-feature changes touch more files than single-module baselines in 4 of 5 change requests.
-- **Concepts.** Feature code referenced 18–25 distinct kernel/runtime symbols, against 6–7 coroutine symbols in the baselines.
-- **Overhead.** A local request through the reference runtime took a median of 39 µs more than a direct call on the production thread scheduler, almost all of it thread hand-off; the runtime's own work was about 0.5 µs and 1 KB per request. An effectful call needs at least three durable writes under the Durable profile.
+- **Correctness.** Ballarch, and the layered version hardened by hand, violated no requirement in any run. The idiomatic layered, actor, MVU and outbox-plus-saga versions charged twice or reported charged orders as failed in 12% to 73% of runs.
+- **Code size and concepts.** Ballarch's feature code was about 29% larger than the hardened version's (279 against 216 SLOC). It used 45 framework types against 6.
+- **Cohesion.** The field-based (LCOM4) and type-based (CAMC) cohesion of its classes was lower.
+- **Where it gains.** It had the lowest propagation cost of the six (13% against 20–31%), 88% of its code in pure classes (against 27% for the hardened version), and no exception handler.
+
+The benchmark is small and was written by one author; see its threats to validity.
+
+**Earlier measurements (not reproducible from this checkout).** The research prototype's comparison measured the following; its data and harness are not part of this distribution:
+
+- the module structure of §7.1 made cross-feature changes touch more files than single-module baselines in 4 of 5 change requests;
+- a local request through the reference runtime took a median of 39 µs more than a direct call on the production thread scheduler, almost all of it thread hand-off; the runtime's own work was about 0.5 µs and 1 KB per request.
+
+**Limitations.**
+
+- **Durable writes.** An effectful call needs at least three durable writes under the Durable profile.
 - **Throughput.** One instance is one sequential writer (hot keys).
 - **Cross-Ball invariants.** An invariant that spans Balls cannot be enforced in one decision; it needs a coordinating Ball, a reservation, or a storage constraint.
 - **Information loss.** A late answer after a call resolved is dropped; the application must reconcile explicitly.
-- **Quarantine blocks notices.** Notices to a quarantined subscriber stay in the publisher's outbox and are retried until the subscriber's code is fixed and the runtime restarted (quarantine is not persisted); once the outbox bound is reached, the publisher's decisions that publish are refused with `Overloaded`.
-- **Unchecked obligations.** Termination of deciders, adapter honesty beyond the conformance kit, and the choice of ownership boundaries are not mechanically verified.
+- **Quarantine blocks notices.** Notices to a quarantined subscriber stay in the publisher's outbox and are retried until the subscriber's code is fixed and the runtime restarted (quarantine is not persisted). Once the outbox bound is reached, the publisher's decisions that publish are refused with `Overloaded`.
+- **Unchecked obligations.** Termination of deciders, adapter honesty beyond the conformance kit, the absorbing property of compensations, and the choice of ownership boundaries are not mechanically verified.
+
+## 11. Interpretation across levels (informative)
+
+The rules mention no language, no transport and no kind of storage. The same concepts appear at every level where state is owned and interactions can fail:
+
+| Concept | Service (Kotlin reference) | Firmware (C reference) | Synchronous hardware (RTL reference) |
+|---|---|---|---|
+| Ball, single owner (R1) | a Ball instance; state held only by the runtime | one runtime per device task; state only in the committed NVM record | registers written by one `always_ff` process |
+| Pure decider (R2) | `decide`/`complete`/`observe` | `step()` in its own translation unit | one `always_comb` block with a default for every signal |
+| Commit horizon (R4, R5) | one store write of state and outputs | one CRC-checked record in one of two NVM slots | the clock edge |
+| Send horizon (R7, R8) | write-ahead `Sending` record, then the transport | write-ahead record, then `transmit` | the `valid && ready` handshake (on AXI: the assertion of VALID) |
+| Effect class | port declaration | port table | operation: READ, CONFIG, FIRE; on Arm, Normal vs Device memory |
+| Obligation, deadline (R6) | call ledger, timers | call ledger in NVM, timers | outstanding transaction, tag, timeout counter |
+| `Unknown` | timeout or reset after sending; restart while `Sending` | timeout, garbled answer; power loss while `Sending` | no response to an accepted transaction |
+| Bounds (R11) | inbox, open calls, outputs | fixed tables | credits, one transaction in flight |
+| Profile (R13) | Transient or Durable | Durable | Transient (registers do not survive reset) |
+| Composition (R10, R14) | composition root, Flows | one runtime per device | instantiation hierarchy; a block is a Ball to the bus master above it |
+
+Each rule is checked by mechanisms suited to its level:
+
+| Rule | Service | Firmware | Hardware |
+|---|---|---|---|
+| R1 | `noGlobalMutableState`, `immutableValues` | no writable data in the decider object | Yosys: no register with two drivers |
+| R2 | `deciderPurity` (bytecode) | no external symbol in the decider object | Yosys: no latch in the decider; Verilator lint |
+| R5 | trace oracle; Alloy P1 | NVM holds `Sending` at every transmission | bench check; Yosys: no combinational path from input to dispatched output |
+| R6–R8 | trace oracles against ground truth; Alloy | exploration over every link fate and power-loss point, including torn writes | bench over every fate of every attempt |
+
+Every column has seeded bugs that its checks must catch. The firmware and hardware references are small and are checked in simulation; they show that the rules can be stated and checked the same way at these levels, not that a given product conforms.
+
+## 12. Lineage and what is new (informative)
+
+Ballarch reuses established mechanisms. What it adds is where it puts them: in the architecture, as rules with checks, rather than in each feature.
+
+| Ballarch element | Closest prior work | Difference |
+|---|---|---|
+| Single owner, serial steps | actors (Hewitt et al. 1973; Erlang/OTP); aggregates (Evans 2003); grains (Orleans) | none in mechanism; Ballarch adds the outcome rules below to the owner |
+| Pure decider, commit then dispatch | Elm architecture; Decider (Chassaing); functional core, imperative shell; transactional outbox; Akka persist-then-run | the step is defined with its crash semantics and checked by oracles and a model |
+| Dependency direction, adapters at the edge | Ports and Adapters (Cockburn 2005); Clean Architecture (Martin 2017) | these are spatial boundaries; Ballarch keeps them and adds boundaries in time |
+| Commit horizon | output commit in rollback recovery (Strom and Yemini 1985; Elnozahy et al. 2002); external synchrony (Nightingale et al. 2006); precise interrupts and in-order retirement (Smith and Pleszkun 1985) | a mechanism inside recovery protocols, operating systems or processors; here an architectural boundary every interaction crosses |
+| Send horizon, three outcomes | RPC's "maybe" (Birrell and Nelson 1984); Jepsen's `:info`; XA heuristic outcomes; ambiguous-commit errors in databases | the outcome is chosen mechanically from the phase and the port's effect class, and the rule is checked |
+| Effect classes | HTTP safe and idempotent methods (RFC 9110); Arm Device memory (no speculative or repeated access); PCIe posted and non-posted requests | used as the primary type of every interface, with mechanical consequences for retries and outcomes |
+| Knowledge of composites | Kleene's three-valued logic; XA `HEURMIX` and `HEURHAZ`; X-ability (Frølund and Guerraoui 2001); compensation calculi (Butler, Hoare and Ferreira 2005) | an (all, any) algebra with absorbing compensation and a closure property that lets a composite act as one honest port |
+| One model across hardware and software | Bluespec and BCL (Nikhil 2004; King, Dave and Arvind 2012); Lingua Franca reactors; synchronous languages (Esterel, Lustre) | these unify how computation executes; Ballarch unifies what is known about external effects, and checks it at each level |
+
+**Contributions.** As far as the author could establish, the following are new:
+
+1. **Boundaries in time.** The commit horizon and the send horizon are architectural boundaries (§2.5), next to the spatial ones.
+2. **Outcomes from phase and effect class.** A mechanical rule (§3.2) chooses each call's outcome from its phase and its port's effect class, and never reports `NotDone` without evidence.
+3. **Knowledge of composites.** The knowledge algebra (§4.2) and rule R14 give composition closure (§7.4): a composite of honest parts is one honest part.
+4. **One rule set, checked at each level.** The same rules are stated once and checked by level-specific mechanisms from register-transfer logic to services (§11).
+
+The other elements are established practice and are cited as such.
 
 ## Appendix A. Glossary
 
 | Term | Meaning |
 |---|---|
+| Absorbing compensation | A compensation whose effect excludes any present or later effect of the request it undoes (§4.2). |
 | Accept / Reject | Results of `decide`: commit (with a reply plan and outputs) or refuse without committing. |
 | Attempt | One invocation of a transport for a call; a call has one or more attempts. |
 | Ball, Ball type, instance | See §2. |
 | Call key | Identifies a call within its caller; generated deterministically from the context. |
+| Commit horizon | The atomic commit of the decision that requests a call (§2.5). |
 | Completion | The terminal outcome of a call, delivered once to the caller's `complete`. |
 | Composition root | See §2. |
 | Deadline | The time by which a call or request must resolve; finite by rule R6. |
 | Effect class | Safe, Idempotent or NonIdempotent; see §2. |
 | Flow | A Ball whose state is a multi-Ball workflow. |
+| Knowledge | The pair (all, any) of three-valued truths about the effects of a composite operation (§4.2). |
+| Level | A layer of a system at which the rules are applied: hardware, firmware, service, workflow (§11). |
 | Notice, topic | A publication and its channel; see §3.6. |
 | Obligation | An open call (awaiting a completion) or an open request (owing a reply). |
 | Outcome | Done, NotDone or Unknown; see §2.2. |
@@ -371,6 +524,24 @@ The following historical measurements describe the research prototype's bounded 
 | Profile | Transient or Durable; see §6. |
 | Quarantine | A runtime stops an instance whose completion or notice handler failed. |
 | Revision | The number of an instance's committed decisions; starts at 1. |
-| Send point | The moment a call may have left the runtime; recorded durably before it (write-ahead). |
+| Send horizon (send point) | The first moment a call may have left the runtime; recorded durably before it (write-ahead) (§2.5). |
 | Step | One dequeue–decide–commit–dispatch cycle of one instance. |
 | Timer | A call on the built-in Safe port `ballarch.timer`; see §2.4. |
+
+## Appendix B. References
+
+- Birrell, A. D., Nelson, B. J. (1984). Implementing remote procedure calls. *ACM TOCS* 2(1), 39–59.
+- Butler, M., Hoare, T., Ferreira, C. (2005). A trace semantics for long-running transactions. In *Communicating Sequential Processes: The First 25 Years*, LNCS 3525, 133–150.
+- Cockburn, A. (2005). Hexagonal architecture (Ports and Adapters). https://alistair.cockburn.us/hexagonal-architecture/
+- Elnozahy, E. N., Alvisi, L., Wang, Y.-M., Johnson, D. B. (2002). A survey of rollback-recovery protocols in message-passing systems. *ACM Computing Surveys* 34(3), 375–408.
+- Evans, E. (2003). *Domain-Driven Design*. Addison-Wesley.
+- Fielding, R., Nottingham, M., Reschke, J. (2022). HTTP Semantics. RFC 9110.
+- Frølund, S., Guerraoui, R. (2001). X-Ability: a theory of replication. *Distributed Computing* 14(4), 231–249.
+- Hewitt, C., Bishop, P., Steiger, R. (1973). A universal modular ACTOR formalism for artificial intelligence. *IJCAI 1973*, 235–245.
+- King, M., Dave, N., Arvind (2012). Automatic generation of hardware/software interfaces. *ASPLOS 2012*, 325–336.
+- Kleene, S. C. (1952). *Introduction to Metamathematics*. North-Holland.
+- Martin, R. C. (2017). *Clean Architecture*. Prentice Hall.
+- Nightingale, E. B., Veeraraghavan, K., Chen, P. M., Flinn, J. (2006). Rethink the sync. *OSDI 2006*, 1–14.
+- Nikhil, R. (2004). Bluespec System Verilog: efficient, correct RTL from high-level specifications. *MEMOCODE 2004*, 69–70.
+- Smith, J. E., Pleszkun, A. R. (1985). Implementation of precise interrupts in pipelined processors. *ISCA 1985*, 36–44.
+- Strom, R. E., Yemini, S. (1985). Optimistic recovery in distributed systems. *ACM TOCS* 3(3), 204–226.

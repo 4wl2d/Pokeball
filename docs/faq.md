@@ -1,7 +1,22 @@
 # FAQ
 
 **Is this new?**
-No single mechanism is. Core 2 combines known mechanisms in a small contract with executable checks. This distribution makes no claim of scientific novelty or general superiority.
+The mechanisms are not: single owners, pure steps, commit then dispatch, idempotency keys and sagas are established practice. Four things are new as far as the author could establish ([Core §12](../spec/ballarch-core-2.0.md#12-lineage-and-what-is-new-informative)):
+- architectural boundaries in time, the commit horizon and the send horizon;
+- outcomes chosen mechanically from a call's phase and its port's effect class;
+- a knowledge algebra for composite operations, with composition closure;
+- one rule set with checks at every level, from RTL to services.
+
+The claim covers these elements, not general superiority. See the [benchmark](../benchmark/) for what they cost and gain in one scenario.
+
+**Why "Ballarch"?**
+"Ball" is the unit of ownership; "arch" stands for architecture. The project was called Pokeball up to Core 1.5 and was renamed because "Poké Ball" is a Nintendo trademark. Ballarch is not affiliated with Nintendo.
+
+**Does it really apply to hardware?**
+The rules describe owned state, atomic commit and outcomes of requests, and synchronous circuits have all three. [`reference/rtl/`](../reference/rtl/) is a SystemVerilog block whose registers, next-state logic and bus transactions follow the rules. Lint, Yosys structural checks and a fault-injecting bench check them. [`reference/c/`](../reference/c/) does the same for firmware with power loss. See [Ballarch at every level](interpretations.md).
+
+**How is it different from Clean or Hexagonal Architecture?**
+Those draw boundaries in space: which code may depend on which. Ballarch keeps that discipline (adapters at the edge, a composition root) and adds boundaries in time, plus rules about what a component may claim about effects. In the [benchmark](../benchmark/), an idiomatic Clean Architecture checkout double-charged or reported charged orders as failed under faults. The same layers hardened by hand were correct, but needed the fault handling written into the feature.
 
 **Is it a framework?**
 The kernel is about 170 lines of types with no dependencies. The reference runtime is about 1,000 lines. Other runtimes may implement the [specification](../spec/ballarch-core-2.0.md); conformance is defined in §9.
@@ -37,7 +52,7 @@ They became the decider and the adapters. See the [migration guide](migration-fr
 It can call. It cannot wait inside a decision: the answer arrives later as a completion. This rules out deadlocks and re-entrant decisions (Core §3.4).
 
 **Is there a Russian version?**
-The [previous published 1.5 documentation has a Russian edition](https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e/docs/ru). It describes Core 1.5; this Core 2 distribution currently has no Russian edition.
+[Обзор на русском](ru/README.md) covers Core 2 in brief. The [previous published 1.5 documentation has a full Russian edition](https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e/docs/ru), under the former name.
 
 **Can I use the code?**
 The text is CC BY 4.0. The executable code has no software license yet; see [NOTICE.md](../NOTICE.md).

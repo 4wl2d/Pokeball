@@ -91,7 +91,8 @@ private val accessor = Regex("^(get|set|is)[A-Z].*")
 fun analyze(classesDir: File, rootPackage: String, excludedPackages: List<String>): StructureMetrics {
     val root = rootPackage.replace('.', '/') + "/"
     val excluded = excludedPackages.map { it.replace('.', '/') + "/" }
-    val nodes = classesDir.walkTopDown().filter { it.isFile && it.extension == "class" }.map { f ->
+    // Sorted, so that results do not depend on the file system's listing order.
+    val nodes = classesDir.walkTopDown().filter { it.isFile && it.extension == "class" }.sortedBy { it.relativeTo(classesDir).path }.map { f ->
         ClassNode().also { ClassReader(f.readBytes()).accept(it, 0) }
     }.filter { n -> n.name.startsWith(root) && excluded.none { n.name.startsWith(it) } }.toList()
 

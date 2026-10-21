@@ -2,27 +2,59 @@
 
 <p align="center">
   <a href="spec/ballarch-core-2.0.md">
-    <img src="assets/ballarch-hero.svg" alt="Ballarch Architecture" width="100%" />
+    <img src="assets/ballarch-hero.svg" alt="Ballarch: owners, obligations, honest outcomes" width="100%" />
   </a>
 </p>
 
 <p align="center">
-  <strong>Stateful features with one owner, pure decisions, and explicit effects.</strong>
+  <strong>Owners, obligations and honest outcomes: one architecture from registers to services.</strong>
 </p>
 
 <p align="center">
   <a href="docs/tutorial.md">Write your first feature</a> ·
-  <a href="docs/decision-guide.md">Decide whether it pays off</a> ·
-  <a href="skills/ballarch/">Agent skill</a> ·
+  <a href="docs/interpretations.md">Ballarch at every level</a> ·
+  <a href="benchmark/results/RESULTS.md">Benchmark</a> ·
   <a href="spec/ballarch-core-2.0.md">Core specification</a> ·
-  <a href="https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e/docs/ru">Russian documentation (Core 1.5)</a>
+  <a href="paper/">Paper</a> ·
+  <a href="docs/ru/README.md">По-русски</a>
 </p>
 
-**Ballarch Core 2.0** is a small architecture for stateful applications that talk to unreliable systems. Each piece of mutable state has one owner, a *Ball*. A Ball decides in pure functions, and a runtime executes its decisions. The runtime tracks every outbound call and gives it exactly one honest outcome: `Done`, `NotDone`, or `Unknown`.
+**Ballarch Core 2.0** is an architecture for components that own state and talk to systems that can fail: services, user interfaces, firmware and hardware blocks.
 
-The [specification](spec/ballarch-core-2.0.md) defines the current version and status. The Kotlin reference implementation supports its conformance checks and examples; it has not been used in production and has no production durable store. See the [migration guide](docs/migration-from-1.5.md) for the changes from Core 1.5.
+- Each piece of mutable state has one owner, a *Ball*. A Ball decides in pure functions, and a runtime commits its decisions atomically.
+- Every outbound request is an *obligation* that ends in exactly one honest outcome: `Done`, `NotDone` or `Unknown`.
+- Which outcome is possible follows mechanically from two boundaries in time, the **commit horizon** and the **send horizon**, and from the port's effect class.
 
-**Start with the [tutorial](docs/tutorial.md).** Build a reminder with a pure decider, a timer, an external call, and tests for faults and crashes.
+The [specification](spec/ballarch-core-2.0.md) is a release candidate (`2.0.0-rc.1`). Ballarch was called Pokeball up to Core 1.5; see the [migration guide](docs/migration-from-1.5.md).
+
+## What is new
+
+Ballarch keeps the established parts of earlier styles:
+
+- single owners (actors, aggregates);
+- pure steps (Elm, Decider);
+- commit then dispatch (transactional outbox);
+- adapters at the edge (Hexagonal and Clean Architecture).
+
+Beyond them it adds four elements ([Core §12](spec/ballarch-core-2.0.md#12-lineage-and-what-is-new-informative) gives the prior art for each):
+
+1. **Boundaries in time.** Layers and hexagons constrain *where* code may depend; the commit horizon and the send horizon constrain *when* effects and knowledge may cross. Before the send horizon, non-occurrence is provable. After it, only the destination's answer or reconciliation can settle what happened.
+2. **Outcomes from phase and effect class.** A runtime, not each feature, chooses `Done`, `NotDone` or `Unknown`, and never reports `NotDone` without evidence. A `NonIdempotent` call is never re-sent.
+3. **Knowledge of composites, with closure.** A small algebra over Kleene's three-valued logic says what an operation made of several calls may claim (Done, NotDone, Partial, Unknown, …). Honest parts compose into an honest whole, which can be used one level up as a single component.
+4. **One rule set, checked at every level.** The same rules are checked by bytecode rules and trace oracles in a [JVM service](reference/kotlin/), by power-loss exploration and object-file checks in [firmware](reference/c/), and by lint, netlist checks and a fault-injecting bench in [RTL](reference/rtl/).
+
+## Evidence
+
+| What | Result |
+|---|---|
+| [Benchmark](benchmark/results/RESULTS.md): one checkout in six styles, 2,000 runs per cell | Idiomatic layered, actor, MVU and outbox-plus-saga versions double-charged or reported charged orders as failed in 12–73% of runs. Ballarch and a layered version hardened by hand violated no requirement. Ballarch cost 29% more code and 45 framework types against 6, with lower class cohesion. It had the lowest propagation cost and 88% of its code in pure classes. |
+| [Alloy model](formal/alloy/obligations.als) of the call protocol | 6 safety properties and 1 liveness property hold within bounds; 6 seeded runtime bugs each yield a counterexample |
+| [Knowledge algebra](reference/kotlin/ballarch-kernel/src/test/kotlin/ballarch/kernel/KnowledgeTest.kt) | Soundness and coordinate-wise exactness checked exhaustively for up to four constituents (69,905 worlds) |
+| [Trip example](reference/kotlin/examples/trip/) | Under every explored fate and crash, the composite's claims admit the real bookings; a two-valued status is wrong in 19% of the same runs |
+| [Firmware reference](reference/c/) | About 220,000 runs over link fates and power-loss points, including torn writes: no violation; 3 seeded bugs caught |
+| [RTL reference](reference/rtl/) | 75 fault scenarios pass; 3 seeded bugs caught; structural checks of single drivers, latch-free deciders and registered dispatch |
+
+None of this establishes production reliability or team productivity. The runtime has no production durable store, and the benchmark is small and was written by one author. [Core §10](spec/ballarch-core-2.0.md#10-trade-offs-and-known-limitations) and the [decision guide](docs/decision-guide.md) list the costs and what was not measured.
 
 ## The idea in one example
 
@@ -40,43 +72,37 @@ object OrderDraftBall : Ball<Draft, DraftRequest, DraftReply> {
 }
 ```
 
-A decision may also contain *outputs*: calls to ports, replies, notices, and cancellations. The runtime commits the new state and the outputs atomically, sends nothing before that commit, and later delivers each call's single completion to `complete`. Which outcome a call can end in depends on the port's effect class. A read (`Safe`) never ends `Unknown`. A card charge (`NonIdempotent`) is never re-sent, and after a timeout or crash it ends `Unknown` rather than a false `NotDone`. [The payment example](reference/kotlin/examples/shop/payments/src/main/kotlin/ballarch/examples/shop/payments/PaymentBall.kt) shows reconciliation after `Unknown`.
-
-## Costs and limits
-
-The architecture makes ownership, effects, and uncertain outcomes explicit. That costs types, code, runtime work, and module boundaries. It does not promise less code than a plain class or an expert's implementation. Stateless transformations and simple local features may be better served by ordinary code.
-
-The reference tests and bounded model checks are available to run. They do not establish production reliability, team productivity, or an advantage over another architecture. Historical prototype measurements and their limits are described in [Core §10](spec/ballarch-core-2.0.md#10-trade-offs-and-known-limitations); their full experimental data and comparison harness are not part of this distribution. Use the [decision guide](docs/decision-guide.md) to assess a real slice of your application.
+A decision may also contain *outputs*: calls to ports, replies, notices and cancellations. The runtime commits the new state and the outputs atomically, sends nothing before that commit, and later delivers each call's single completion to `complete`. A read (`Safe`) never ends `Unknown`. A card charge (`NonIdempotent`) is never re-sent, and after a timeout or crash it ends `Unknown` rather than a false `NotDone`. The [payment example](reference/kotlin/examples/shop/payments/src/main/kotlin/ballarch/examples/shop/payments/PaymentBall.kt) reconciles after `Unknown`.
 
 ## Repository map
 
 | Path | Contents |
 |---|---|
-| [`spec/ballarch-core-2.0.md`](spec/ballarch-core-2.0.md) | The normative specification: model, execution semantics, rules R1–R13, profiles, conformance |
-| [`reference/kotlin/`](reference/kotlin/) | Kernel, reference runtime, test kit, architecture rules, examples, and conformance tests |
-| [`formal/alloy/`](formal/alloy/) | Alloy 6 model of the call protocol: 6 safety properties, 1 liveness property, 6 seeded runtime bugs |
-| [`docs/`](docs/) | Tutorial, decision guide, FAQ, anti-patterns, migration, and verification commands |
-| [`skills/`](skills/) | A short agent skill for Core 2 feature work (unevaluated) |
+| [`spec/ballarch-core-2.0.md`](spec/ballarch-core-2.0.md) | The normative specification: model, boundaries in time, execution semantics, knowledge algebra, rules R1–R14, profiles, conformance, interpretation across levels, lineage |
+| [`reference/kotlin/`](reference/kotlin/) | Kernel, reference runtime, test kit, architecture rules, examples, and conformance tests (services) |
+| [`reference/c/`](reference/c/) | Firmware runtime and a therapy-controller example with power-loss exploration (C11) |
+| [`reference/rtl/`](reference/rtl/) | A hardware Ball with lint, structural checks and a fault-injecting bench (SystemVerilog) |
+| [`formal/alloy/`](formal/alloy/) | Alloy 6 model of the call protocol |
+| [`benchmark/`](benchmark/) | One checkout in six architectural styles, fault injection, and structural metrics |
+| [`paper/`](paper/) | The paper (LaTeX) and the publication kit |
+| [`docs/`](docs/) | Tutorial, levels guide, decision guide, FAQ, anti-patterns, migration, verification, Russian overview |
+| [`skills/ballarch/`](skills/ballarch/) | An agent skill for feature work (unevaluated) |
 | [`tools/`](tools/) | Link and snippet checks for the documentation |
-| [`assets/`](assets/) | Repository artwork |
-
-The [previous published Core 1.5 documentation](https://github.com/4wl2d/Pokeball/tree/1bb9e0ecca4d4d1c8b39327c93988c1b490f303e), including its Russian edition, remains in Git history.
 
 ## Try it
 
 Requires JDK 21. From `reference/kotlin`:
 
 ```sh
-./gradlew build checkModuleBoundaries   # tests, architecture rules, examples
-./gradlew :ballarch-runtime:pitest       # optional mutation testing
+./gradlew build checkModuleBoundaries   # tests, rules, examples, knowledge algebra, benchmark regression
 ```
 
-Start with the [tutorial](docs/tutorial.md). The [verification guide](docs/reproducibility.md) explains the available checks and their limits. For agent assistance, copy the complete [`ballarch`](skills/ballarch/) skill directory; its instructions are self-contained and unevaluated.
+Then `make` in [`reference/c`](reference/c/) and [`reference/rtl`](reference/rtl/), and see the [verification guide](docs/reproducibility.md) for the model, the benchmark and the paper. Start with the [tutorial](docs/tutorial.md).
 
 ## License and authorship
 
 Copyright © 2026 **Vladislav Tomilov (4wl2d)**.
 
-Text and diagrams are licensed under [CC BY 4.0](LICENSE); see [NOTICE.md](NOTICE.md). **The code has no software license yet.** A software license remains the copyright holder's decision.
+Text and diagrams are licensed under [CC BY 4.0](LICENSE); see [NOTICE.md](NOTICE.md). **The code has no software license yet.** A software license remains the copyright holder's decision. Ballarch is not affiliated with Nintendo; the project's former name is not used as a trademark.
 
 Ballarch Architecture by Vladislav Tomilov (4wl2d).

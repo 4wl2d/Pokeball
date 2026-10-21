@@ -1,0 +1,30 @@
+{
+  "title": "Ballarch: Core 2.0 specification, reference implementations and benchmark",
+  "upload_type": "software",
+  "description": "Ballarch is an architecture for components that own state and interact with systems that can fail, from hardware blocks and firmware to services and workflows. Each piece of mutable state has one owner that decides in pure functions; a runtime commits decisions atomically and gives every outbound request exactly one outcome (Done, NotDone or Unknown), chosen from two boundaries in time, the commit and send horizons, and from the port's effect class. A knowledge algebra over Kleene's three-valued logic lets composite operations make only honest claims. The release contains the specification, reference implementations in Kotlin, C and SystemVerilog with level-specific checks, an Alloy model, a benchmark of one feature in six architectural styles, and the paper.",
+  "creators": [
+    {
+      "name": "Tomilov, Vladislav",
+      "affiliation": "Independent researcher"
+    }
+  ],
+  "license": "CC-BY-4.0",
+  "keywords": [
+    "software architecture",
+    "hardware/software co-design",
+    "fault tolerance",
+    "idempotency",
+    "three-valued logic",
+    "sagas",
+    "fault injection",
+    "model checking"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/4wl2d/Pokeball",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ],
+  "notes": "Text and diagrams are licensed under CC BY 4.0. The code has no software license yet; see NOTICE.md. Ballarch was published as Pokeball up to Core 1.5 and is not affiliated with Nintendo."
+}
