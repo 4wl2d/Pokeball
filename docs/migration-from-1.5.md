@@ -90,6 +90,10 @@ Ballarch was published under the name Pokeball up to Core 1.5. The [previous pub
 
 **Summary.** Of the 44 laws, 25 are kept or kept in reduced form, 6 are enforced by construction, 7 became guidance, 3 were replaced by a different mechanism, and 3 were dropped (PBA-14, PBA-37, PBA-40). The counts assign each law to its first-listed disposition.
 
+## Agent skills
+
+The 1.5 skills `pokeball`, `pokeball-async`, `pokeball-binding`, `pokeball-composition` and `pokeball-review` are not carried over: they apply the 1.5 laws (PBA-01 to PBA-44) and vocabulary. Remove them from your agent and install the single Core 2 skill in [`skills/ballarch/`](../skills/ballarch/SKILL.md).
+
 ## Porting a feature
 
 1. Keep the old Nucleus logic as the body of `decide`. Replace pulse-kind branching with one `when` over the request type, plus `complete` for completions and `observe` for notices.

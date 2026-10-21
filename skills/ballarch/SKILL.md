@@ -80,7 +80,7 @@ A Durable runtime restarts from records that the old code committed, with obliga
   - Each register has one writing process.
   - The next-state logic is one `always_comb` with defaults: no latch.
   - Outputs come from registered state only.
-  - The send horizon is the bus handshake. On AXI, it is VALID.
+  - The send horizon is the first cycle from which the bus no longer lets the request be withdrawn: the `valid && ready` handshake, or on AXI, where VALID may not be withdrawn, the assertion of VALID.
   - For a composite, keep the knowledge in a status register, two bits per coordinate; see `rtl/ballarch_composite.sv`. Registers are Transient: after a reset the status covers only operations since that reset.
   - Run `make` in `reference/rtl`; `make rules` runs the structural checks alone.
 
@@ -113,9 +113,9 @@ When the project uses another runtime, have it write traces in the format of `to
 ## Review checklist
 
 - Effect class of each port justified in a comment or ADR.
-- No `Unknown` treated as failure or retried.
+- No `Unknown` treated as failure; no call on a NonIdempotent port repeated after `Unknown` (repeat a step only through an Idempotent port keyed by the operation, Core §7.2).
 - Every completion branch handles `Done`, `NotDone` and `Unknown`.
 - No decider reads anything but its arguments.
-- Claims about composite operations come from `Knowledge`, count calls still to be made as `Maybe`, and use only absorbing compensations; the operation's outcome is sent only once it is settled.
+- Claims about composite operations come from `Knowledge`, count every call without a completion, open or still to be made, as `Maybe`, and use only absorbing compensations; the operation's outcome is sent only once it is settled.
 - A change to a deployed Ball raises `stateVersion` with a `migrate` when the state shape changes, and drains a port, Ball type or subscription before removing it.
 - Tests explore faults and crashes, not only the happy path.

@@ -92,8 +92,8 @@ Message: `T3: overlapping decisions on <instance> at <at>`.
 **T5, commit before dispatch (R5).** Every `CallSent(c)` is preceded, in its epoch, by a `Committed` whose `newCalls` contains `c`.
 Message: `T5: <call> sent before its decision was committed`.
 
-**T6, one completion per call (R6).** Each call is the `completedCall` of at most one `Committed` in its epoch. If the `End` line says `quiescent` and the epoch owes liveness, every call in some `newCalls` of the epoch is also the `completedCall` of exactly one `Committed`. Under the Durable profile the single epoch owes liveness. Under the Transient profile only the last epoch does, since a crash loses the calls of the others.
-Messages: `T6: <call> completed <n> times`, `T6: <call> never completed`.
+**T6, one completion per call (R6).** Each call is the `completedCall` of at most one `Committed` in its epoch, and only of one that follows a `Committed` of that epoch whose `newCalls` contains it. If the `End` line says `quiescent` and the epoch owes liveness, every call in some `newCalls` of the epoch is also the `completedCall` of exactly one `Committed`. Under the Durable profile the single epoch owes liveness. Under the Transient profile only the last epoch does, since a crash loses the calls of the others.
+Messages: `T6: <call> completed but never committed`, `T6: <call> completed <n> times`, `T6: <call> never completed`.
 
 **T7, honest outcomes (R7).** For each `Committed` with a `completedCall` `c` that has a `Destination` line in its epoch (by G2, every call sent on an adapter port):
 - if `completedOutcome` is `NotDone` and `effectClass` is not `Safe`, then `applied` is 0;

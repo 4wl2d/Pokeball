@@ -237,8 +237,9 @@ public fun <R> Outcome<R>.reportedKnowledge(onlyRequest: Boolean, settled: (R) -
  * example because the destination fences the request's reference, or because
  * the original request's delivery horizon has passed. Then one compensation
  * that took effect turns an `Unknown` call into a definite `NotDone`. A
- * compensation the Ball may still make is not in [undos]; until it is made, the
- * net effect is not final (see [Knowledge]).
+ * compensation the Ball may still make must be passed in [undos] as an
+ * `Outcome.Unknown`, so that it counts as `Maybe` (rule R14); leaving it out
+ * gives a snapshot, which must not be offered as the operation's outcome.
  */
 public fun <R, U> Outcome<R>.compensatedBy(
     undos: List<Outcome<U>>,

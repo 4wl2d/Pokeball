@@ -1,7 +1,7 @@
 {
   "title": "Ballarch: Core 2.0 specification, reference implementations and benchmark",
   "upload_type": "software",
-  "description": "Ballarch is an architecture for components that own state and interact with systems that can fail, from hardware blocks and firmware to services and workflows. Each piece of mutable state has one owner that decides in pure functions; a runtime commits decisions atomically and gives every outbound request exactly one outcome (Done, NotDone or Unknown), chosen from two boundaries in time, the commit and send horizons, and from the port's effect class. A knowledge algebra over Kleene's three-valued logic bounds what a composite operation may claim, so that a composite that replies with its settled knowledge can itself be used as a single component. The release contains the specification; reference implementations in Kotlin, C and SystemVerilog that check the call-protocol rules and the knowledge algebra with level-specific mechanisms (composition across levels is not tested); a language-neutral conformance-trace checker; an Alloy model; a benchmark of one checkout feature in nine implementations (four styles, each naive and careful, and Ballarch), with four change requests and a runtime-overhead measurement; and the paper. In the benchmark, the careful versions and Ballarch were equally correct while the provider's delivery horizon held. Ballarch moves the classification of outcomes, the write-ahead record and crash recovery from each feature into its runtime; the feature still writes the reconciliation. This costs code, framework types, total complexity and change size.",
+  "description": "Ballarch is an architecture for components that own state and interact with systems that can fail, from hardware blocks and firmware to services and workflows. Each piece of mutable state has one owner that decides in pure functions; a runtime commits decisions atomically and gives every outbound request exactly one outcome (Done, NotDone or Unknown), chosen from two boundaries in time, the commit and send horizons, and from the port's effect class. A knowledge algebra over Kleene's three-valued logic bounds what a composite operation may claim, so that a composite that replies with its settled knowledge can itself be used as a single component, given honest adapters, absorbing compensations and a durable call ledger. The release contains the specification; reference implementations in Kotlin, C and SystemVerilog that check the call-protocol rules and the knowledge algebra with level-specific mechanisms (composition across levels is not tested); a language-neutral conformance-trace checker; an Alloy model; a benchmark of one checkout feature in nine implementations (four styles, each naive and careful, and Ballarch), with four change requests and a runtime-overhead measurement; and the paper. In the benchmark, the careful versions and Ballarch were equally correct while the provider's delivery horizon held. Ballarch moves the classification of outcomes, the write-ahead record and crash recovery from each feature into its runtime; the feature still writes the reconciliation. This costs code, framework types, total complexity and change size.",
   "creators": [
     {
       "name": "Tomilov, Vladislav",
@@ -15,7 +15,9 @@
     "fault tolerance",
     "idempotency",
     "three-valued logic",
+    "output commit",
     "sagas",
+    "state machines",
     "fault injection",
     "model checking"
   ],

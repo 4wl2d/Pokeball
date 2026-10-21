@@ -16,7 +16,7 @@ application {
     mainClass.set("bench.runner.MainKt")
 }
 
-// ./gradlew :benchmark:runner:run --args="1000 ../../benchmark/results"
+// ./gradlew :benchmark:runner:run --args="2000 ../../benchmark/results"   (2,000 runs per cell, as published)
 tasks.named<JavaExec>("run") {
     workingDir = rootProject.projectDir
     for (m in implementations) {

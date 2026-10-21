@@ -255,6 +255,26 @@ class RuntimeRulesTest {
     // ---------------------------------------------------------------- deduplication retention
 
     @Test
+    fun `a keyed repeat of an accepted request joins it even when the inbox is full`() {
+        val r = rig(Limits(maxInbox = 1))
+        val owe = Act("owe") { st, ctx -> acceptLater(st + ctx.requestId) }
+        val first = r.send(s, owe, idempotencyKey = "k")
+        assertNull(r.outcome(first))
+        // Three arrivals run before any drain: the filler takes the only inbox slot.
+        val filler = r.send(s, ok("filler"), run = false)
+        val repeat = r.send(s, owe, idempotencyKey = "k", run = false)
+        val other = r.send(s, ok("other"), run = false)
+        r.scheduler.runReady(max = 3)
+        assertNull(r.outcome(repeat)) // joined the accepted request, not refused with Overloaded
+        assertEquals(Outcome.NotDone(NotDoneReason.Overloaded), r.outcome(other)) // a new request is still refused
+        assertNull(r.outcome(filler))
+        r.send(s, Act("answer") { st, _ -> accept(st, "answered", Reply(RequestId("idem:k"), "done")) })
+        assertEquals(Outcome.Done("done"), r.outcome(first))
+        assertEquals(Outcome.Done("done"), r.outcome(repeat))
+        assertEquals(Outcome.Done("ok"), r.outcome(filler))
+    }
+
+    @Test
     fun `only requests that may be repeated or still owe a reply are kept for deduplication`() {
         val r = rig()
         r.send(s, ok("plain"))
@@ -312,6 +332,49 @@ class RuntimeRulesTest {
         r.scheduler.jumpTo(t0 + 200)
         r.send(s, ok("k3"), idempotencyKey = "k3")
         assertEquals(setOf("idem:k3"), r.runtime.record(s)!!.inbound.keys.map { it.value }.toSet())
+    }
+
+    @Test
+    fun `an answer that a Ball caller may still re-send is kept until the call's deadline, beyond the count bound`() {
+        val destPort = BallPort<Any?, Any?>("dest")
+        val dest = BallId("dest", "d")
+        var broken = true
+        val caller = ScriptBall(onComplete = { st, c, _ -> check(!broken) { "not yet" }; step(st + c) })
+        val r = rig(Limits(repliedRetention = 1), ball = caller) { ball(ScriptBall("dest")) }
+        val t0 = r.scheduler.now()
+        // The answer reaches a caller that cannot commit it (its handler fails, so it is quarantined): the call stays open.
+        r.send(s, Act("ask") { st, ctx -> ctx.newKey().let { k -> accept(st + k, "ok", Call(k, destPort, ok("work"), 1_000, target = "d")) } })
+        assertTrue(r.runtime.failure(s) != null)
+        val key = r.keys().single()
+        // A newer answer would push the older one out of a retention of one; the external one goes instead.
+        r.send(dest, ok("keyed"), idempotencyKey = "k")
+        assertEquals(setOf(RequestId(CallId(s, key).toString())), r.runtime.record(dest)!!.inbound.keys)
+        broken = false
+        r.restartAt(t0 + 10)
+        // The re-sent call is answered from the record, not decided again.
+        assertEquals(Outcome.Done("ok"), r.outcomeOf(key))
+        assertEquals(listOf<Any?>("work", "keyed"), r.log(dest))
+    }
+
+    @Test
+    fun `while kept answers that callers may re-send fill the retention bound, a further Ball call is refused unseen`() {
+        val destPort = BallPort<Any?, Any?>("dest")
+        val dest = BallId("dest", "d")
+        val r = rig(Limits(repliedRetention = 1)) { ball(ScriptBall("dest")) }
+        val t0 = r.scheduler.now()
+        fun ask(label: String, timeout: Long) =
+            Act(label) { st, ctx -> ctx.newKey().let { k -> accept(st + k, "ok", Call(k, destPort, ok(label), timeout, target = "d")) } }
+        r.send(s, ask("first", timeout = 100))
+        r.send(s, ask("second", timeout = 1_000))
+        r.scheduler.jumpTo(t0 + 101) // past the first call's deadline, so it can no longer be re-sent
+        r.send(s, ask("third", timeout = 1_000))
+        val (first, second, third) = r.keys()
+        assertEquals(Outcome.Done("ok"), r.outcomeOf(first))
+        assertEquals(Outcome.NotDone(NotDoneReason.Overloaded), r.outcomeOf(second))
+        assertEquals(Outcome.Done("ok"), r.outcomeOf(third))
+        assertEquals(listOf<Any?>("first", "third"), r.log(dest))
+        // Requests from outside are not held back: their clients repeat them only within the retention bounds.
+        assertEquals(Outcome.Done("ok"), r.outcome(r.send(dest, ok("keyed"), idempotencyKey = "k")))
     }
 
     // ---------------------------------------------------------------- calls: write-ahead, retries, attempts (R5, R7, R8)
@@ -492,6 +555,61 @@ class RuntimeRulesTest {
         assertEquals(Outcome.NotDone(NotDoneReason.DeadlineBeforeSend), r.outcomeOf(second))
     }
 
+    @Test
+    fun `a retry that waits for a slot is sent when the slot frees`() {
+        val a = ScriptedAdapter<String, String>()
+        val r = rig { adapter(idem, a, RetryPolicy(maxAttempts = 3, backoffMillis = 10), maxInFlight = 1) }
+        val t0 = r.scheduler.now()
+        r.send(s, callAct(idem, timeout = 1_000, label = "a"))
+        a.sent[0].report(AdapterResult.Failed("reset"))
+        r.scheduler.runReady()
+        r.send(s, callAct(idem, timeout = 1_000, label = "b")) // takes the slot during a's backoff
+        r.scheduler.advanceTo(t0 + 10) // a's retry finds the slot taken and waits
+        assertEquals(listOf("a" to 1, "b" to 1), a.sent.map { it.invocation.request to it.invocation.attempt })
+        a.sent[1].report(AdapterResult.Ok("b done"))
+        r.scheduler.runReady()
+        assertEquals(listOf("a" to 1, "b" to 1, "a" to 2), a.sent.map { it.invocation.request to it.invocation.attempt })
+        a.sent[2].report(AdapterResult.Ok("a done"))
+        r.scheduler.runReady()
+        val (ka, kb) = r.keys()
+        assertEquals(Outcome.Done("a done"), r.outcomeOf(ka))
+        assertEquals(Outcome.Done("b done"), r.outcomeOf(kb))
+    }
+
+    @Test
+    fun `calls re-sent after a restart wait for a slot and are sent when it frees`() {
+        val a = ScriptedAdapter<String, String>()
+        var slots = 2
+        val r = rig { adapter(idem, a, RetryPolicy(maxAttempts = 3), maxInFlight = slots) }
+        val t0 = r.scheduler.now()
+        r.send(s, callAct(idem, timeout = 1_000, label = "a"))
+        r.send(s, callAct(idem, timeout = 1_000, label = "b"))
+        slots = 1
+        r.restartAt(t0 + 10)
+        assertEquals(listOf("a" to 1, "b" to 1, "a" to 2), a.sent.map { it.invocation.request to it.invocation.attempt })
+        a.sent[2].report(AdapterResult.Ok("a done"))
+        r.scheduler.runReady()
+        assertEquals("b" to 2, a.sent[3].invocation.let { it.request to it.attempt })
+        a.sent[3].report(AdapterResult.Ok("b done"))
+        r.scheduler.runReady()
+        assertEquals(listOf<Outcome<*>>(Outcome.Done("a done"), Outcome.Done("b done")), r.keys().map { r.outcomeOf(it) })
+    }
+
+    @Test
+    fun `a cancel between attempts ends the call without another attempt`() {
+        val a = ScriptedAdapter<String, String>()
+        val r = rig { adapter(idem, a, RetryPolicy(maxAttempts = 3, backoffMillis = 50)) }
+        val t0 = r.scheduler.now()
+        r.send(s, callAct(idem, timeout = 1_000))
+        val key = r.keys().single()
+        a.sent[0].report(AdapterResult.Failed("reset"))
+        r.scheduler.runReady()
+        r.send(s, Act("cancel") { st, _ -> accept(st, "ok", Cancel(key)) }) // during the backoff
+        r.scheduler.advanceTo(t0 + 100)
+        assertEquals(1, a.sent.size)
+        assertEquals(Outcome.Unknown(UnknownReason.LostAfterSend), r.outcomeOf(key))
+    }
+
     // ---------------------------------------------------------------- Ball-to-Ball
 
     @Test
@@ -625,6 +743,29 @@ class RuntimeRulesTest {
     }
 
     @Test
+    fun `a cancel committed before a crash stops the re-send of a possibly-sent call`() {
+        val a = ScriptedAdapter<String, String>()
+        val store = MemoryStore()
+        val retried = CallKey("1.0")
+        val timer = CallKey("1.1")
+        store.save(
+            InstanceRecord(
+                id = s, state = emptyList<Any?>(), revision = 1,
+                calls = mapOf(
+                    retried to CallRecord(retried, idem.name, idem.effect, null, "req", deadlineAt = 1_500, phase = Phase.Sending, attempts = 1, cancelRequested = true),
+                    timer to CallRecord(timer, Timer.port.name, EffectClass.Safe, null, 400L, deadlineAt = 1_400 + Timer.MARGIN_MILLIS, phase = Phase.Sending, attempts = 1, cancelRequested = true),
+                ),
+            ),
+        )
+        val r = rig(store = store) { adapter(idem, a, RetryPolicy(maxAttempts = 3)) }
+        r.scheduler.advanceTo(3_000)
+        assertTrue(a.sent.isEmpty())
+        assertEquals(Outcome.Unknown(UnknownReason.LostAfterSend), r.outcomeOf(retried))
+        // A cancelled timer has not fired (Core §2.4).
+        assertEquals(Outcome.NotDone(NotDoneReason.NotApplied("timer cancelled")), r.outcomeOf(timer))
+    }
+
+    @Test
     fun `an unanswered request survives a restart and is reported overdue at its original deadline`() {
         val r = rig()
         val t0 = r.scheduler.now()
@@ -659,6 +800,29 @@ class RuntimeRulesTest {
         r.restartAt(t0 + 10)
         assertEquals(Outcome.Done("result"), r.outcomeOf(r.keys().single()))
         assertEquals(listOf<Any?>("worked"), r.log(dest))
+    }
+
+    @Test
+    fun `a Ball call re-sent after a restart joins the request its destination accepted, even when the inbox is full`() {
+        val destPort = BallPort<Any?, Any?>("dest")
+        val dest = BallId("dest", "d")
+        val s2 = BallId("script", "s2")
+        val r = rig(Limits(maxInbox = 1)) { ball(ScriptBall("dest")) }
+        val t0 = r.scheduler.now()
+        val hold = Act("hold") { ds, dctx -> acceptLater(ds + dctx.requestId) }
+        for (caller in listOf(s, s2)) {
+            r.send(caller, Act("ask") { st, ctx -> ctx.newKey().let { k -> accept(st + k, "ok", Call(k, destPort, hold, 1_000, target = "d")) } })
+        }
+        assertEquals(2, r.log(dest).size)
+        r.restartAt(t0 + 10)
+        // Both re-sends join the open requests: neither is refused, neither is decided again.
+        assertEquals(2, r.events<TraceEvent.CallSent>().count { it.attempt == 2 })
+        assertTrue(r.completions(s).isEmpty() && r.completions(s2).isEmpty())
+        val (first, second) = r.log(dest).map { it as RequestId }
+        r.send(dest, Act("answer") { ds, _ -> accept(ds, "ok", Reply(first, "held"), Reply(second, "held")) })
+        assertEquals(Outcome.Done("held"), r.completions(s).single().outcome)
+        assertEquals(Outcome.Done("held"), r.completions(s2).single().outcome)
+        assertEquals(2, r.log(dest).size)
     }
 
     // ---------------------------------------------------------------- notices

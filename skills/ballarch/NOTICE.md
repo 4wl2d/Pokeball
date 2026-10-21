@@ -21,8 +21,10 @@ diagrammatic material in this repository is licensed under the
 
 - the canonical Core specification;
 - developer overviews and translations;
-- the derived Agent Pack;
-- diagrams, examples, and illustrative pseudocode.
+- the agent skill in `skills/ballarch/`;
+- diagrams, and the examples and illustrative pseudocode inside these
+  documents (not the source files under `reference/`, `benchmark/`,
+  `formal/` and `tools/`).
 
 The complete legal code is reproduced in [`LICENSE`](LICENSE). This grant
 applies only to material and rights that the copyright holder is authorized
@@ -49,7 +51,7 @@ Recommended attribution:
 > Changes: describe your changes and retain any prior change notices.
 
 Equivalent attribution is permitted when it satisfies the license. For a
-portable copy of the Core or Agent Pack, retain this notice or reproduce the
+portable copy of the Core or the agent skill, retain this notice or reproduce the
 attribution information in another reasonable form.
 
 ## Legal boundary

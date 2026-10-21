@@ -146,6 +146,19 @@ class SeededViolations(unittest.TestCase):
         t.committed(completed=c, outcome=DONE).committed(completed=c, outcome=DONE).destination(c).end()
         self.assertEqual(["T6: payer/p1#1.0 completed 2 times"], t.violations())
 
+    def test_completion_of_a_call_never_committed(self):
+        c, d = call("1.0"), call("7.0")
+        t = TraceBuilder().recovered().committed(new_calls=[c]).sent(c).committed(completed=c, outcome=DONE)
+        t.committed(completed=d, outcome=DONE).destination(c).end()
+        self.assertEqual(["T6: payer/p1#7.0 completed but never committed"], t.violations())
+        # Completed before the commit that creates it: also a violation, though the call is committed later.
+        early = TraceBuilder().recovered().committed(completed=c, outcome=DONE).committed(new_calls=[c]).end(quiescent=False)
+        self.assertEqual(["T6: payer/p1#1.0 completed but never committed"], early.violations())
+        # Under the Transient profile a call of an earlier epoch is not a call of this one.
+        transient = TraceBuilder("Transient").recovered().committed(new_calls=[c]).recovered(incarnation=2)
+        transient.committed(completed=c, outcome=DONE)
+        self.assertEqual(["[epoch 1] T6: payer/p1#1.0 completed but never committed"], transient.end().violations())
+
     def test_false_not_done(self):
         self.assertEqual(
             ["T7: payer/p1#1.0 reported NotDone(NoAnswer) but its effect was applied 1 time(s)"],

@@ -8,7 +8,7 @@ runtime rules R3 and R5-R9 of the Ballarch Core specification:
 
   T3  decisions of one instance never overlap (R3)
   T5  no call is sent before the decision that created it was committed (R5)
-  T6  each call is completed at most once, and exactly once at quiescence (R6)
+  T6  each call is completed at most once, only after it was committed, and exactly once at quiescence (R6)
   T7  NotDone means nothing was applied; Done means the destination handled it (R7)
   T8  a NonIdempotent call is sent at most once and applied at most once (R8)
   T9  an accepted request is answered at most once (R9)
@@ -345,15 +345,19 @@ def _commit_before_dispatch(events, v):
 
 
 def _one_completion_per_call(events, v, live):
-    """T6: a call is the completedCall of at most one Committed; of exactly one at quiescence when liveness is owed."""
+    """T6: a call is the completedCall of at most one Committed, and only of one that follows the Committed whose
+    newCalls contains it; of exactly one at quiescence when liveness is owed."""
     created = {}  # ordered set
     completed = Counter()
     for e in events:
         if e.name == "Committed":
-            for c in e["newCalls"]:
-                created.setdefault(c, None)
-            if e["completedCall"] is not None:
-                completed[e["completedCall"]] += 1
+            c = e["completedCall"]
+            if c is not None:
+                if c not in created and c not in completed:
+                    v.append(f"T6: {_call(c)} completed but never committed")
+                completed[c] += 1
+            for n in e["newCalls"]:
+                created.setdefault(n, None)
     for c, n in completed.items():
         if n > 1:
             v.append(f"T6: {_call(c)} completed {n} times")

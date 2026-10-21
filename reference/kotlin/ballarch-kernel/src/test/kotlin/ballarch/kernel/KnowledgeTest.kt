@@ -235,6 +235,8 @@ class KnowledgeTest {
         assertEquals(Knowledge.Unknown, unknown.compensatedBy(listOf(notDone, notDone)))
         assertEquals(Knowledge.Unknown, unknown.compensatedBy(emptyList()))
         assertEquals(Knowledge.Done, Outcome.Done(Unit).compensatedBy(listOf(notDone)))
+        // A compensation the Ball may still make enters as Unknown (R14): leaving it out would claim Done.
+        assertEquals(Knowledge.Unknown, Outcome.Done(Unit).compensatedBy(listOf(notDone, Outcome.Unknown(UnknownReason.LostAfterSend))))
     }
 
     @Test

@@ -1,9 +1,9 @@
 # arXiv metadata for the Ballarch paper. Paste each field into the arXiv form as is.
 # Use plain ASCII: straight quotes, "-" for dashes, no TeX macros.
 # arXiv accepts at most 1,920 characters in the abstract field. The abstract
-# below has 1,917 characters. It is the abstract of ballarch.tex in plain
+# below has 1,900 characters. It is the abstract of ballarch.tex in plain
 # text, word for word; its results sentences, from "In a checkout benchmark"
-# to its end, have 453 characters with the space before them. Change both
+# to its end, have 515 characters with the space before them. Change both
 # abstracts together, and recount before submitting, for example with the
 # command below:
 #   sed -n '/^Abstract:$/,/^Comments:/p' arxiv-metadata.txt | sed '1d;$d' | tr -s ' \n' ' ' | sed 's/ $//' | wc -c
@@ -16,9 +16,9 @@ Authors: Vladislav Tomilov
 # and the affiliation "Independent researcher" in the paper's author block.
 
 Abstract:
-Software architecture styles draw boundaries in space: they constrain which code may depend on which. They say little about when an effect may leave a component, or what it may claim after a timeout, when retrying can charge a customer twice and reporting failure can hide a charge that happened. We present Ballarch, which adds two boundaries in time: the commit horizon, the atomic commit of the decision that requests an effect, and the send horizon, the first moment the request may have left the runtime. Transactions, transports and durable execution use these instants locally; Ballarch makes them boundaries of every interaction. Each piece of state has one owner that decides in pure functions. A runtime commits state and requested effects atomically, and ends every outbound request in exactly one outcome, Done, NotDone or Unknown, chosen from its phase and its port's effect class. For operations made of several requests, a knowledge algebra over Kleene's strong three-valued logic bounds what a component may claim. It is sound, and exact for independent calls; a composite that replies with settled knowledge is itself an honest component. The rules are stated once. Level-specific mechanisms check the call-protocol rules and the algebra in a Kotlin runtime (trace oracles, an Alloy model), C firmware (bounded power-loss exploration) and SystemVerilog blocks (netlist checks, fault-injecting benches). Composition across levels is not yet tested. In a checkout benchmark without idempotency keys, naive versions in four styles (a timeout means failure) violated a requirement in 12-94% of runs. Careful versions and Ballarch violated none while the delivery horizon held, but did beyond it; with keys and an attempt timeout, only the careful versions did in sampled runs, after a crash. Ballarch moves this care into its runtime, at a cost in code, framework types, total complexity and change size.
+Software architecture styles draw boundaries in space: they constrain which code may depend on which. They say little about when an effect may leave a component, or what it may claim after a timeout, when retrying can charge a customer twice and reporting failure can hide a charge that happened. We present Ballarch, which adds two boundaries in time: the commit horizon, the atomic commit of the decision that requests an effect, and the send horizon, the first moment the request may have left the runtime. Transactions, transports and durable execution use these instants locally; Ballarch makes them boundaries of every interaction. Each piece of state has one owner that decides in pure functions. A runtime commits state and requested effects atomically, and ends every outbound request in exactly one outcome, Done, NotDone or Unknown, chosen from its phase and its port's effect class. For operations made of several requests, a knowledge algebra over Kleene's strong three-valued logic bounds what a component may claim. It is sound, and exact for independent calls; with a durable call ledger, a composite that replies with settled knowledge is itself an honest component. The rules are stated once. Level-specific mechanisms check the call-protocol rules and the algebra in a Kotlin runtime, C firmware and SystemVerilog blocks. Composition across levels is not yet tested. In a checkout benchmark without idempotency keys, naive versions in four styles (a timeout means failure) violated a requirement in 12-94% of runs. Careful versions and Ballarch violated none while the delivery horizon held, but did beyond it; with keys and an attempt timeout, Ballarch did not in sampled runs, but careful versions that reconcile by status after a crash did. Ballarch's runtime takes over this care, except the reconciliation, at a cost in code, framework types, total complexity and change size.
 
-Comments: 28 pages, 6 tables, 1 figure. Artifacts: https://github.com/4wl2d/Pokeball (v2.0.0-rc.1)
+Comments: 29 pages, 6 tables, 1 figure. Artifacts: https://github.com/4wl2d/Pokeball (v2.0.0-rc.1)
 # The page and table counts are those of ballarch.pdf on 2026-10-21; check them
 # against the PDF you submit. If the repository has been renamed by then, use
 # https://github.com/4wl2d/Ballarch instead.
@@ -39,5 +39,7 @@ License: CC BY 4.0
 
 Keywords: software architecture; fault tolerance; idempotency; three-valued logic; output commit; hardware/software co-design
 # arXiv has no keyword field. The same keywords appear under the abstract of
-# ballarch.tex and in .zenodo.json and CITATION.cff; venues that ask for
-# keywords (Onward!, ICSA) use these.
+# ballarch.tex and in its PDF metadata. CITATION.cff and .zenodo.json describe
+# the software record and share a longer list: these six plus sagas, state
+# machines, fault injection and model checking; keep the three in step before a
+# release. Venues that ask for keywords (Onward!, ICSA) use the six above.

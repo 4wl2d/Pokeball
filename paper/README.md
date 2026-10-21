@@ -20,4 +20,6 @@ make          # ballarch.pdf
 make arxiv    # build/ballarch-arxiv.tar.gz, the source archive for arXiv
 ```
 
+The source fixes the PDF's date and trailer ID, so a rebuild with the same TeX installation reproduces `ballarch.pdf` byte for byte.
+
 [arxiv-metadata.txt](arxiv-metadata.txt) holds the plain-text title, abstract, comments and classes for the arXiv form. [PUBLISHING.md](PUBLISHING.md) lists what to check before submitting, the arXiv policies that apply, candidate venues, and where to announce the work. Nothing has been submitted yet.

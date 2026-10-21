@@ -13,7 +13,8 @@ abstract: >-
   two boundaries in time (the commit and send horizons) and the port's effect
   class. A knowledge algebra over Kleene's three-valued logic bounds what a
   composite operation may claim, so that a composite that replies with its
-  settled knowledge can itself be used as a single component. The
+  settled knowledge can itself be used as a single component, given honest
+  adapters, absorbing compensations and a durable call ledger. The
   distribution contains the specification; reference implementations in
   Kotlin, C and SystemVerilog that check the call-protocol rules and the
   knowledge algebra with level-specific mechanisms (composition across
@@ -43,6 +44,7 @@ keywords:
   - fault tolerance
   - idempotency
   - three-valued logic
+  - output commit
   - sagas
   - state machines
   - fault injection

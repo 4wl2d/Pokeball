@@ -24,7 +24,8 @@ public class Composition {
 
     /**
      * Bind [adapter] to [port]. [retry] applies only to Safe and Idempotent ports;
-     * [maxInFlight] bounds concurrent attempts, and further calls wait in phase Pending.
+     * [maxInFlight] bounds concurrent attempts, and further attempts wait for a free
+     * slot: a new call in phase Pending, a retry or a re-send after a restart in phase Sending.
      */
     @Suppress("UNCHECKED_CAST")
     public fun <Req, Res> adapter(
@@ -70,7 +71,11 @@ public data class Limits(
     val maxOutputsPerDecision: Int = 64,
     val maxTimeoutMillis: Long = 10 * 60 * 1_000L,
     val maxOutbox: Int = 1_024,
-    /** Answered inbound requests kept per instance to deduplicate repeats. */
+    /**
+     * Answered inbound requests kept per instance to deduplicate repeats. A request on a Ball port is kept,
+     * answered or not, until its call's deadline, since the caller may re-send it until then; while this many
+     * are kept, the instance refuses another with `NotDone(Overloaded)`.
+     */
     val repliedRetention: Int = 1_024,
     val repliedRetentionMillis: Long = 60 * 60 * 1_000L,
     /** Delay before retrying delivery of a notice to a full inbox. */

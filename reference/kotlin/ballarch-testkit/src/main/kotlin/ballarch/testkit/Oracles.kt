@@ -84,14 +84,20 @@ public object Oracles {
         }
     }
 
-    /** R6: at most one committed completion per call; exactly one at quiescence when liveness is owed. */
+    /**
+     * R6: at most one committed completion per call, and none for a call that no earlier commit created;
+     * exactly one at quiescence when liveness is owed.
+     */
     private fun oneCompletionPerCall(events: List<TraceEvent>, v: MutableList<String>, live: Boolean) {
         val created = LinkedHashSet<CallId>()
-        val completed = HashMap<CallId, Int>()
+        val completed = LinkedHashMap<CallId, Int>()
         for (e in events) {
             if (e is TraceEvent.Committed) {
+                e.completedCall?.let {
+                    if (it !in created && it !in completed) v += "R6: $it completed but never committed"
+                    completed.merge(it, 1, Int::plus)
+                }
                 created += e.newCalls
-                e.completedCall?.let { completed.merge(it, 1, Int::plus) }
             }
         }
         completed.filterValues { it > 1 }.forEach { (id, n) -> v += "R6: $id completed $n times" }

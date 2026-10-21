@@ -139,6 +139,12 @@ public class Runtime(
                 waiter = waiter,
             )
             waiter.timer = scheduler.schedule(timeoutMillis) { onLoopNow { externalDeadline(inst, input, waiter) } }
+            // A repeat of a request the instance already accepted joins or replays it, even when the inbox is
+            // full: refusing it would report NotDone for an operation that may have taken effect (Core §3.3).
+            if (input.dedup && requestId in inst.record.inbound) {
+                handleRequest(inst, input)
+                return@onLoop
+            }
             if (!inst.offer(input)) waiter.finish(refusal(inst))
         }
     }
@@ -273,6 +279,12 @@ public class Runtime(
         if (input.waiter?.done == true) return // the external caller already timed out; withdrawn
         if (now > input.deadlineAt) {
             reject(inst, input, Outcome.NotDone(NotDoneReason.DeadlineBeforeSend))
+            return
+        }
+        // A call on a Ball port may be re-sent until its deadline, and its entry is kept until then (pruneReplied).
+        // So the retention bound limits how many such requests an instance holds, and one more is refused (R11).
+        if (input.replyTo is ReplyTarget.ToCall && inst.record.inbound.values.count { awaitsResend(it, now) } >= limits.repliedRetention) {
+            reject(inst, input, Outcome.NotDone(NotDoneReason.Overloaded))
             return
         }
         val ctx = RtRequestContext(inst.id, now, inst.record.revision + 1, input.requestId, input.caller)
@@ -529,15 +541,27 @@ public class Runtime(
         if (newNotices.any { it.pendingSubscribers.isNotEmpty() }) deliverOutbox(inst)
     }
 
+    /**
+     * Forgets answered requests beyond the retention bounds, oldest first, but never one that its caller may
+     * still re-send: then the repeat is answered from the record and not decided again (Core §3.3, §3.4).
+     */
     private fun pruneReplied(inbound: LinkedHashMap<RequestId, InboundRecord>, now: Long) {
         val replied = inbound.values.filter { it.reply != null }
-        val expired = replied.filter { now - (it.repliedAt ?: now) > limits.repliedRetentionMillis }
+        val expired = replied.filter { now - (it.repliedAt ?: now) > limits.repliedRetentionMillis && !awaitsResend(it, now) }
         expired.forEach { inbound.remove(it.requestId) }
         val excess = replied.size - expired.size - limits.repliedRetention
         if (excess > 0) {
-            replied.filter { it !in expired }.sortedBy { it.repliedAt }.take(excess).forEach { inbound.remove(it.requestId) }
+            replied.filter { it !in expired && !awaitsResend(it, now) }.sortedBy { it.repliedAt }.take(excess)
+                .forEach { inbound.remove(it.requestId) }
         }
     }
+
+    /**
+     * Whether the caller of [entry]'s request may still send it again: a call on a Ball port, which a Durable
+     * runtime re-sends after a restart until the call's deadline. Requests from outside are repeated only by
+     * their clients, within the retention bounds.
+     */
+    private fun awaitsResend(entry: InboundRecord, now: Long): Boolean = entry.replyTo is ReplyTarget.ToCall && now <= entry.deadlineAt
 
     private fun saveLedger(inst: Instance, call: CallRecord) {
         val record = inst.record.copy(calls = inst.record.calls + (call.key to call))
@@ -565,6 +589,13 @@ public class Runtime(
             return
         }
         val bound = adapters[call.portName]
+        if (bound != null && call.cancelRequested) {
+            // Cancelled between attempts (before a retry, or before a re-send after a restart): no further attempt
+            // is made. A cancelled timer has not fired (Core §2.4); other attempts ended without an answer. A cancel
+            // does not stop a call on a Ball port, so such a call is re-sent as usual.
+            resolve(inst, key, if (call.portName == Timer.port.name) Outcome.NotDone(NotDoneReason.NotApplied("timer cancelled")) else noAnswer(call))
+            return
+        }
         if (bound != null) {
             val busy = inFlight[call.portName] ?: 0
             if (busy >= bound.maxInFlight) {
@@ -606,8 +637,8 @@ public class Runtime(
         while (q.isNotEmpty()) {
             val next = q.removeFirst()
             val inst = instances[next.caller] ?: continue
-            val call = inst.record.calls[next.key] ?: continue
-            if (next.key in inst.resolved || call.phase != Phase.Pending) continue
+            if (inst.record.calls[next.key] == null || next.key in inst.resolved || next.key in inst.currentAttempt) continue
+            // A first attempt (phase Pending) or a later one (a retry or a re-send after a restart, phase Sending).
             startSend(inst, next.key)
             return
         }
@@ -668,13 +699,15 @@ public class Runtime(
             scheduler.schedule(retry.backoffMillis) { onLoopNow { if (key !in inst.resolved) startSend(inst, key) } }
             return
         }
-        val outcome: Outcome<Any?> = when (effect) {
-            EffectClass.Safe -> Outcome.NotDone(NotDoneReason.NoAnswer)
-            EffectClass.Idempotent ->
-                Outcome.Unknown(if (call.attempts > 1) UnknownReason.RetriesExhausted else UnknownReason.LostAfterSend)
-            EffectClass.NonIdempotent -> Outcome.Unknown(UnknownReason.LostAfterSend)
-        }
-        resolve(inst, key, outcome)
+        resolve(inst, key, noAnswer(call))
+    }
+
+    /** The outcome of a possibly-sent call whose attempts all ended without an answer, when no attempt follows. */
+    private fun noAnswer(call: CallRecord): Outcome<Any?> = when (call.effect) {
+        EffectClass.Safe -> Outcome.NotDone(NotDoneReason.NoAnswer)
+        EffectClass.Idempotent ->
+            Outcome.Unknown(if (call.attempts > 1) UnknownReason.RetriesExhausted else UnknownReason.LostAfterSend)
+        EffectClass.NonIdempotent -> Outcome.Unknown(UnknownReason.LostAfterSend)
     }
 
     private fun onDeadline(inst: Instance, key: CallKey) {
@@ -729,14 +762,24 @@ public class Runtime(
             resolve(caller, call.key, Outcome.NotDone(NotDoneReason.NotApplied("unknown Ball type '$destType'")))
             return
         }
+        val requestId = RequestId(callId.toString())
+        val accepted = dest.record.inbound[requestId]
+        if (accepted != null) {
+            // A re-send after a restart of a request the destination accepted joins it (Core §3.3) without using
+            // the inbox: its stored answer now, or the reply the destination still owes to this call.
+            accepted.reply?.let { routeBallReply(callId, it) }
+            return
+        }
         val input = Input.Request(
-            requestId = RequestId(callId.toString()),
+            requestId = requestId,
             message = call.request,
             caller = Caller(ball = caller.id),
             deadlineAt = call.deadlineAt,
             replyTo = ReplyTarget.ToCall(callId),
             dedup = true,
         )
+        // No earlier attempt was accepted: its entry would be kept until the call's deadline (pruneReplied). So a
+        // refusal here is evidence of non-application for every attempt.
         if (!dest.offer(input)) resolve(caller, call.key, refusal(dest))
     }
 

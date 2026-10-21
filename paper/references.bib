@@ -702,6 +702,38 @@
   note         = {Schedule-To-Start (until a worker picks up the task; never retried) and Start-To-Close timeouts; accessed 2026-10-21 via github.com/temporalio/documentation (detecting-activity-failures.mdx)}
 }
 
+@misc{AWSDurableSteps,
+  author       = {{Amazon Web Services}},
+  title        = {{AWS Lambda} Durable Execution {SDK} for {Java}: Steps},
+  howpublished = {\url{https://github.com/aws/aws-durable-execution-sdk-java/blob/main/docs/core/steps.md}},
+  year         = {2026},
+  note         = {Step semantics AT\_LEAST\_ONCE\_PER\_RETRY and AT\_MOST\_ONCE\_PER\_RETRY (checkpoint before execution; StepInterruptedException when retries are exhausted). Lambda durable functions generally available since 2025-12-02; accessed 2026-10-21}
+}
+
+@misc{GolemDurability,
+  author       = {{Golem Cloud}},
+  title        = {{Golem} Documentation: Durability},
+  howpublished = {\url{https://learn.golem.cloud/develop/durability}},
+  year         = {2026},
+  note         = {Idempotence mode: HTTP requests are assumed idempotent by default; with the mode off, a request whose delivery cannot be determined fails the worker. Checked on 2026-10-21 through search-engine extracts of the page, which could not be reached from here, and golemcloud/golem pull requests 4198 and 4207 (merged 2026-10-16), which keep the refusal for requests that cannot be re-executed and remove the global mode from the main branch}
+}
+
+@misc{RestateServices,
+  author       = {{Restate}},
+  title        = {{Restate} Documentation: Services, Virtual Objects and Workflows},
+  howpublished = {\url{https://docs.restate.dev/concepts/services}},
+  year         = {2026},
+  note         = {Virtual objects: keyed, isolated K/V state, at most one handler with write access at a time per key, state committed atomically with the handler's execution; checked against docs/concepts/services.mdx in github.com/restatedev/documentation, accessed 2026-10-21}
+}
+
+@misc{MCPTools,
+  author       = {{Model Context Protocol authors}},
+  title        = {{Model Context Protocol} Specification, Revision 2025-03-26: Tools},
+  howpublished = {\url{https://modelcontextprotocol.io/specification/2025-03-26/server/tools}},
+  year         = {2025},
+  note         = {ToolAnnotations: readOnlyHint, destructiveHint, idempotentHint and openWorldHint, all declared hints; checked against schema/2025-03-26/schema.ts in github.com/modelcontextprotocol/modelcontextprotocol, accessed 2026-10-21}
+}
+
 @misc{ProtobufDescriptor,
   author       = {{Protocol Buffers authors}},
   title        = {descriptor.proto: the {\texttt{idempotency\_level}} method option},
@@ -753,6 +785,29 @@
   pages   = {481--495},
   year    = {1966},
   doi     = {10.2307/2024549}
+}
+
+@article{BauerLeuckerSchallhart2011,
+  author  = {Andreas Bauer and Martin Leucker and Christian Schallhart},
+  title   = {Runtime Verification for {LTL} and {TLTL}},
+  journal = {ACM Transactions on Software Engineering and Methodology},
+  volume  = {20},
+  number  = {4},
+  year    = {2011},
+  doi     = {10.1145/2000799.2000800},
+  note    = {Article 14}
+}
+
+@inproceedings{DongLeuckerSchallhart2008,
+  author    = {Wei Dong and Martin Leucker and Christian Schallhart},
+  title     = {Impartial Anticipation in Runtime-Verification},
+  booktitle = {Automated Technology for Verification and Analysis (ATVA 2008)},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {5311},
+  pages     = {386--396},
+  publisher = {Springer},
+  year      = {2008},
+  doi       = {10.1007/978-3-540-88387-6_33}
 }
 
 @article{Eichelberger1965,

@@ -61,7 +61,7 @@ python3 tools/oracles.py reference/kotlin/ballarch-runtime/build/conformance-tra
 python3 tools/oracles.py --expect-violations reference/kotlin/ballarch-runtime/build/conformance-traces/seeded/*.jsonl
 ```
 
-The first command runs the oracles' own tests (26 tests). The second checks the 46 traces from explorations and clean runs, all of which must pass: it prints `oracles.py: 46 trace(s), 0 violation(s), 0 invalid`. The third checks the 10 traces in `seeded/`, each with one seeded violation, all of which must fail. Each command exits with 0 on success. A runtime in another language can be checked the same way once it writes this format.
+The first command runs the oracles' own tests (27 tests). The second checks the 46 traces from explorations and clean runs, all of which must pass: it prints `oracles.py: 46 trace(s), 0 violation(s), 0 invalid`. The third checks the 11 traces in `seeded/`, each with one seeded violation, all of which must fail. Each command exits with 0 on success. A runtime in another language can be checked the same way once it writes this format.
 
 ## Alloy model
 
@@ -147,8 +147,10 @@ Method, change requests and threats to validity: [benchmark/README.md](../benchm
 From `paper`, with TeX Live 2023 or later:
 
 ```sh
-latexmk -pdf ballarch.tex
+make arxiv
 ```
+
+This builds `ballarch.pdf` and the arXiv source archive `build/ballarch-arxiv.tar.gz` (the `.tex`, `.bib` and `.bbl`). The PDF has fixed dates and a fixed document ID, so rebuilding it with the same TeX Live changes nothing; a different TeX Live version may still change its bytes.
 
 ## Documentation
 
