@@ -19,7 +19,7 @@ The rules describe owned state, atomic commit and outcomes of requests, and sync
 Those draw boundaries in space: which code may depend on which. Ballarch keeps that discipline (adapters at the edge, a composition root) and adds boundaries in time, plus rules about what a component may claim about effects. In the [benchmark](../benchmark/), an idiomatic Clean Architecture checkout double-charged or reported charged orders as failed under faults. The same layers hardened by hand were correct, but needed the fault handling written into the feature.
 
 **Is it a framework?**
-The kernel is about 170 lines of types with no dependencies. The reference runtime is about 1,000 lines. Other runtimes may implement the [specification](../spec/ballarch-core-2.0.md); conformance is defined in §9.
+The kernel is about 260 lines of code (types and the knowledge algebra) with no dependencies. The reference runtime is about 1,000 lines. Other runtimes may implement the [specification](../spec/ballarch-core-2.0.md); conformance is defined in §9.
 
 **Does it give exactly-once effects?**
 No. It guarantees that a non-idempotent call is sent at most once, and that the application is told honestly when the runtime cannot know whether the call took effect (`Unknown`). Idempotent destinations, keyed by the call identity, make most `Unknown` outcomes disappear after retries.
