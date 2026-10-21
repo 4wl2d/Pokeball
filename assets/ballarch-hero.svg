@@ -51,10 +51,10 @@
   <!-- Timeline: commit and send horizons, then the three outcomes. -->
   <g font-family="Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15" font-weight="600">
     <line x1="790" y1="338" x2="1134" y2="338" stroke="#58A6FF" stroke-opacity="0.55" stroke-width="2"/>
-    <line x1="850" y1="326" x2="850" y2="350" stroke="#F0F6FC" stroke-width="3"/>
-    <text x="850" y="372" fill="#C9D1D9" text-anchor="middle">commit</text>
-    <line x1="930" y1="326" x2="930" y2="350" stroke="#F0F6FC" stroke-width="3"/>
-    <text x="930" y="372" fill="#C9D1D9" text-anchor="middle">send</text>
+    <line x1="828" y1="326" x2="828" y2="350" stroke="#F0F6FC" stroke-width="3"/>
+    <text x="828" y="372" fill="#C9D1D9" text-anchor="middle">commit</text>
+    <line x1="895" y1="326" x2="895" y2="350" stroke="#F0F6FC" stroke-width="3"/>
+    <text x="895" y="372" fill="#C9D1D9" text-anchor="middle">send</text>
     <circle cx="1010" cy="338" r="9" fill="#58A6FF"/>
     <circle cx="1052" cy="338" r="8" fill="#0A1628" stroke="#58A6FF" stroke-width="2.5"/>
     <path d="M1094 329a9 9 0 0 1 0 18z" fill="#58A6FF"/>
