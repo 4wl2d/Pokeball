@@ -27,7 +27,7 @@ Idempotent has the narrow meaning of Core §2: the destination recognises a repe
 | Reconciliation | read a status or counter register that records whether the command took effect |
 | Profile | Transient: registers do not survive reset |
 
-The reference block is [`reference/rtl/rtl/ballarch_issuer.sv`](../reference/rtl/rtl/ballarch_issuer.sv). Yosys checks one driver per register (R1), no latch in the decider (R2), and no combinational path from an input to a dispatched output (R5). A fault-injecting bench checks R5–R8 against the device model. Writing this block, the first draft reported `NOT_DONE` for a withdrawn retry after an earlier attempt had already been applied, and the bench caught it. The rules are subtle enough to need checks at this level too.
+The reference blocks are [`ballarch_issuer.sv`](../reference/rtl/rtl/ballarch_issuer.sv), which issues commands, and [`ballarch_composite.sv`](../reference/rtl/rtl/ballarch_composite.sv), which performs a two-step operation through it and keeps the operation's knowledge (R14) in a status register. Each truth value *a* takes two bits, *a1* (may be Yes) and *a0* (may be No): Yes is `10`, No is `01` and Maybe is `11`. Kleene's AND is then `{a1 & b1, a0 | b0}` and OR is `{a1 | b1, a0 & b0}`. Yosys checks one driver per register (R1), no latch and no storage other than flip-flops (R2), one rising clock edge for all state with no input reaching an asynchronous pin (R4), and no path from an input to an output except through a register (R5). Fault-injecting benches check R5–R8 against the device model, and R14 for the composite's status register. Writing the issuer, the first draft reported `NOT_DONE` for a withdrawn retry after an earlier attempt had already been applied, and the bench caught it; the bug is kept as a seeded bug that the bench must catch. The rules are subtle enough to need checks at this level too.
 
 ## Embedded firmware
 
@@ -42,7 +42,7 @@ The reference block is [`reference/rtl/rtl/ballarch_issuer.sv`](../reference/rtl
 | Reconciliation | read the device's counter or log after its delivery horizon; never repeat a NonIdempotent command blindly |
 | Profile | Durable, if state and the call ledger are kept in NVM and time comes from a clock that keeps running |
 
-The reference is [`reference/c/`](../reference/c/): an infusion-pump controller, explored by a bounded exhaustive search over link fates and power-loss points, including torn writes. An object-file check rejects decider code that references an external symbol (R2) or defines writable data (R1). It is necessary but not sufficient: memory-mapped I/O and inline assembly leave no symbol and need review.
+The reference is [`reference/c/`](../reference/c/), with two examples: an infusion-pump controller, and a two-valve transfer whose controller keeps its knowledge (R14) in the committed record and returns it to a status request. Both are explored by a bounded exhaustive search with one fault at every power-loss point and NVM write, including torn writes, and over the link fates of the first transmissions (6 for dosing, 7 for the transfer; more in `make deep`). A purity lint reads the decider's object file (no external symbol except compiler helpers, no writable section), its preprocessed source (no `volatile`, assembly, pointer casts or hosted headers) and, with clang, its syntax tree. It is necessary, not sufficient: the reference's README lists what it does not detect, such as pointer arithmetic from an argument into other memory.
 
 Intermittent-computing research meets the same hazard on energy-harvesting devices. Code re-executed after a power failure can corrupt memory through I/O (Surbatovich, Jia and Lucia 2019), peripheral operations need their own checkpointing (Maeng and Lucia 2019), and EaseIO (Yildiz et al. 2023) lets the programmer annotate each I/O call with its re-execution semantics, the closest firmware analogue of effect classes. Those systems aim to make re-execution correct. Ballarch instead never re-executes a NonIdempotent command whose fate is unknown: it reports `Unknown` and leaves the follow-up to a Safe status query.
 
@@ -86,9 +86,9 @@ The [catalog example](../reference/kotlin/examples/catalog/) is a read-only (Saf
 | Compensation | count it as undoing an effect only if it is absorbing: the partner fences the reference, as the fence of Try-Confirm/Cancel frameworks does when a cancel arrives before the try, or the original request's horizon has passed |
 | Reconciliation | per leg, through each provider's Safe status port |
 | Profile | Durable: the Flow keeps its state and call ledger as long as its legs' effects persist (Core §7.4) |
-| Closure | a Flow that obeys R14 and answers with its settled knowledge, in a deferred reply, is one honest port for the level above (Core §7.4). A status given before the workflow settles either counts every call the Flow may still make as `Maybe` or is a snapshot that says so. |
+| Closure | a Flow that obeys R14 and answers with its settled knowledge, in a deferred reply, is one honest port for its caller, which may itself be a Flow (Core §7.4). A status given before the workflow settles either counts every call the Flow may still make as `Maybe` or is a snapshot that says so. A caller whose deadline is shorter than the time the Flow needs to settle gets `Unknown`, which is honest but loses information. |
 
-See the [trip example](../reference/kotlin/examples/trip/). Under every fault and crash it explores, the knowledge it reports once the trip is settled never contradicts the providers' bookings; the usual two-valued status is wrong in 19% of the same runs.
+See the [trip example](../reference/kotlin/examples/trip/). Under every fault and crash it explores, including booking requests that reach a provider after their compensation, neither the status it holds at any step nor its settled knowledge contradicts the providers' bookings. The usual two-valued status is wrong in 1,190 of the 6,435 settled runs, all of them runs in which the trip gave up compensating. The [itinerary example](../reference/kotlin/examples/itinerary/) nests the trip in another Flow: it books two trips through the trip's port, adds their settled replies, and stays honest in every run it explores.
 
 Hardware readers can read `Maybe` as Verilog's `x`. *all* and *any* are an AND and an OR over the legs' net effects, and each leg enters once, so `x` propagates through them exactly, without the pessimism of reconvergent fanout (Core §4.2).
 
@@ -109,7 +109,7 @@ NVMe and virtio queues, and DMA rings in general.
 | `Unknown` | a command that timed out after the doorbell and was still outstanding when the driver reset the controller |
 | Reconciliation | the queue's owner, after the reset: read back the block range, the zone's write pointer or a device log. A NonIdempotent command outstanding at the reset is not resubmitted; its submitter receives `Unknown`. |
 | Profile | Transient: queue state does not survive a controller reset |
-| Checks that would apply | the C reference's object-file check on a decider compiled on its own (R1, R2); fault injection that drops completions and resets a device model at every point between doorbell and completion (R5–R8) |
+| Checks that would apply | the C reference's purity lint on a decider compiled on its own (R1, R2); fault injection that drops completions and resets a device model at every point between doorbell and completion (R5–R8) |
 
 ### GPU and accelerator command queues
 
@@ -152,7 +152,7 @@ This extends the [firmware](#embedded-firmware) section to preemptive systems.
 | `Unknown` | a watchdog reset or brown-out while a command was possibly sent; a started DMA transfer whose completion never came. A CAN controller's confirmation of a transmit abort shows only that it will not send the frame again, so the command stays `Unknown`. It is evidence for `NotDone` only if the controller also reports that transmission never started, for example because the frame was still waiting for the bus: receivers accept a frame at the last-but-one bit of end-of-frame, one bit before the transmitter counts it as sent, so an error in the last bit can make the transmitter give up on a frame that receivers have accepted. |
 | Reconciliation | the owning task after a restart, from the device's status or counters |
 | Profile | Transient, unless the task's state and call ledger are kept in NVM or a file; a watchdog reset is then a crash under the Durable profile |
-| Checks that would apply | the C reference's checks, for a decider built as its own translation unit: the object-file check (R1, R2) and power-loss exploration, which also covers a watchdog reset at every point (R4–R8) |
+| Checks that would apply | the C reference's checks, for a decider built as its own translation unit: the purity lint (R1, R2) and power-loss exploration, which also covers a watchdog reset at every point (R4–R8) |
 
 ### Programmable logic controllers
 
@@ -248,4 +248,4 @@ AUTOSAR Classic-style communication between software components.
 - The rules R1–R14, and the meaning of `Done`, `NotDone` and `Unknown`. A level without some element, such as deferred replies, has nothing for the corresponding rule to check (Core §9.4).
 - The question a reviewer asks: *can this component claim something its evidence does not establish?*
 
-What changes is the mechanism that checks the rules: bytecode rules and trace oracles in a JVM service, object-file checks and power-loss exploration in firmware, lint and structural netlist checks in RTL. The firmware and RTL references check the call-protocol rules; only the JVM reference checks the knowledge algebra, and no reference composes levels ([Core §11](../spec/ballarch-core-2.0.md#11-interpretation-across-levels-informative)).
+What changes is the mechanism that checks the rules: bytecode rules and trace oracles in a JVM service; a purity lint and power-loss exploration in firmware; lint, structural netlist checks and fault-injecting benches in RTL. All three references check the call-protocol rules and the knowledge algebra: the JVM reference with its trip and itinerary examples, the firmware with its C algebra and transfer example, the RTL with its composite block. The itinerary nests one Flow inside another, two depths of composition at one level, but no reference composes different levels, for example firmware that drives the RTL block as a Ball behind a port ([Core §11](../spec/ballarch-core-2.0.md#11-interpretation-across-levels-informative)).

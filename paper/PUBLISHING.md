@@ -23,12 +23,13 @@ Nothing has been submitted or published. Every step below is the author's decisi
    Open each of these entries and check it against the source before submitting.
 4. **Re-run every check** on the commit you submit ([verification guide](../docs/reproducibility.md)):
    - `./gradlew build checkModuleBoundaries`;
-   - `make` in `reference/c` and `reference/rtl`;
+   - from the repository root, `python3 -m unittest discover -s tools -p 'test_*.py'`, then `python3 tools/oracles.py` on the conformance traces the build writes to `reference/kotlin/ballarch-runtime/build/conformance-traces/` (every top-level trace must pass, and with `--expect-violations` every trace in `seeded/` must fail);
+   - `make` in `reference/c` and `reference/rtl`, and `make sanitize` and `make deep` in `reference/c` (the paper quotes the deep counts);
    - the Alloy runner;
    - the benchmark;
    - the documentation checks;
    - `make arxiv` here;
-   - the character count of the abstract in [`arxiv-metadata.txt`](arxiv-metadata.txt), after the benchmark's results replace its `[NUMBERS PENDING]` marker.
+   - the character count of the abstract in [`arxiv-metadata.txt`](arxiv-metadata.txt), after the benchmark's results replace its `[NUMBERS PENDING]` marker. The results sentences of the LaTeX abstract, from "In a benchmark" to its end, run to 600 characters as plain text, but only 456 fit: cut them in `ballarch.tex` to that length (or shorten the rest of both abstracts by the difference) before copying them into `arxiv-metadata.txt`.
 5. **Software license.** The code has no software license. arXiv does not need one, but artifact evaluation, reuse and a software DOI do. Choose one before tagging any release:
    - set `license` in `CITATION.cff` to its SPDX id (replacing `license-url`), and `"license"` in [`.zenodo.json`](../.zenodo.json) to its Zenodo id;
    - keep the CC BY 4.0 grant for text and diagrams in `message`, `notes` and `NOTICE.md`;
@@ -70,7 +71,7 @@ arXiv is a preprint server. A peer-reviewed venue gives the work standing, and s
 
 | Venue | Fit | What it needs |
 |---|---|---|
-| **Onward! Papers** (SPLASH) | new ideas with a substantial worked example and an implementation | ≤ 17 pages + references, double-blind; anonymize the repository link; reformat to the `acmart` class with CCS concepts (`\ccsdesc`) and `\keywords` |
+| **Onward! Papers** (SPLASH) | new ideas with a substantial worked example and an implementation | ≤ 17 pages + references, double-blind; anonymize the repository link; reformat to the `acmart` class with CCS concepts (`\ccsdesc`) and `\keywords`. The arXiv version's main text runs to page 19, so check the length after reformatting and move detail to the repository if needed |
 | **The Art, Science, and Engineering of Programming** (*Programming* journal) | programming models and styles, with scholarly placement | ≤ 22 pages; three deadlines per year |
 | **ICSA** (Software Architecture) research track or New and Emerging Ideas | architecture styles with evaluation | research track: empirical evaluation (the benchmark); NEMI: ≤ 5 pages; reformat to the IEEE conference template with Index Terms |
 | **EuroPLoP / PLoP** | the rules as a pattern language with known uses | pattern form, shepherding, writers' workshop |

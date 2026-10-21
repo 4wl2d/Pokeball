@@ -5,12 +5,13 @@
 The paper presents Ballarch Core 2.0:
 - the boundaries in time;
 - the outcome classification;
-- the knowledge algebra, its soundness and exactness propositions and the composition-closure corollary;
-- the rules, with the mechanisms that check them at each of three levels;
+- the knowledge algebra, its soundness and exactness propositions and the composition-closure corollary, with explorations of a composite (the trip) and of a composite of composites (the itinerary);
+- the rules, with the mechanisms that check them at each of three levels, including the knowledge algebra in firmware and hardware;
+- the language-neutral conformance trace and the reference runtime's checks for code changes under open obligations;
 - the Alloy model;
 - the benchmark.
 
-Every number in it comes from a check in this repository, except the earlier prototype measurements named under Limitations, whose data is not published; the [verification guide](../docs/reproducibility.md) shows how to reproduce the rest.
+Every number in it comes from a check or a source file in this repository, except the earlier prototype measurements named under Limitations, whose data is not published; the [verification guide](../docs/reproducibility.md) shows how to reproduce the rest.
 
 Build with TeX Live 2023 or later:
 

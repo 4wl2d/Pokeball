@@ -1,11 +1,14 @@
 # arXiv metadata for the Ballarch paper. Paste each field into the arXiv form as is.
 # Use plain ASCII: straight quotes, "-" for dashes, no TeX macros.
 # arXiv accepts at most 1,920 characters in the abstract field. Without the
-# [NUMBERS PENDING] marker the abstract below has 1,413 characters, so the
+# [NUMBERS PENDING] marker the abstract below has 1,464 characters, so the
 # results sentences that replace the marker, with the space before them, may
-# use at most 507 characters. The text must say what the abstract of
-# ballarch.tex says. Recount before submitting, for example with the command
-# below:
+# use at most 456 characters. The text must say what the abstract of
+# ballarch.tex says. The results sentences of that abstract, from "In a
+# benchmark" to its end, run to 600 characters in this plain form, so they
+# do not fit: cut them in ballarch.tex to 456 characters or fewer (or shorten
+# the rest of both abstracts by the difference), then copy them here.
+# Recount before submitting, for example with the command below:
 #   sed -n '/^Abstract:$/,/^Comments:/p' arxiv-metadata.txt | sed '1d;$d' | tr -s ' \n' ' ' | sed 's/ $//' | wc -c
 # Lines starting with "#" are notes, not metadata.
 
@@ -16,7 +19,7 @@ Authors: Vladislav Tomilov
 # and the affiliation "Independent researcher" in the paper's author block.
 
 Abstract:
-Software architecture styles draw boundaries in space: they constrain which code may depend on which. They say little about when an effect may leave a component, or what it may claim after a timeout, when retrying can charge a customer twice and reporting failure can hide a charge that happened. We present Ballarch, which adds two boundaries in time: the commit horizon, the atomic commit of the decision that requests an effect, and the send horizon, the first moment the request may have left the runtime. Transactions, transports and durable execution use these instants locally; Ballarch makes them boundaries of every interaction. Each piece of state has one owner that decides in pure functions. A runtime commits state and requested effects atomically, and ends every outbound request in exactly one outcome, Done, NotDone or Unknown, chosen from its phase and its port's effect class. For operations made of several requests, a knowledge algebra over Kleene's strong three-valued logic bounds what a component may claim. It is sound, and exact for independent calls; a composite that replies with settled knowledge is an honest component one level up. The rules are stated once. Level-specific mechanisms check the call-protocol rules in a Kotlin runtime (trace oracles, an Alloy model), C firmware (bounded power-loss exploration) and a SystemVerilog block (netlist checks and a fault-injecting bench). [NUMBERS PENDING: the benchmark's results, as in the abstract of ballarch.tex]
+Software architecture styles draw boundaries in space: they constrain which code may depend on which. They say little about when an effect may leave a component, or what it may claim after a timeout, when retrying can charge a customer twice and reporting failure can hide a charge that happened. We present Ballarch, which adds two boundaries in time: the commit horizon, the atomic commit of the decision that requests an effect, and the send horizon, the first moment the request may have left the runtime. Transactions, transports and durable execution use these instants locally; Ballarch makes them boundaries of every interaction. Each piece of state has one owner that decides in pure functions. A runtime commits state and requested effects atomically, and ends every outbound request in exactly one outcome, Done, NotDone or Unknown, chosen from its phase and its port's effect class. For operations made of several requests, a knowledge algebra over Kleene's strong three-valued logic bounds what a component may claim. It is sound, and exact for independent calls; a composite that replies with settled knowledge is itself an honest component. The rules are stated once. Level-specific mechanisms check the call-protocol rules and the algebra in a Kotlin runtime (trace oracles, an Alloy model), C firmware (bounded power-loss exploration) and SystemVerilog blocks (netlist checks, fault-injecting benches). Composition across levels is not yet tested. [NUMBERS PENDING: the benchmark's results, as in the abstract of ballarch.tex]
 
 Comments: [N] pages, [T] tables, 1 figure. Artifacts: https://github.com/4wl2d/Pokeball (v2.0.0-rc.1)
 # Fill in the page and table counts from the PDF you submit. If the repository

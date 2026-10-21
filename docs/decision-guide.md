@@ -20,7 +20,8 @@ Unverified, from an earlier prototype comparison whose data and harness are not 
 
 Also:
 
-- **A runtime to depend on.** The reference runtime is about 1,000 lines. It is a research prototype; its file store is single-node and has no replication.
+- **A runtime to depend on.** The reference runtime is about 1,100 lines. It is a research prototype; its file store is single-node and has no replication.
+- **Deploys that respect open obligations.** Under the Durable profile, a port, a Ball type or a subscription that still has open calls, records or undelivered notices must be drained before a deploy removes it; otherwise the runtime refuses to start and names each record ([Core §6.1](../spec/ballarch-core-2.0.md#61-evolution)). A Ball type that changes its state's shape needs a version and a migration. A rolling deploy needs a handover that keeps two runtimes from owning one instance, which the runtime does not provide.
 
 ## What you get
 
@@ -29,12 +30,13 @@ Also:
   - Ballarch, and the layered version hardened by hand with the specification's reconciliation procedure, did so in none of 2,000 runs per cell;
   - in the hardened version, the knowledge lives in the feature: a write-ahead status, 5 `catch` clauses, and reconciliation by hand. In Ballarch, it lives in the runtime and in `Outcome` branches.
 - **Explicit states for ambiguity.** `Unknown` is a type, not a timeout exception that each call site maps differently.
-- **Honest composites.** The knowledge algebra (Core §4.2) keeps a workflow from reporting "failed" after a partial or uncertain effect, provided it counts every call it may still make as unknown and replies once it is settled (R14, §7.4).
+- **Honest composites.** The knowledge algebra (Core §4.2) keeps a workflow from reporting "failed" after a partial or uncertain effect, provided it counts every call it may still make as unknown and replies once it is settled (R14, §7.4). The [itinerary example](../reference/kotlin/examples/itinerary/) nests two such workflows in a third and stays honest.
 - **Pure code and lower static coupling.** 88% of Ballarch's feature code was in pure classes, against 26–59% for the others. It had the lowest propagation cost of the six designs. Propagation cost is a static proxy computed from dependencies; it is not a measurement of how far real changes spread.
 - **Testability.** A decider is a pure function. The same test kit runs a whole feature under simulated faults and crashes against ground truth (see the [tutorial](tutorial.md)).
-- **Mechanical checks.** At each level:
-  - services: architecture rules (ArchUnit), a module-boundary check, runtime oracles, an adapter conformance kit;
-  - firmware and RTL: object-file and netlist checks, power-loss exploration and a fault-injecting bench. These check the call-protocol rules; the knowledge algebra is checked only for services.
+- **Mechanical checks at each level.** All three levels check the call-protocol rules and the knowledge algebra:
+  - services: architecture rules (ArchUnit), a module-boundary check, runtime oracles that also run on language-neutral conformance traces, an adapter conformance kit;
+  - firmware: a purity lint of the decider (object file, preprocessed source and, with clang, syntax tree) and power-loss exploration;
+  - RTL: netlist checks and fault-injecting benches.
 
 ## Use it when…
 
